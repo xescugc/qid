@@ -11,6 +11,7 @@ import (
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
 	"go.uber.org/mock/gomock"
+	"gocloud.dev/pubsub"
 )
 
 func TestCreatePipeline(t *testing.T) {
@@ -45,7 +46,12 @@ func TestTriggerPipelineJob(t *testing.T) {
 	jn := "job-name"
 
 	s.Jobs.EXPECT().Find(ctx, ppn, jn).Return(&job.Job{ID: 2}, nil)
-	s.Queue.EXPECT().Push(ctx, ppn, jn).Return(nil)
+	s.Topic.EXPECT().Send(ctx, &pubsub.Message{
+		Metadata: map[string]string{
+			"pipeline_name": ppn,
+			"job_name":      jn,
+		},
+	}).Return(nil)
 
 	err := s.S.TriggerPipelineJob(ctx, ppn, jn)
 	require.NoError(t, err)

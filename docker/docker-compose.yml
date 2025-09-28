@@ -13,18 +13,13 @@ services:
     networks:
       - qid
 
-  asynqmon:
-    networks:
-      - qid
-    depends_on:
-      - redis
-
   mariadb:
     image: mariadb:11.4.2
     networks:
       - qid
 
-  redis:
+  nats:
+    image: nats:2.12.0
     networks:
       - qid
 

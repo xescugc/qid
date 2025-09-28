@@ -4,7 +4,7 @@
       "name": "echo1",
       "plan": [
         {
-          "task": "touch-qid",
+          "task": "echo",
           "task_config":{
             "run":{
               "path":"echo",

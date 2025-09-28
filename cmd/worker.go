@@ -6,7 +6,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/hibiken/asynq"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/cliflagv3"
 	"github.com/knadh/koanf/providers/env/v2"
@@ -17,7 +16,10 @@ import (
 	"github.com/xescugc/qid/qid/transport/http/client"
 	"github.com/xescugc/qid/worker"
 	"github.com/xescugc/qid/worker/config"
-	wpasynq "github.com/xescugc/qid/worker/providers/asynq"
+
+	"gocloud.dev/pubsub"
+	"gocloud.dev/pubsub/mempubsub"
+	_ "gocloud.dev/pubsub/mempubsub"
 )
 
 var (
@@ -28,7 +30,8 @@ var (
 			&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the config file"},
 
 			&cli.StringFlag{Name: "qid-url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server"},
-			&cli.StringFlag{Name: "redis-addr", Value: "localhost:6379", Usage: "Redis Address"},
+
+			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -69,34 +72,27 @@ var (
 			if err != nil {
 				return fmt.Errorf("failed to initialize client with url %q: %w", cfg.QIDURL, err)
 			}
-			//srv := asynq.NewServer(
-			//asynq.RedisClientOpt{Addr: cfg.RedisAddr},
-			//)
 
-			//w := worker.New(c)
-
-			//// Use asynq.HandlerFunc adapter for a handler function
-			//if err := srv.Run(asynq.HandlerFunc(wpasynq.Handler(w))); err != nil {
-			//log.Fatal(err)
-			//}
-
-			runWorker(c, cfg.RedisAddr)
+			runWorker(ctx, cfg.PubSubSystem, c)
 
 			return nil
 		},
 	}
 )
 
-func runWorker(s qid.Service, ra string) {
-	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: ra},
-		asynq.Config{},
-	)
-
-	w := worker.New(s)
-
-	// Use asynq.HandlerFunc adapter for a handler function
-	if err := srv.Run(asynq.HandlerFunc(wpasynq.Handler(w))); err != nil {
+func runWorker(ctx context.Context, sy string, s qid.Service) error {
+	// Create a subscription connected to that topic.
+	subscription, err := pubsub.OpenSubscription(ctx, getSubscriptionURL(sy))
+	if err != nil {
 		log.Fatal(err)
 	}
+	defer subscription.Shutdown(ctx)
+
+	w := worker.New(s, subscription)
+
+	err = w.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to Run worker: %w", err)
+	}
+	return nil
 }

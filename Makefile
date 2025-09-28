@@ -16,7 +16,11 @@ export GOCACHE
 
 .PHONY: dev-env-up
 dev-env-up: ## Starts the dependencies
-	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml up -d mariadb redis asynqmon
+	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml up -d mariadb
+
+.PHONY: nats-up
+nats-up: ## Starts the dependencies
+	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml up -d nats
 
 .PHONY: down
 down: ## Stops the containers

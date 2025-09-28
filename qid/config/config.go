@@ -11,4 +11,6 @@ type Config struct {
 	DBName     string `koanf:"db-name"`
 
 	RunWorker bool `koanf:"run-worker"`
+
+	PubSubSystem string `koanf:"pubsub-system"`
 }
