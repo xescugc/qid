@@ -1,0 +1,35 @@
+services:
+  qid:
+    depends_on:
+      - mariadb
+    networks:
+      - qid
+    volumes:
+      - cache:/go
+
+  worker:
+    volumes:
+      - cache:/go
+    networks:
+      - qid
+
+  asynqmon:
+    networks:
+      - qid
+    depends_on:
+      - redis
+
+  mariadb:
+    image: mariadb:11.4.2
+    networks:
+      - qid
+
+  redis:
+    networks:
+      - qid
+
+volumes:
+  cache:
+
+networks:
+  qid:

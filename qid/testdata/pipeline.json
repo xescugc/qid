@@ -1,0 +1,45 @@
+{
+  "jobs":[
+    {
+      "name": "echo1",
+      "plan": [
+        {
+          "task": "touch-qid",
+          "task_config":{
+            "run":{
+              "path":"echo",
+              "args": [
+                "potato 1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "echo2",
+      "plan": [
+        {
+          "get": "echo1",
+          "get_config":{
+            "passed":[
+              "echo1"
+            ],
+            "trigger":true
+          }
+        },
+        {
+          "task": "cat something 2",
+          "task_config":{
+            "run":{
+              "path":"echo",
+              "args": [
+                "potato 2"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
