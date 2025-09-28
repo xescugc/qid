@@ -7,7 +7,7 @@ import (
 )
 
 type MockService struct {
-	Queue     *mock.Queue
+	Topic     *mock.Topic
 	Pipelines *mock.PipelineRepository
 	Jobs      *mock.JobRepository
 
@@ -17,13 +17,13 @@ type MockService struct {
 func newService(ctrl *gomock.Controller) MockService {
 	pr := mock.NewPipelineRepository(ctrl)
 	jr := mock.NewJobRepository(ctrl)
-	q := mock.NewQueue(ctrl)
+	t := mock.NewTopic(ctrl)
 
 	return MockService{
-		Queue:     q,
+		Topic:     t,
 		Pipelines: pr,
 		Jobs:      jr,
 
-		S: qid.New(q, pr, jr),
+		S: qid.New(t, pr, jr),
 	}
 }

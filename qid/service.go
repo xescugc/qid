@@ -9,6 +9,7 @@ import (
 	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/queue"
 	"github.com/xescugc/qid/qid/utils"
+	"gocloud.dev/pubsub"
 )
 
 type Service interface {
@@ -20,14 +21,14 @@ type Service interface {
 }
 
 type Qid struct {
-	Queue     queue.Queue
+	Topic     queue.Topic
 	Pipelines pipeline.Repository
 	Jobs      job.Repository
 }
 
-func New(q queue.Queue, pr pipeline.Repository, jr job.Repository) *Qid {
+func New(t queue.Topic, pr pipeline.Repository, jr job.Repository) *Qid {
 	return &Qid{
-		Queue:     q,
+		Topic:     t,
 		Pipelines: pr,
 		Jobs:      jr,
 	}
@@ -109,7 +110,12 @@ func (q *Qid) TriggerPipelineJob(ctx context.Context, ppn, jn string) error {
 		return fmt.Errorf("failed to Find Job %q on Pipeline %q: %w", jn, ppn, err)
 	}
 
-	err = q.Queue.Push(ctx, ppn, jn)
+	err = q.Topic.Send(ctx, &pubsub.Message{
+		Metadata: map[string]string{
+			"pipeline_name": ppn,
+			"job_name":      jn,
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("failed to Trigger Job %q on Pipeline %q: %w", jn, ppn, err)
 	}

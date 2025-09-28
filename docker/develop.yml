@@ -15,8 +15,10 @@ services:
       - DB_USER=root
       - DB_PASSWORD=root123
       - DB_NAME=qid_develop
-      - REDIS_ADDR=redis:6379
       - RUN_WORKER=true
+      - PUBSUB_SYSTEM=mem
+      #- PUBSUB_SYSTEM=nats
+      - NATS_SERVER_URL=nats:4222
 
   worker:
     image: golang:1.25.1 
@@ -26,26 +28,20 @@ services:
       - $GOCACHE:/root/.cache/go-build
     working_dir: /go/src/qid
     environment:
-      - REDIS_ADDR=redis:6379
       - QID_URL=qid:4000
-      - CONCURENCY=2
+      - PUBSUB_SYSTEM=nats
+      - NATS_SERVER_URL=nats:4222
 
-  asynqmon:
-    image: hibiken/asynqmon:0.7.2
+
+  nats:
     ports:
-      - '8080:8080'
-    environment:
-      - PORT=8080
-      - REDIS_ADDR=redis:6379
+      # For clients
+      - '4222:4222'
+      # For HTTP management port for information reporting.
+      - '8222:8222'
 
   mariadb:
     environment:
       - MYSQL_ROOT_PASSWORD=root123
     volumes:
       - ./data/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
-
-  redis:
-    image: redis:8.2.1
-    ports:
-      - '6379:6379'
-

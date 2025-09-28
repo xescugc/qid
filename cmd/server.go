@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-kit/kit/log"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli/v3"
@@ -17,14 +16,17 @@ import (
 	"github.com/xescugc/qid/qid/config"
 	"github.com/xescugc/qid/qid/mysql"
 	"github.com/xescugc/qid/qid/mysql/migrate"
-	"github.com/xescugc/qid/qid/queue/providers/asynq"
 	tshttp "github.com/xescugc/qid/qid/transport/http"
+	"gocloud.dev/pubsub"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/cliflagv3"
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"gocloud.dev/pubsub/mempubsub"
+	"gocloud.dev/pubsub/natspubsub"
 )
 
 var (
@@ -43,9 +45,9 @@ var (
 			&cli.StringFlag{Name: "db-name", Usage: "Database Name"},
 			&cli.BoolFlag{Name: "run-migrations", Value: true, Usage: "Flag to know if migrations should be ran"},
 
-			&cli.StringFlag{Name: "redis-addr", Value: "localhost:6379", Usage: "Redis Address"},
-
 			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with QID server"},
+
+			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -66,7 +68,6 @@ var (
 			if err := k.Load(cliflagv3.Provider(cmd, "qid.server"), nil); err != nil {
 				return fmt.Errorf("error loading flags: %v", err)
 			}
-			spew.Dump(k.All())
 			if err := k.Load(env.Provider(".", env.Opt{
 				TransformFunc: func(k, v string) (string, any) {
 					// Transform the key.
@@ -89,7 +90,11 @@ var (
 			var cfg config.Config
 			k.Unmarshal("qid.server", &cfg)
 
-			q := asynq.New(cfg.RedisAddr)
+			topic, err := pubsub.OpenTopic(ctx, getTopicURL(cfg.PubSubSystem))
+			if err != nil {
+				return fmt.Errorf("failed to open: %v", err)
+			}
+			defer topic.Shutdown(ctx)
 
 			logger.Log("msg", "MariaDB connection starting ...")
 			db, err := mysql.New(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, mysql.Options{
@@ -115,7 +120,7 @@ var (
 			jr := mysql.NewJobRepository(db)
 
 			logger.Log("message", "initializing service")
-			var svc = qid.New(q, ppr, jr)
+			var svc = qid.New(topic, ppr, jr)
 			logger.Log("message", "initialized service")
 
 			logger.Log("message", "initializing http handlers")
@@ -124,8 +129,6 @@ var (
 
 			mux := http.NewServeMux()
 			mux.Handle("/", handler)
-			//mux.Handle("/css/", http.FileServer(http.FS(assets.Assets)))
-			//mux.Handle("/js/", http.FileServer(http.FS(assets.Assets)))
 
 			svr := &http.Server{
 				Addr:    fmt.Sprintf(":%d", cfg.Port),
@@ -148,8 +151,8 @@ var (
 			if cfg.RunWorker {
 				logger.Log("message", "Starting Worker ...")
 				go func() {
-					runWorker(svc, cfg.RedisAddr)
-					errs <- fmt.Errorf("worker failed to start")
+					err := runWorker(ctx, cfg.PubSubSystem, svc)
+					errs <- fmt.Errorf("worker failed to start: %w", err)
 				}()
 			}
 
@@ -159,3 +162,21 @@ var (
 		},
 	}
 )
+
+func getSubscriptionURL(s string) string {
+	u := fmt.Sprintf("%s://qid", s)
+	switch s {
+	case natspubsub.Scheme:
+		u += "?queue=qid&natsv2"
+	}
+	return u
+}
+
+func getTopicURL(s string) string {
+	u := fmt.Sprintf("%s://qid", s)
+	switch s {
+	case natspubsub.Scheme:
+		u += "?natsv2"
+	}
+	return u
+}
