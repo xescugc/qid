@@ -118,9 +118,12 @@ var (
 
 			ppr := mysql.NewPipelineRepository(db)
 			jr := mysql.NewJobRepository(db)
+			rr := mysql.NewResourceRepository(db)
+			rt := mysql.NewResourceTypeRepository(db)
+			br := mysql.NewBuildRepository(db)
 
 			logger.Log("message", "initializing service")
-			var svc = qid.New(topic, ppr, jr)
+			var svc = qid.New(ctx, topic, ppr, jr, rr, rt, br, logger)
 			logger.Log("message", "initialized service")
 
 			logger.Log("message", "initializing http handlers")
@@ -151,7 +154,7 @@ var (
 			if cfg.RunWorker {
 				logger.Log("message", "Starting Worker ...")
 				go func() {
-					err := runWorker(ctx, cfg.PubSubSystem, svc)
+					err := runWorker(ctx, cfg.PubSubSystem, topic, svc)
 					errs <- fmt.Errorf("worker failed to start: %w", err)
 				}()
 			}

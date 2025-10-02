@@ -16,7 +16,7 @@ var (
 		Name:  "client",
 		Usage: "Interacts with the QID server",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server", Required: true},
+			&cli.StringFlag{Name: "url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server", Required: true, Local: true},
 		},
 		Commands: []*cli.Command{
 			{
@@ -51,6 +51,25 @@ var (
 							if err != nil {
 								return fmt.Errorf("failed to create Pipeline %q: %w", cmd.String("name"), err)
 							}
+
+							return nil
+						},
+					},
+					{
+						Name:  "list",
+						Usage: "Lists the QID Pipelines",
+						Action: func(ctx context.Context, cmd *cli.Command) error {
+							c, err := client.New(cmd.String("url"))
+							if err != nil {
+								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
+							}
+
+							pps, err := c.ListPipelines(ctx)
+							if err != nil {
+								return fmt.Errorf("failed to list Pipelines: %w", err)
+							}
+
+							spew.Dump(pps)
 
 							return nil
 						},
@@ -103,7 +122,7 @@ var (
 				Name:  "jobs",
 				Usage: "Interacts with the QID Jobs",
 				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"pn"}, Usage: "Name of the Pipeline", Required: true},
+					&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"pn"}, Usage: "Name of the Pipeline", Required: true, Local: true},
 				},
 				Commands: []*cli.Command{
 					{

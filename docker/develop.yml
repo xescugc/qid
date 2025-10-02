@@ -15,9 +15,6 @@ services:
       - DB_USER=root
       - DB_PASSWORD=root123
       - DB_NAME=qid_develop
-      - RUN_WORKER=true
-      - PUBSUB_SYSTEM=mem
-      #- PUBSUB_SYSTEM=nats
       - NATS_SERVER_URL=nats:4222
 
   worker:
@@ -29,7 +26,6 @@ services:
     working_dir: /go/src/qid
     environment:
       - QID_URL=qid:4000
-      - PUBSUB_SYSTEM=nats
       - NATS_SERVER_URL=nats:4222
 
 

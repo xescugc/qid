@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/xescugc/qid/qid"
@@ -27,6 +28,13 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		e.CreatePipeline,
 		decodeCreatePipelineRequest,
 		encodeCreatePipelineResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodGet).Path("/pipelines").Handler(kithttp.NewServer(
+		e.ListPipelines,
+		decodeListPipelinesRequest,
+		encodeListPipelinesResponse,
 		options...,
 	))
 
@@ -58,6 +66,20 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		options...,
 	))
 
+	r.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds").Handler(kithttp.NewServer(
+		e.CreateJobBuild,
+		decodeCreateJobBuildRequest,
+		encodeCreateJobBuildResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodPut).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}").Handler(kithttp.NewServer(
+		e.UpdateJobBuild,
+		decodeUpdateJobBuildRequest,
+		encodeUpdateJobBuildResponse,
+		options...,
+	))
+
 	r.NotFoundHandler = http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Context-Type", "application/json; charset=utf-8")
@@ -78,6 +100,20 @@ func decodeCreatePipelineRequest(_ context.Context, r *http.Request) (interface{
 
 func encodeCreatePipelineResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	resp := response.(transport.CreatePipelineResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	return nil
+}
+
+func decodeListPipelinesRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.ListPipelinesRequest
+
+	return req, nil
+}
+
+func encodeListPipelinesResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.ListPipelinesResponse)
 
 	json.NewEncoder(w).Encode(resp)
 
@@ -140,6 +176,46 @@ func decodeGetPipelineJobRequest(_ context.Context, r *http.Request) (interface{
 
 func encodeGetPipelineJobResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	resp := response.(transport.GetPipelineJobResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	return nil
+}
+
+func decodeCreateJobBuildRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	req := transport.CreateJobBuildRequest{
+		PipelineName: vars["pipeline_name"],
+		JobName:      vars["job_name"],
+	}
+	err := json.NewDecoder(r.Body).Decode(&req.Build)
+
+	return req, err
+}
+
+func encodeCreateJobBuildResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.CreateJobBuildResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	return nil
+}
+
+func decodeUpdateJobBuildRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	bid, _ := strconv.Atoi(vars["build_id"])
+	req := transport.UpdateJobBuildRequest{
+		PipelineName: vars["pipeline_name"],
+		JobName:      vars["job_name"],
+		BuildID:      uint32(bid),
+	}
+	err := json.NewDecoder(r.Body).Decode(&req.Build)
+
+	return req, err
+}
+
+func encodeUpdateJobBuildResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.UpdateJobBuildResponse)
 
 	json.NewEncoder(w).Encode(resp)
 
