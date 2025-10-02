@@ -7,3 +7,8 @@ type Resource struct {
 
 	Inputs map[string]string `json:"Inputs" hcl:",remain"`
 }
+
+type Version struct {
+	ID   uint32 `json:"id"`
+	Hash string `json:"hash"`
+}

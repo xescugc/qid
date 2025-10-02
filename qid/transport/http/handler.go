@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/xescugc/qid/qid"
@@ -77,6 +78,20 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		e.UpdateJobBuild,
 		decodeUpdateJobBuildRequest,
 		encodeUpdateJobBuildResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
+		e.CreateResourceVersion,
+		decodeCreateResourceVersionRequest,
+		encodeCreateResourceVersionResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
+		e.ListResourceVersions,
+		decodeListResourceVersionsRequest,
+		encodeListResourceVersionsResponse,
 		options...,
 	))
 
@@ -216,6 +231,47 @@ func decodeUpdateJobBuildRequest(_ context.Context, r *http.Request) (interface{
 
 func encodeUpdateJobBuildResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	resp := response.(transport.UpdateJobBuildResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	return nil
+}
+
+func decodeCreateResourceVersionRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	rc := strings.Split(vars["resource_canonical"], ":")
+	req := transport.CreateResourceVersionRequest{
+		PipelineName: vars["pipeline_name"],
+		ResourceType: rc[0],
+		ResourceName: rc[1],
+	}
+	err := json.NewDecoder(r.Body).Decode(&req.Version)
+
+	return req, err
+}
+
+func encodeCreateResourceVersionResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.CreateResourceVersionResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	return nil
+}
+
+func decodeListResourceVersionsRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	rc := strings.Split(vars["resource_canonical"], ":")
+	req := transport.ListResourceVersionsRequest{
+		PipelineName: vars["pipeline_name"],
+		ResourceType: rc[0],
+		ResourceName: rc[1],
+	}
+
+	return req, nil
+}
+
+func encodeListResourceVersionsResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.ListResourceVersionsResponse)
 
 	json.NewEncoder(w).Encode(resp)
 

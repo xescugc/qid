@@ -56,6 +56,21 @@ func (mr *ResourceRepositoryMockRecorder) Create(ctx, pn, r any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*ResourceRepository)(nil).Create), ctx, pn, r)
 }
 
+// CreateVersion mocks base method.
+func (m *ResourceRepository) CreateVersion(ctx context.Context, pn, rn, rt string, v resource.Version) (uint32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateVersion", ctx, pn, rn, rt, v)
+	ret0, _ := ret[0].(uint32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateVersion indicates an expected call of CreateVersion.
+func (mr *ResourceRepositoryMockRecorder) CreateVersion(ctx, pn, rn, rt, v any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVersion", reflect.TypeOf((*ResourceRepository)(nil).CreateVersion), ctx, pn, rn, rt, v)
+}
+
 // Filter mocks base method.
 func (m *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource.Resource, error) {
 	m.ctrl.T.Helper()
@@ -69,6 +84,21 @@ func (m *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource
 func (mr *ResourceRepositoryMockRecorder) Filter(ctx, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*ResourceRepository)(nil).Filter), ctx, pn)
+}
+
+// FilterVersions mocks base method.
+func (m *ResourceRepository) FilterVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterVersions", ctx, pn, rn, rt)
+	ret0, _ := ret[0].([]*resource.Version)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterVersions indicates an expected call of FilterVersions.
+func (mr *ResourceRepositoryMockRecorder) FilterVersions(ctx, pn, rn, rt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterVersions", reflect.TypeOf((*ResourceRepository)(nil).FilterVersions), ctx, pn, rn, rt)
 }
 
 // Find mocks base method.

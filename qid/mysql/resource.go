@@ -27,6 +27,11 @@ type dbResource struct {
 	Inputs sql.NullString
 }
 
+type dbResourceVersion struct {
+	ID   sql.NullInt64
+	Hash sql.NullString
+}
+
 func newDBResource(r resource.Resource) dbResource {
 	i, _ := json.Marshal(r.Inputs)
 	return dbResource{
@@ -46,6 +51,21 @@ func (dbr *dbResource) toDomainEntity() *resource.Resource {
 	_ = json.Unmarshal([]byte(dbr.Inputs.String), &r.Inputs)
 
 	return r
+}
+
+func newDBResourceVersion(v resource.Version) dbResourceVersion {
+	return dbResourceVersion{
+		Hash: toNullString(v.Hash),
+	}
+}
+
+func (dbrv *dbResourceVersion) toDomainEntity() *resource.Version {
+	v := &resource.Version{
+		ID:   uint32(dbrv.ID.Int64),
+		Hash: dbrv.Hash.String,
+	}
+
+	return v
 }
 
 func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.Resource) (uint32, error) {
@@ -108,6 +128,53 @@ func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource
 	return resources, nil
 }
 
+func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rt, rn string, rv resource.Version) (uint32, error) {
+	dbrv := newDBResourceVersion(rv)
+	res, err := r.querier.ExecContext(ctx, `
+		INSERT INTO resource_versions(hash, resource_id)
+		VALUES (?, 
+			-- resource_id
+			(
+				SELECT r.id
+				FROM resources AS r
+				JOIN pipelines AS p
+					ON r.pipeline_id = p.id
+				WHERE p.name = ? AND r.name = ? AND r.type = ?
+			))`, dbrv.Hash, pn, rn, rt)
+	if err != nil {
+		return 0, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	id, err := lastInsertedID(res)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get last inserted id: %w", err)
+	}
+
+	return id, nil
+}
+
+func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rt, rn string) ([]*resource.Version, error) {
+	rows, err := r.querier.QueryContext(ctx, `
+		SELECT rv.id, rv.hash
+		FROM resource_versions AS rv
+		JOIN resources AS r
+			ON rv.resource_id = r.id
+		JOIN pipelines AS p
+			ON r.pipeline_id = p.id
+		WHERE p.name = ? AND r.name = ? AND r.type = ?
+	`, pn, rn, rt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter Resources: %w", err)
+	}
+
+	rvs, err := scanResourceVersions(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter jobs: %w", err)
+	}
+
+	return rvs, nil
+}
+
 func scanResource(s sqlr.Scanner) (*resource.Resource, error) {
 	var r dbResource
 
@@ -142,4 +209,38 @@ func scanResources(rows *sql.Rows) ([]*resource.Resource, error) {
 		return nil, fmt.Errorf("failed to scan resource: %w", err)
 	}
 	return rs, nil
+}
+
+func scanResourceVersion(s sqlr.Scanner) (*resource.Version, error) {
+	var rv dbResourceVersion
+
+	err := s.Scan(
+		&rv.ID,
+		&rv.Hash,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("not found")
+		}
+		return nil, fmt.Errorf("failed to scan: %w", err)
+	}
+
+	return rv.toDomainEntity(), nil
+}
+
+func scanResourceVersions(rows *sql.Rows) ([]*resource.Version, error) {
+	var rvs []*resource.Version
+
+	for rows.Next() {
+		rv, err := scanResourceVersion(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan resource version: %w", err)
+		}
+		rvs = append(rvs, rv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan resource version: %w", err)
+	}
+	return rvs, nil
 }

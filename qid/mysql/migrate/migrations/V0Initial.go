@@ -52,8 +52,21 @@ var V0Initial = Migration{
 
 				CONSTRAINT uq__name UNIQUE ( pipeline_id, ` + "`type`" + `, name ),
 
-				CONSTRAINT fk__resources__pipeline
+				CONSTRAINT fk__resources__pipelines
 						FOREIGN KEY (pipeline_id) REFERENCES pipelines (id)
+						ON DELETE CASCADE
+		);
+
+		CREATE TABLE IF NOT EXISTS resource_versions (
+				id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				hash VARCHAR(255),
+
+				resource_id INT UNSIGNED NOT NULL,
+
+				CONSTRAINT uq__hash UNIQUE ( resource_id, hash ),
+
+				CONSTRAINT fk__resource_versions__resources
+						FOREIGN KEY (resource_id) REFERENCES resources (id)
 						ON DELETE CASCADE
 		);
 

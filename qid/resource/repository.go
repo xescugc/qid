@@ -8,4 +8,7 @@ type Repository interface {
 	Create(ctx context.Context, pn string, r Resource) (uint32, error)
 	Find(ctx context.Context, pn, rn, rt string) (*Resource, error)
 	Filter(ctx context.Context, pn string) ([]*Resource, error)
+
+	CreateVersion(ctx context.Context, pn, rt, rn string, v Version) (uint32, error)
+	FilterVersions(ctx context.Context, pn, rt, rn string) ([]*Version, error)
 }

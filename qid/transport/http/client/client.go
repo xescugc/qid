@@ -11,18 +11,21 @@ import (
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
+	"github.com/xescugc/qid/qid/resource"
 	"github.com/xescugc/qid/qid/transport"
 )
 
 type Client struct {
-	createPipeline     endpoint.Endpoint
-	getPipeline        endpoint.Endpoint
-	listPipelines      endpoint.Endpoint
-	deletePipeline     endpoint.Endpoint
-	triggerPipelineJob endpoint.Endpoint
-	getPipelineJob     endpoint.Endpoint
-	createJobBuild     endpoint.Endpoint
-	updateJobBuild     endpoint.Endpoint
+	createPipeline        endpoint.Endpoint
+	getPipeline           endpoint.Endpoint
+	listPipelines         endpoint.Endpoint
+	deletePipeline        endpoint.Endpoint
+	triggerPipelineJob    endpoint.Endpoint
+	getPipelineJob        endpoint.Endpoint
+	createJobBuild        endpoint.Endpoint
+	updateJobBuild        endpoint.Endpoint
+	createResourceVersion endpoint.Endpoint
+	listResourceVersions  endpoint.Endpoint
 }
 
 // New returns a new HTTP Client for QID
@@ -39,14 +42,16 @@ func New(host string) (*Client, error) {
 	}
 
 	cl := &Client{
-		createPipeline:     makeCreatePipelineEndpoint(*u),
-		getPipeline:        makeGetPipelineEndpoint(*u),
-		listPipelines:      makeListPipelinesEndpoint(*u),
-		deletePipeline:     makeDeletePipelineEndpoint(*u),
-		triggerPipelineJob: makeTriggerPipelineJobEndpoint(*u),
-		getPipelineJob:     makeGetPipelineJobEndpoint(*u),
-		createJobBuild:     makeCreateJobBuildEndpoint(*u),
-		updateJobBuild:     makeUpdateJobBuildEndpoint(*u),
+		createPipeline:        makeCreatePipelineEndpoint(*u),
+		getPipeline:           makeGetPipelineEndpoint(*u),
+		listPipelines:         makeListPipelinesEndpoint(*u),
+		deletePipeline:        makeDeletePipelineEndpoint(*u),
+		triggerPipelineJob:    makeTriggerPipelineJobEndpoint(*u),
+		getPipelineJob:        makeGetPipelineJobEndpoint(*u),
+		createJobBuild:        makeCreateJobBuildEndpoint(*u),
+		updateJobBuild:        makeUpdateJobBuildEndpoint(*u),
+		createResourceVersion: makeCreateResourceVersionEndpoint(*u),
+		listResourceVersions:  makeListResourceVersionsEndpoint(*u),
 	}
 
 	return cl, nil
@@ -162,4 +167,32 @@ func (cl *Client) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32,
 	}
 
 	return nil
+}
+
+func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rt, rn string, rv resource.Version) error {
+	response, err := cl.updateJobBuild(ctx, transport.CreateResourceVersionRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt, Version: rv})
+	if err != nil {
+		return err
+	}
+
+	resp := response.(transport.CreateResourceVersionResponse)
+	if resp.Err != "" {
+		return errors.New(resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) ListResourceVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error) {
+	response, err := cl.updateJobBuild(ctx, transport.ListResourceVersionsRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := response.(transport.ListResourceVersionsResponse)
+	if resp.Err != "" {
+		return nil, errors.New(resp.Err)
+	}
+
+	return resp.Versions, nil
 }
