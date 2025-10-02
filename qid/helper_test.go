@@ -35,6 +35,6 @@ func newService(ctrl *gomock.Controller) MockService {
 		ResourceTypes: rtr,
 		Builds:        br,
 
-		S: qid.New(context.TODO(), t, pr, jr, rr, rtr, br),
+		S: qid.New(context.TODO(), t, pr, jr, rr, rtr, br, nil),
 	}
 }

@@ -87,3 +87,23 @@ func makeUpdateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
 		decodeUpdateJobBuildResponse,
 	).Endpoint()
 }
+
+func makeCreateResourceVersionEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}/versions"
+	return kithttp.NewClient(
+		http.MethodPost,
+		&u,
+		encodeCreateResourceVersionRequest,
+		decodeCreateResourceVersionResponse,
+	).Endpoint()
+}
+
+func makeListResourceVersionsEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}/versions"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeListResourceVersionsRequest,
+		decodeListResourceVersionsResponse,
+	).Endpoint()
+}

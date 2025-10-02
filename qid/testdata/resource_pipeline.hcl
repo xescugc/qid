@@ -4,7 +4,7 @@ resource_type "git" {
     "name",
   ]
   check {
-    path = "/bin/sh"
+    path = "/bin/bash"
     args = [
       "-ec",
       <<-EOT
@@ -12,7 +12,11 @@ resource_type "git" {
         rm -rf $NAME
         git clone --quiet $URL $NAME
         cd $NAME
-        git log -5 --pretty=format:"%H"
+        if [[ -n $LAST_VERSION_HASH ]]; then
+          git log $LAST_VERSION_HASH..HEAD --pretty=format:"%H"
+        else
+          git log -1 --pretty=format:"%H"
+        fi
       EOT
     ]
   }

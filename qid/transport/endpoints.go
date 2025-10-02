@@ -8,29 +8,40 @@ import (
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
+	"github.com/xescugc/qid/qid/resource"
 )
 
 type Endpoints struct {
-	CreatePipeline     endpoint.Endpoint
-	ListPipelines      endpoint.Endpoint
-	GetPipeline        endpoint.Endpoint
-	DeletePipeline     endpoint.Endpoint
+	CreatePipeline endpoint.Endpoint
+	ListPipelines  endpoint.Endpoint
+	GetPipeline    endpoint.Endpoint
+	DeletePipeline endpoint.Endpoint
+
 	TriggerPipelineJob endpoint.Endpoint
 	GetPipelineJob     endpoint.Endpoint
-	CreateJobBuild     endpoint.Endpoint
-	UpdateJobBuild     endpoint.Endpoint
+
+	CreateJobBuild endpoint.Endpoint
+	UpdateJobBuild endpoint.Endpoint
+
+	CreateResourceVersion endpoint.Endpoint
+	ListResourceVersions  endpoint.Endpoint
 }
 
 func MakeServerEndpoints(s qid.Service) Endpoints {
 	return Endpoints{
-		CreatePipeline:     MakeCreatePipelineEndpoint(s),
-		ListPipelines:      MakeListPipelinesEndpoint(s),
-		GetPipeline:        MakeGetPipelineEndpoint(s),
-		DeletePipeline:     MakeDeletePipelineEndpoint(s),
+		CreatePipeline: MakeCreatePipelineEndpoint(s),
+		ListPipelines:  MakeListPipelinesEndpoint(s),
+		GetPipeline:    MakeGetPipelineEndpoint(s),
+		DeletePipeline: MakeDeletePipelineEndpoint(s),
+
 		TriggerPipelineJob: MakeTriggerPipelineJobEndpoint(s),
 		GetPipelineJob:     MakeGetPipelineJobEndpoint(s),
-		CreateJobBuild:     MakeCreateJobBuildEndpoint(s),
-		UpdateJobBuild:     MakeUpdateJobBuildEndpoint(s),
+
+		CreateJobBuild: MakeCreateJobBuildEndpoint(s),
+		UpdateJobBuild: MakeUpdateJobBuildEndpoint(s),
+
+		CreateResourceVersion: MakeCreateResourceVersionEndpoint(s),
+		ListResourceVersions:  MakeListResourceVersionsEndpoint(s),
 	}
 }
 
@@ -194,5 +205,49 @@ func MakeUpdateJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 			errs = err.Error()
 		}
 		return UpdateJobBuildResponse{Err: errs}, nil
+	}
+}
+
+type CreateResourceVersionRequest struct {
+	PipelineName string           `json:"pipeline_name"`
+	ResourceName string           `json:"resource_name"`
+	ResourceType string           `json:"resource_type"`
+	Version      resource.Version `json:"version"`
+}
+type CreateResourceVersionResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func MakeCreateResourceVersionEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(CreateResourceVersionRequest)
+		err := s.CreateResourceVersion(ctx, req.PipelineName, req.ResourceType, req.ResourceName, req.Version)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return CreateResourceVersionResponse{Err: errs}, nil
+	}
+}
+
+type ListResourceVersionsRequest struct {
+	PipelineName string `json:"pipeline_name"`
+	ResourceName string `json:"resource_name"`
+	ResourceType string `json:"resource_type"`
+}
+type ListResourceVersionsResponse struct {
+	Versions []*resource.Version
+	Err      string `json:"error,omitempty"`
+}
+
+func MakeListResourceVersionsEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(ListResourceVersionsRequest)
+		vers, err := s.ListResourceVersions(ctx, req.PipelineName, req.ResourceType, req.ResourceName)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return ListResourceVersionsResponse{Versions: vers, Err: errs}, nil
 	}
 }

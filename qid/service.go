@@ -30,6 +30,9 @@ type Service interface {
 
 	CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error)
 	UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error
+
+	CreateResourceVersion(ctx context.Context, pn, rn, rt string, v resource.Version) error
+	ListResourceVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error)
 }
 
 type Qid struct {
@@ -321,4 +324,37 @@ func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b b
 	}
 
 	return nil
+}
+
+func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rt, rn string, v resource.Version) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(rt) {
+		return fmt.Errorf("invalid Resource Type format %q", rt)
+	} else if !utils.ValidateCanonical(rn) {
+		return fmt.Errorf("invalid Resource Name format %q", rn)
+	}
+
+	_, err := q.Resources.CreateVersion(ctx, pn, rt, rn, v)
+	if err != nil {
+		return fmt.Errorf("failed to Create Resource Version: %w", err)
+	}
+
+	return nil
+}
+func (q *Qid) ListResourceVersions(ctx context.Context, pn, rt, rn string) ([]*resource.Version, error) {
+	if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(rt) {
+		return nil, fmt.Errorf("invalid Resource Type format %q", rt)
+	} else if !utils.ValidateCanonical(rn) {
+		return nil, fmt.Errorf("invalid Resource Name format %q", rn)
+	}
+
+	rvers, err := q.Resources.FilterVersions(ctx, pn, rt, rn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to List Resource Version: %w", err)
+	}
+
+	return rvers, nil
 }

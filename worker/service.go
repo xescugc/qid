@@ -12,6 +12,7 @@ import (
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/queue"
+	"github.com/xescugc/qid/qid/resource"
 	"gocloud.dev/pubsub"
 
 	"github.com/go-kit/log"
@@ -186,6 +187,15 @@ func (w *Worker) Run(ctx context.Context) error {
 						if rt.Name == r.Type {
 							cmd := exec.CommandContext(ctx, rt.Check.Path, rt.Check.Args...)
 
+							vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, rt.Name, r.Name)
+							if err != nil {
+								ferr := fmt.Errorf("failed to list resource versions: %w", err)
+								w.logger.Log("error", ferr)
+								goto END
+							}
+							if len(vers) != 0 {
+								cmd.Env = append(cmd.Environ(), fmt.Sprintf("LAST_VERSION_HASH=%s", vers[0].Hash))
+							}
 							for k, v := range r.Inputs {
 								if slices.Contains(rt.Inputs, k) {
 									cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
@@ -197,27 +207,40 @@ func (w *Worker) Run(ctx context.Context) error {
 								goto END
 							}
 							hashs := strings.Split(string(stdouterr), "\n")
-							// TODO: Check DB to see if there are new ones comparing from the last one
-							for _, j := range pp.Jobs {
-								for _, g := range j.Get {
-									// If Passed is not 0 it means is waiting for another job
-									// and this trigger is only for resources
-									if g.Name == r.Name && g.Trigger && len(g.Passed) == 0 {
-										b := queue.Body{
-											PipelineName: pp.Name,
-											JobName:      j.Name,
-											ResourceName: r.Name,
-											VersionHash:  hashs[0],
+							if len(hashs) == 0 || string(stdouterr) == "" {
+								// Nothing new so we can skip
+								goto END
+							}
+							for _, h := range hashs {
+								// TODO: Check DB to see if there are new ones comparing from the last one
+								for _, j := range pp.Jobs {
+									for _, g := range j.Get {
+										// If Passed is not 0 it means is waiting for another job
+										// and this trigger is only for resources
+										if g.Name == r.Name && g.Trigger && len(g.Passed) == 0 {
+											b := queue.Body{
+												PipelineName: pp.Name,
+												JobName:      j.Name,
+												ResourceName: r.Name,
+												VersionHash:  h,
+											}
+											mb, err := json.Marshal(b)
+											if err != nil {
+												w.logger.Log("error", fmt.Errorf("failed to run marshal body: %w", err))
+												goto END
+											}
+											w.topic.Send(ctx, &pubsub.Message{
+												Body: mb,
+											})
 										}
-										mb, err := json.Marshal(b)
-										if err != nil {
-											w.logger.Log("error", fmt.Errorf("failed to run marshal body: %w", err))
-											goto END
-										}
-										w.topic.Send(ctx, &pubsub.Message{
-											Body: mb,
-										})
 									}
+								}
+								err = w.qid.CreateResourceVersion(ctx, m.PipelineName, rt.Name, r.Name, resource.Version{
+									Hash: h,
+								})
+								if err != nil {
+									w.logger.Log("error", fmt.Errorf("failed to create Resource Version body: %w", err))
+									goto END
 								}
 							}
 						}

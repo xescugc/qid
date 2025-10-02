@@ -156,3 +156,39 @@ func decodeUpdateJobBuildResponse(_ context.Context, r *http.Response) (interfac
 	}
 	return response, nil
 }
+
+func encodeCreateResourceVersionRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.CreateResourceVersionRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", strings.Join([]string{req.ResourceType, req.ResourceName}, ":"), 1)
+
+	return nil
+}
+
+func decodeCreateResourceVersionResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.CreateResourceVersionResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func encodeListResourceVersionsRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.ListResourceVersionsRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", strings.Join([]string{req.ResourceType, req.ResourceName}, ":"), 1)
+
+	return nil
+}
+
+func decodeListResourceVersionsResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.ListResourceVersionsResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
