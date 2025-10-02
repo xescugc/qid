@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/xescugc/qid/qid/transport"
@@ -24,6 +25,21 @@ func encodeCreatePipelineRequest(_ context.Context, r *http.Request, request int
 
 func decodeCreatePipelineResponse(_ context.Context, r *http.Response) (interface{}, error) {
 	var response transport.CreatePipelineResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func encodeListPipelinesRequest(_ context.Context, r *http.Request, request interface{}) error {
+	return nil
+}
+
+func decodeListPipelinesResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.ListPipelinesResponse
 	if r.StatusCode == http.StatusCreated {
 		return response, nil
 	}
@@ -96,6 +112,42 @@ func encodeGetPipelineJobRequest(_ context.Context, r *http.Request, request int
 
 func decodeGetPipelineJobResponse(_ context.Context, r *http.Response) (interface{}, error) {
 	var response transport.GetPipelineJobResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func encodeCreateJobBuildRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.CreateJobBuildRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1)
+
+	return nil
+}
+
+func decodeCreateJobBuildResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.CreateJobBuildResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func encodeUpdateJobBuildRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.UpdateJobBuildRequest)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{build_id}", strconv.Itoa(int(req.BuildID)), 1)
+
+	return nil
+}
+
+func decodeUpdateJobBuildResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.UpdateJobBuildResponse
 	if r.StatusCode == http.StatusCreated {
 		return response, nil
 	}

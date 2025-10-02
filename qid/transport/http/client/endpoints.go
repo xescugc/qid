@@ -18,6 +18,16 @@ func makeCreatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 	).Endpoint()
 }
 
+func makeListPipelinesEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeListPipelinesRequest,
+		decodeListPipelinesResponse,
+	).Endpoint()
+}
+
 func makeGetPipelineEndpoint(u url.URL) endpoint.Endpoint {
 	u.Path = "/pipelines/{pipeline_name}"
 	return kithttp.NewClient(
@@ -55,5 +65,25 @@ func makeGetPipelineJobEndpoint(u url.URL) endpoint.Endpoint {
 		&u,
 		encodeGetPipelineJobRequest,
 		decodeGetPipelineJobResponse,
+	).Endpoint()
+}
+
+func makeCreateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeCreateJobBuildRequest,
+		decodeCreateJobBuildResponse,
+	).Endpoint()
+}
+
+func makeUpdateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeUpdateJobBuildRequest,
+		decodeUpdateJobBuildResponse,
 	).Endpoint()
 }

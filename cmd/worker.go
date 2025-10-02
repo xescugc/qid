@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
+	"os"
 	"strings"
 
 	"github.com/knadh/koanf/parsers/json"
@@ -13,9 +13,12 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/urfave/cli/v3"
 	"github.com/xescugc/qid/qid"
+	"github.com/xescugc/qid/qid/queue"
 	"github.com/xescugc/qid/qid/transport/http/client"
 	"github.com/xescugc/qid/worker"
 	"github.com/xescugc/qid/worker/config"
+
+	"github.com/go-kit/kit/log"
 
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
@@ -73,22 +76,33 @@ var (
 				return fmt.Errorf("failed to initialize client with url %q: %w", cfg.QIDURL, err)
 			}
 
-			runWorker(ctx, cfg.PubSubSystem, c)
+			topic, err := pubsub.OpenTopic(ctx, getTopicURL(cfg.PubSubSystem))
+			if err != nil {
+				return fmt.Errorf("failed to open: %v", err)
+			}
+			defer topic.Shutdown(ctx)
+
+			runWorker(ctx, cfg.PubSubSystem, topic, c)
 
 			return nil
 		},
 	}
 )
 
-func runWorker(ctx context.Context, sy string, s qid.Service) error {
+func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service) error {
+	var logger log.Logger
+	logger = log.NewLogfmtLogger(os.Stderr)
+	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
+	logger = log.With(logger, "caller", log.DefaultCaller)
+	logger = log.With(logger, "service", "worker")
 	// Create a subscription connected to that topic.
 	subscription, err := pubsub.OpenSubscription(ctx, getSubscriptionURL(sy))
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("failed to OpenSubscription: %w", err)
 	}
 	defer subscription.Shutdown(ctx)
 
-	w := worker.New(s, subscription)
+	w := worker.New(s, t, subscription, logger)
 
 	err = w.Run(ctx)
 	if err != nil {

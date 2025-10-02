@@ -23,14 +23,17 @@ func NewJobRepository(db sqlr.Querier) *JobRepository {
 type dbJob struct {
 	ID   sql.NullInt64
 	Name sql.NullString
-	Plan sql.NullString
+	Get  sql.NullString
+	Task sql.NullString
 }
 
 func newDBJob(p job.Job) dbJob {
-	s, _ := json.Marshal(p.Plan)
+	g, _ := json.Marshal(p.Get)
+	t, _ := json.Marshal(p.Task)
 	return dbJob{
 		Name: toNullString(p.Name),
-		Plan: toNullString(string(s)),
+		Get:  toNullString(string(g)),
+		Task: toNullString(string(t)),
 	}
 }
 
@@ -40,7 +43,8 @@ func (dbp *dbJob) toDomainEntity() *job.Job {
 		Name: dbp.Name.String,
 	}
 
-	_ = json.Unmarshal([]byte(dbp.Plan.String), &j.Plan)
+	_ = json.Unmarshal([]byte(dbp.Get.String), &j.Get)
+	_ = json.Unmarshal([]byte(dbp.Task.String), &j.Task)
 
 	return j
 }
@@ -48,14 +52,14 @@ func (dbp *dbJob) toDomainEntity() *job.Job {
 func (r *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint32, error) {
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO jobs(name, plan, pipeline_id)
-		VALUES (?, ?,
+		INSERT INTO jobs(name, get, task, pipeline_id)
+		VALUES (?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
 				FROM pipelines AS p
 				WHERE p.name = ?
-			))`, dbj.Name, dbj.Plan, pn)
+			))`, dbj.Name, dbj.Get, dbj.Task, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -70,7 +74,7 @@ func (r *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint3
 
 func (r *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT j.id, j.name, j.plan
+		SELECT j.id, j.name, j.get, j.task
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
@@ -87,7 +91,7 @@ func (r *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, erro
 
 func (r *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT j.id, j.name, j.plan
+		SELECT j.id, j.name, j.get, j.task
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
@@ -131,7 +135,8 @@ func scanJob(s sqlr.Scanner) (*job.Job, error) {
 	err := s.Scan(
 		&j.ID,
 		&j.Name,
-		&j.Plan,
+		&j.Get,
+		&j.Task,
 	)
 
 	if err != nil {

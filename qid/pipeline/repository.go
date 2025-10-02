@@ -7,5 +7,6 @@ import "context"
 type Repository interface {
 	Create(ctx context.Context, pp Pipeline) (uint32, error)
 	Find(ctx context.Context, pn string) (*Pipeline, error)
+	Filter(ctx context.Context) ([]*Pipeline, error)
 	Delete(ctx context.Context, pn string) error
 }

@@ -38,6 +38,8 @@ type Subscription interface {
 }
 
 type Body struct {
-	PipelineName string `json:"pipeline_name"`
-	JobName      string `json:"job_name"`
+	PipelineName string `json:"pipeline_name,omitempty"`
+	JobName      string `json:"job_name,omitempty"`
+	ResourceName string `json:"resource_name,omitempty"`
+	VersionHash  string `json:"version_hash,omitempty"`
 }

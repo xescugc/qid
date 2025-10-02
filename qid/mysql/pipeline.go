@@ -70,6 +70,23 @@ func (r *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pip
 	return p, nil
 }
 
+func (r *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, error) {
+	rows, err := r.querier.QueryContext(ctx, `
+		SELECT p.id, p.name
+		FROM pipelines AS p
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter Pipelines: %w", err)
+	}
+
+	ps, err := scanPipelines(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan Pipeline: %w", err)
+	}
+
+	return ps, nil
+}
+
 func (r *PipelineRepository) Delete(ctx context.Context, pn string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE p

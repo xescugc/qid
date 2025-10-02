@@ -70,6 +70,21 @@ func (mr *PipelineRepositoryMockRecorder) Delete(ctx, pn any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*PipelineRepository)(nil).Delete), ctx, pn)
 }
 
+// Filter mocks base method.
+func (m *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Filter", ctx)
+	ret0, _ := ret[0].([]*pipeline.Pipeline)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Filter indicates an expected call of Filter.
+func (mr *PipelineRepositoryMockRecorder) Filter(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*PipelineRepository)(nil).Filter), ctx)
+}
+
 // Find mocks base method.
 func (m *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pipeline, error) {
 	m.ctrl.T.Helper()
