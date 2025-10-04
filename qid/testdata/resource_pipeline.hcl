@@ -27,9 +27,9 @@ resource_type "git" {
       <<-EOT
         cd /
         rm -rf $NAME
-        git clone --quiet $URL $NAME
+        git clone $URL $NAME
         cd $NAME
-        git checkout --quiet $VERSION_HASH
+        git checkout $VERSION_HASH
       EOT
     ]
   }
@@ -60,6 +60,20 @@ job "gen" {
         "-C",
         "/my_repo",
         "gen"
+      ]
+    }
+  }
+}
+
+job "notify_slack" {
+  get "my_repo" {
+    trigger = true
+  }
+  task "notify" {
+    run {
+      path = "potato"
+      args = [ 
+        "slack",
       ]
     }
   }

@@ -135,7 +135,7 @@ var (
 
 			svr := &http.Server{
 				Addr:    fmt.Sprintf(":%d", cfg.Port),
-				Handler: handlers.LoggingHandler(os.Stdout, mux),
+				Handler: handlers.CombinedLoggingHandler(os.Stdout, mux),
 			}
 
 			errs := make(chan error)

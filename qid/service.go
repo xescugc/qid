@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/awalterschulze/gographviz"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
@@ -25,11 +27,14 @@ type Service interface {
 	DeletePipeline(ctx context.Context, pn string) error
 	ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error)
 
+	GetPipelineImage(ctx context.Context, pn, format string) ([]byte, error)
+
 	TriggerPipelineJob(ctx context.Context, pn, jn string) error
 	GetPipelineJob(ctx context.Context, pn, jn string) (*job.Job, error)
 
 	CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error)
 	UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error
+	ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error)
 
 	CreateResourceVersion(ctx context.Context, pn, rn, rt string, v resource.Version) error
 	ListResourceVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error)
@@ -234,6 +239,154 @@ func (q *Qid) GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, e
 	return pp, nil
 }
 
+var (
+	jobColors = map[build.Status]string{
+		build.Started:   "6",
+		build.Failed:    "1",
+		build.Succeeded: "3",
+	}
+	colorscheme = "set19"
+)
+
+func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, error) {
+	if format == "" {
+		format = "dot"
+	}
+	if strings.Contains(format, ".") {
+		format = strings.Split(format, ".")[1]
+	}
+
+	if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if format != "dot" {
+		return nil, fmt.Errorf("invalid image format %q", format)
+	}
+
+	pp, err := q.GetPipeline(ctx, pn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Pipeline %q: %w", pn, err)
+	}
+
+	graph := gographviz.NewGraph()
+	graph.SetName(pn)
+	graph.SetStrict(true)
+	graph.AddAttr(pn, string(gographviz.RankDir), "LR")
+	graph.AddAttr(pn, string(gographviz.ColorScheme), colorscheme)
+
+	// Print all the resources
+	for _, r := range pp.Resources {
+		// TODO: Change this to be the canonical of the r (type+name)
+		err = graph.AddNode(pn, r.Name, map[string]string{
+			string(gographviz.Margin):      "0.1",
+			string(gographviz.Shape):       "cds",
+			string(gographviz.FillColor):   "9",
+			string(gographviz.Style):       "filled",
+			string(gographviz.FontColor):   "white",
+			string(gographviz.ColorScheme): colorscheme,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
+		}
+	}
+
+	// Print all the Jobs and the connection to resources
+	for i, j := range pp.Jobs {
+		jg := pn
+		builds, err := q.Builds.Filter(ctx, pp.Name, j.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to filter builds from Job %q: %w", j.Name, err)
+		}
+		color := "9"
+		var (
+			cb *build.Build
+			pb *build.Build
+		)
+		if len(builds) != 0 {
+			cb = builds[0]
+			if len(builds) > 1 && cb.Status == build.Started {
+				pb = builds[1]
+				if c, ok := jobColors[pb.Status]; ok {
+					color = c
+				}
+			}
+		}
+
+		if pb == nil && cb != nil && cb.Status != build.Started {
+			if c, ok := jobColors[cb.Status]; ok {
+				color = c
+			}
+		}
+
+		style := "invis"
+		if cb != nil && cb.Status == build.Started {
+			style = `"dashed,bold"`
+		}
+
+		jg = fmt.Sprintf("cluster_%d", i)
+		//graph.AddSubGraph(njg, jg, map[string]string{
+		graph.AddSubGraph(pn, jg, map[string]string{
+			string(gographviz.Style):       style,
+			string(gographviz.Color):       jobColors[build.Started],
+			string(gographviz.ColorScheme): colorscheme,
+		})
+
+		burl := fmt.Sprintf(`"%s/pipelines/%s/jobs/%s/builds"`, "http://localhost:4000", pp.Name, j.Name)
+		err = graph.AddNode(jg, j.Name, map[string]string{
+			string(gographviz.Margin):      "0.5",
+			string(gographviz.Shape):       "rectangle",
+			string(gographviz.FillColor):   color,
+			string(gographviz.Style):       "filled",
+			string(gographviz.FontColor):   "white",
+			string(gographviz.ColorScheme): colorscheme,
+			string(gographviz.URL):         burl,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
+		}
+		for _, g := range j.Get {
+			if len(g.Passed) == 0 {
+				err = graph.AddEdge(g.Name, j.Name, false, nil)
+				if err != nil {
+					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
+				}
+			}
+		}
+	}
+
+	// Now we print all the jobs interconnections depending on resources
+	for _, j := range pp.Jobs {
+		for _, g := range j.Get {
+			if len(g.Passed) != 0 {
+				for _, p := range g.Passed {
+					nn := fmt.Sprintf(`"%s-%s-%s"`, p, g.Name, j.Name)
+					err = graph.AddNode(pn, nn, map[string]string{
+						string(gographviz.Label):       g.Name,
+						string(gographviz.Margin):      "0.1",
+						string(gographviz.Shape):       "cds",
+						string(gographviz.FillColor):   "9",
+						string(gographviz.Style):       "filled",
+						string(gographviz.FontColor):   "white",
+						string(gographviz.ColorScheme): colorscheme,
+					})
+					if err != nil {
+						return nil, fmt.Errorf("failed to add node to Graph: %w", err)
+					}
+					err = graph.AddEdge(p, nn, false, nil)
+					if err != nil {
+						return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
+					}
+					err = graph.AddEdge(nn, j.Name, false, nil)
+					if err != nil {
+						return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
+					}
+				}
+			}
+		}
+	}
+
+	return []byte(graph.String()), nil
+}
+
 func (q *Qid) DeletePipeline(ctx context.Context, pn string) error {
 	if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
@@ -357,4 +510,19 @@ func (q *Qid) ListResourceVersions(ctx context.Context, pn, rt, rn string) ([]*r
 	}
 
 	return rvers, nil
+}
+
+func (q *Qid) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error) {
+	if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return nil, fmt.Errorf("invalid Job Name format %q", pn)
+	}
+
+	builds, err := q.Builds.Filter(ctx, pn, jn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Builds: %w", err)
+	}
+
+	return builds, nil
 }
