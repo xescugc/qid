@@ -6,6 +6,8 @@ import "context"
 
 type Repository interface {
 	Create(ctx context.Context, pn string, j Job) (uint32, error)
+	Update(ctx context.Context, pn, jn string, j Job) error
 	Find(ctx context.Context, pn, jn string) (*Job, error)
 	Filter(ctx context.Context, pn string) ([]*Job, error)
+	Delete(ctx context.Context, pn, jn string) error
 }

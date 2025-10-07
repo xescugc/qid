@@ -17,6 +17,7 @@ import (
 
 type Client struct {
 	createPipeline        endpoint.Endpoint
+	updatePipeline        endpoint.Endpoint
 	getPipeline           endpoint.Endpoint
 	getPipelineImage      endpoint.Endpoint
 	listPipelines         endpoint.Endpoint
@@ -45,6 +46,7 @@ func New(host string) (*Client, error) {
 
 	cl := &Client{
 		createPipeline:        makeCreatePipelineEndpoint(*u),
+		updatePipeline:        makeUpdatePipelineEndpoint(*u),
 		getPipeline:           makeGetPipelineEndpoint(*u),
 		getPipelineImage:      makeGetPipelineImageEndpoint(*u),
 		listPipelines:         makeListPipelinesEndpoint(*u),
@@ -68,6 +70,20 @@ func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte) erro
 	}
 
 	resp := response.(transport.CreatePipelineResponse)
+	if resp.Err != "" {
+		return errors.New(resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) UpdatePipeline(ctx context.Context, pn string, pp []byte) error {
+	response, err := cl.updatePipeline(ctx, transport.UpdatePipelineRequest{Name: pn, Config: pp})
+	if err != nil {
+		return err
+	}
+
+	resp := response.(transport.UpdatePipelineResponse)
 	if resp.Err != "" {
 		return errors.New(resp.Err)
 	}

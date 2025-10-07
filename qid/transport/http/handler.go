@@ -50,6 +50,13 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		options...,
 	))
 
+	api.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
+		e.UpdatePipeline,
+		decodeUpdatePipelineRequest,
+		encodeUpdatePipelineResponse,
+		options...,
+	))
+
 	api.Methods(http.MethodDelete).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
 		e.DeletePipeline,
 		decodeDeletePipelineRequest,
@@ -142,6 +149,23 @@ func decodeCreatePipelineRequest(_ context.Context, r *http.Request) (interface{
 
 func encodeCreatePipelineResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	resp := response.(transport.CreatePipelineResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeUpdatePipelineRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.UpdatePipelineRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	return req, err
+}
+
+func encodeUpdatePipelineResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.UpdatePipelineResponse)
 
 	json.NewEncoder(w).Encode(resp)
 

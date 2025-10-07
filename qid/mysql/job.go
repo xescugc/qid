@@ -72,6 +72,27 @@ func (r *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint3
 	return id, nil
 }
 
+func (r *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) error {
+	dbj := newDBJob(j)
+	res, err := r.querier.ExecContext(ctx, `
+		UPDATE jobs AS j
+		JOIN pipelines AS p
+			ON j.pipeline_id = p.id
+		SET j.name = ?, j.get = ?, j.task = ?
+		WHERE p.name = ? AND j.name = ?
+	`, dbj.Name, dbj.Get, dbj.Task, pn, jn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to update job: %w", err)
+	}
+
+	return nil
+}
+
 func (r *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT j.id, j.name, j.get, j.task
@@ -115,7 +136,7 @@ func (r *JobRepository) Delete(ctx context.Context, pn, jn string) error {
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
-		WHERE p.name = ? AND p.name = ?
+		WHERE p.name = ? AND j.name = ?
 	`, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

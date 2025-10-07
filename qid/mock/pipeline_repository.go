@@ -99,3 +99,17 @@ func (mr *PipelineRepositoryMockRecorder) Find(ctx, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*PipelineRepository)(nil).Find), ctx, pn)
 }
+
+// Update mocks base method.
+func (m *PipelineRepository) Update(ctx context.Context, pn string, pp pipeline.Pipeline) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", ctx, pn, pp)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Update indicates an expected call of Update.
+func (mr *PipelineRepositoryMockRecorder) Update(ctx, pn, pp any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*PipelineRepository)(nil).Update), ctx, pn, pp)
+}

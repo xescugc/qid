@@ -35,6 +35,29 @@ func decodeCreatePipelineResponse(_ context.Context, r *http.Response) (interfac
 	return response, nil
 }
 
+func encodeUpdatePipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
+	cfr := request.(transport.UpdatePipelineRequest)
+	b, err := json.Marshal(cfr)
+	if err != nil {
+		return err
+	}
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeUpdatePipelineResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.UpdatePipelineResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func encodeListPipelinesRequest(_ context.Context, r *http.Request, request interface{}) error {
 	r.Header.Set("Content-Type", "application/json")
 	return nil

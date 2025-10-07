@@ -56,6 +56,38 @@ var (
 						},
 					},
 					{
+						Name:  "update",
+						Usage: "Updates a QID Pipeline",
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
+							&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true, Required: true},
+						},
+						Action: func(ctx context.Context, cmd *cli.Command) error {
+							c, err := client.New(cmd.String("url"))
+							if err != nil {
+								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
+							}
+
+							f, err := os.Open(cmd.String("config"))
+							if err != nil {
+								return fmt.Errorf("failed to open config file at %q: %w", cmd.String("config"), err)
+							}
+							defer f.Close()
+
+							b, err := io.ReadAll(f)
+							if err != nil {
+								return fmt.Errorf("failed to read config file at %q: %w", cmd.String("config"), err)
+							}
+
+							err = c.UpdatePipeline(ctx, cmd.String("name"), b)
+							if err != nil {
+								return fmt.Errorf("failed to update Pipeline %q: %w", cmd.String("name"), err)
+							}
+
+							return nil
+						},
+					},
+					{
 						Name:  "list",
 						Usage: "Lists the QID Pipelines",
 						Action: func(ctx context.Context, cmd *cli.Command) error {

@@ -18,6 +18,7 @@ type Endpoints struct {
 
 	// API
 	CreatePipeline endpoint.Endpoint
+	UpdatePipeline endpoint.Endpoint
 	ListPipelines  endpoint.Endpoint
 	GetPipeline    endpoint.Endpoint
 	DeletePipeline endpoint.Endpoint
@@ -39,6 +40,7 @@ func MakeServerEndpoints(s qid.Service) Endpoints {
 		GetPipelineImage: MakeGetPipelineImageEndpoint(s),
 
 		CreatePipeline: MakeCreatePipelineEndpoint(s),
+		UpdatePipeline: MakeUpdatePipelineEndpoint(s),
 		ListPipelines:  MakeListPipelinesEndpoint(s),
 		GetPipeline:    MakeGetPipelineEndpoint(s),
 		DeletePipeline: MakeDeletePipelineEndpoint(s),
@@ -72,6 +74,26 @@ func MakeCreatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 			errs = err.Error()
 		}
 		return CreatePipelineResponse{Err: errs}, nil
+	}
+}
+
+type UpdatePipelineRequest struct {
+	Name   string `json:"name"`
+	Config []byte `json:"config"`
+}
+type UpdatePipelineResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func MakeUpdatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(UpdatePipelineRequest)
+		err := s.UpdatePipeline(ctx, req.Name, req.Config)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return UpdatePipelineResponse{Err: errs}, nil
 	}
 }
 
