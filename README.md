@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="aseprite/logo.png" width=50% height=50%>
+</p>
+
 # QID (Queue CI/CD)
 
 It's a prototype for a CI/CD based on Queues
@@ -26,4 +30,4 @@ And with this you'll see what it runs on the server logs, which right now it's j
 
 ## Pipeline configuration
 
-Currently is WIP but the current one is `qid/testadata/pipeline.json`
+Currently is WIP but the current one is [this](qid/testdata/resource_pipeline.hcl)

@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/transport"
+	"github.com/xescugc/qid/qid/transport/http/assets"
+	"github.com/xescugc/qid/qid/transport/http/templates"
 
 	kittransport "github.com/go-kit/kit/transport"
 	kithttp "github.com/go-kit/kit/transport/http"
@@ -25,79 +27,104 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		kithttp.ServerErrorHandler(kittransport.NewLogErrorHandler(l)),
 	}
 
-	r.Methods(http.MethodPost).Path("/pipelines").Handler(kithttp.NewServer(
+	api := r.Headers("Content-Type", "application/json").Subrouter()
+
+	api.Methods(http.MethodPost).Path("/pipelines").Handler(kithttp.NewServer(
 		e.CreatePipeline,
 		decodeCreatePipelineRequest,
 		encodeCreatePipelineResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodGet).Path("/pipelines").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/pipelines").Handler(kithttp.NewServer(
 		e.ListPipelines,
 		decodeListPipelinesRequest,
 		encodeListPipelinesResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
 		e.GetPipeline,
 		decodeGetPipelineRequest,
 		encodeGetPipelineResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodDelete).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodDelete).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
 		e.DeletePipeline,
 		decodeDeletePipelineRequest,
 		encodeDeletePipelineResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/jobs/{job_name}/trigger").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/jobs/{job_name}/trigger").Handler(kithttp.NewServer(
 		e.TriggerPipelineJob,
 		decodeTriggerPipelineJobRequest,
 		encodeTriggerPipelineJobResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/jobs/{job_name}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/jobs/{job_name}").Handler(kithttp.NewServer(
 		e.GetPipelineJob,
 		decodeGetPipelineJobRequest,
 		encodeGetPipelineJobResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds").Handler(kithttp.NewServer(
 		e.CreateJobBuild,
 		decodeCreateJobBuildRequest,
 		encodeCreateJobBuildResponse,
-		options...,
 	))
 
-	r.Methods(http.MethodPut).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPut).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}").Handler(kithttp.NewServer(
 		e.UpdateJobBuild,
 		decodeUpdateJobBuildRequest,
 		encodeUpdateJobBuildResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
 		e.CreateResourceVersion,
 		decodeCreateResourceVersionRequest,
 		encodeCreateResourceVersionResponse,
 		options...,
 	))
 
-	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
 		e.ListResourceVersions,
 		decodeListResourceVersionsRequest,
 		encodeListResourceVersionsResponse,
 		options...,
 	))
 
+	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
+		e.ShowPipeline,
+		decodeShowPipelineRequest,
+		encodeShowPipelineResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/image{ext}").Handler(kithttp.NewServer(
+		e.GetPipelineImage,
+		decodeGetPipelineImageRequest,
+		encodeGetPipelineImageResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds").Handler(kithttp.NewServer(
+		e.ListJobBuilds,
+		decodeListJobBuildsRequest,
+		encodeListJobBuildsResponse,
+		options...,
+	))
+
+	r.PathPrefix("/css/").Handler(http.FileServer(http.FS(assets.Assets)))
+	r.PathPrefix("/js/").Handler(http.FileServer(http.FS(assets.Assets)))
+
 	r.NotFoundHandler = http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Context-Type", "application/json; charset=utf-8")
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintf(w, `{"error": "Path not found"}`)
 		},
@@ -118,6 +145,8 @@ func encodeCreatePipelineResponse(ctx context.Context, w http.ResponseWriter, re
 
 	json.NewEncoder(w).Encode(resp)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return nil
 }
 
@@ -131,6 +160,8 @@ func encodeListPipelinesResponse(ctx context.Context, w http.ResponseWriter, res
 	resp := response.(transport.ListPipelinesResponse)
 
 	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
 
 	return nil
 }
@@ -147,6 +178,8 @@ func encodeGetPipelineResponse(ctx context.Context, w http.ResponseWriter, respo
 
 	json.NewEncoder(w).Encode(resp)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return nil
 }
 
@@ -161,6 +194,8 @@ func encodeDeletePipelineResponse(ctx context.Context, w http.ResponseWriter, re
 	resp := response.(transport.DeletePipelineResponse)
 
 	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
 
 	return nil
 }
@@ -178,6 +213,8 @@ func encodeTriggerPipelineJobResponse(ctx context.Context, w http.ResponseWriter
 
 	json.NewEncoder(w).Encode(resp)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return nil
 }
 
@@ -193,6 +230,8 @@ func encodeGetPipelineJobResponse(ctx context.Context, w http.ResponseWriter, re
 	resp := response.(transport.GetPipelineJobResponse)
 
 	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
 
 	return nil
 }
@@ -212,6 +251,8 @@ func encodeCreateJobBuildResponse(ctx context.Context, w http.ResponseWriter, re
 	resp := response.(transport.CreateJobBuildResponse)
 
 	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
 
 	return nil
 }
@@ -234,6 +275,8 @@ func encodeUpdateJobBuildResponse(ctx context.Context, w http.ResponseWriter, re
 
 	json.NewEncoder(w).Encode(resp)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return nil
 }
 
@@ -255,6 +298,8 @@ func encodeCreateResourceVersionResponse(ctx context.Context, w http.ResponseWri
 
 	json.NewEncoder(w).Encode(resp)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return nil
 }
 
@@ -275,5 +320,48 @@ func encodeListResourceVersionsResponse(ctx context.Context, w http.ResponseWrit
 
 	json.NewEncoder(w).Encode(resp)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	return nil
+}
+
+func decodeShowPipelineRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	return transport.ShowPipelineRequest{
+		Name: vars["pipeline_name"],
+	}, nil
+}
+
+func encodeShowPipelineResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.ShowPipelineResponse)
+	t, _ := templates.Templates["views/pipelines/show.tmpl"]
+	return t.Execute(w, resp)
+}
+
+func decodeGetPipelineImageRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	return transport.GetPipelineImageRequest{
+		Name:   vars["pipeline_name"],
+		Format: vars["format"],
+	}, nil
+}
+
+func encodeGetPipelineImageResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.GetPipelineImageResponse)
+	fmt.Fprint(w, string(resp.Image))
+	return nil
+}
+
+func decodeListJobBuildsRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	return transport.ListJobBuildsRequest{
+		PipelineName: vars["pipeline_name"],
+		JobName:      vars["job_name"],
+	}, nil
+}
+
+func encodeListJobBuildsResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.ListJobBuildsResponse)
+	t, _ := templates.Templates["views/builds/index.tmpl"]
+	return t.Execute(w, resp)
 }

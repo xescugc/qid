@@ -47,8 +47,6 @@ func (w *Worker) Run(ctx context.Context) error {
 			// Errors from Receive indicate that Receive will no longer succeed.
 			return fmt.Errorf("Failed to Receiving message: %w", err)
 		}
-		// Messages must always be acknowledged with Ack.
-		defer func() { msg.Ack() }()
 		var m queue.Body
 		err = json.Unmarshal(msg.Body, &m)
 		if err != nil {
@@ -249,6 +247,9 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		}
 	END:
+		// Messages must always be acknowledged with Ack.
+		//defer func() { msg.Ack() }()
+		msg.Ack()
 	}
 	return nil
 }

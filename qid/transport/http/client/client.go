@@ -18,12 +18,14 @@ import (
 type Client struct {
 	createPipeline        endpoint.Endpoint
 	getPipeline           endpoint.Endpoint
+	getPipelineImage      endpoint.Endpoint
 	listPipelines         endpoint.Endpoint
 	deletePipeline        endpoint.Endpoint
 	triggerPipelineJob    endpoint.Endpoint
 	getPipelineJob        endpoint.Endpoint
 	createJobBuild        endpoint.Endpoint
 	updateJobBuild        endpoint.Endpoint
+	listJobBuilds         endpoint.Endpoint
 	createResourceVersion endpoint.Endpoint
 	listResourceVersions  endpoint.Endpoint
 }
@@ -44,12 +46,14 @@ func New(host string) (*Client, error) {
 	cl := &Client{
 		createPipeline:        makeCreatePipelineEndpoint(*u),
 		getPipeline:           makeGetPipelineEndpoint(*u),
+		getPipelineImage:      makeGetPipelineImageEndpoint(*u),
 		listPipelines:         makeListPipelinesEndpoint(*u),
 		deletePipeline:        makeDeletePipelineEndpoint(*u),
 		triggerPipelineJob:    makeTriggerPipelineJobEndpoint(*u),
 		getPipelineJob:        makeGetPipelineJobEndpoint(*u),
 		createJobBuild:        makeCreateJobBuildEndpoint(*u),
 		updateJobBuild:        makeUpdateJobBuildEndpoint(*u),
+		listJobBuilds:         makeListJobBuildsEndpoint(*u),
 		createResourceVersion: makeCreateResourceVersionEndpoint(*u),
 		listResourceVersions:  makeListResourceVersionsEndpoint(*u),
 	}
@@ -83,6 +87,20 @@ func (cl *Client) GetPipeline(ctx context.Context, pn string) (*pipeline.Pipelin
 	}
 
 	return resp.Pipeline, nil
+}
+
+func (cl *Client) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, error) {
+	response, err := cl.getPipelineImage(ctx, transport.GetPipelineImageRequest{Name: pn, Format: format})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := response.(transport.GetPipelineImageResponse)
+	if resp.Err != "" {
+		return nil, errors.New(resp.Err)
+	}
+
+	return resp.Image, nil
 }
 
 func (cl *Client) ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error) {
@@ -167,6 +185,20 @@ func (cl *Client) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32,
 	}
 
 	return nil
+}
+
+func (cl *Client) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error) {
+	response, err := cl.listJobBuilds(ctx, transport.ListJobBuildsRequest{PipelineName: pn, JobName: jn})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := response.(transport.ListJobBuildsResponse)
+	if resp.Err != "" {
+		return nil, errors.New(resp.Err)
+	}
+
+	return resp.Builds, nil
 }
 
 func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rt, rn string, rv resource.Version) error {

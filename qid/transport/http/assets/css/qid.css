@@ -1,0 +1,11 @@
+.status-succeeded {
+  background-color: #4daf4a !important;
+}
+
+.status-failed {
+  background-color: #e41a1c !important;
+}
+
+.status-started {
+  background-color: #ffff33 !important;
+}

@@ -38,6 +38,16 @@ func makeGetPipelineEndpoint(u url.URL) endpoint.Endpoint {
 	).Endpoint()
 }
 
+func makeGetPipelineImageEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/image{format}"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeGetPipelineImageRequest,
+		decodeGetPipelineImageResponse,
+	).Endpoint()
+}
+
 func makeDeletePipelineEndpoint(u url.URL) endpoint.Endpoint {
 	u.Path = "/pipelines/{pipeline_name}"
 	return kithttp.NewClient(
@@ -85,6 +95,16 @@ func makeUpdateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
 		&u,
 		encodeUpdateJobBuildRequest,
 		decodeUpdateJobBuildResponse,
+	).Endpoint()
+}
+
+func makeListJobBuildsEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeListJobBuildsRequest,
+		decodeListJobBuildsResponse,
 	).Endpoint()
 }
 

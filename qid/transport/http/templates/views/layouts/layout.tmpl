@@ -1,0 +1,31 @@
+{{define "main"}}
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <title>QID</title>
+      <link href="/css/bootstrap.min.css" rel="stylesheet" />
+      <link href="/css/qid.css" rel="stylesheet" />
+    </head>
+
+    <body>
+      <div class="container">
+        <nav class="navbar navbar-expand-lg bg-light">
+          <div class="container-fluid">
+            <a class="navbar-brand" href="/">QID</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+              <span class="navbar-toggler-icon"></span>
+            </button>
+          </div>
+        </nav>
+        {{ if ne .Err "" }}
+          <div class="alert alert-warning" role="alert">
+            {{ .Err }}
+          </div>
+        {{ end }}
+        {{template "content" .}}
+      </div>
+      <script type = "text/javascript" src="/js/bootstrap.bundle.min.js"></script>
+      <script type = "text/javascript" src="/js/viz-global.js"></script>
+    </body>
+  </html>
+{{end}}
