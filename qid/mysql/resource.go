@@ -91,6 +91,27 @@ func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.
 	return id, nil
 }
 
+func (r *ResourceRepository) Update(ctx context.Context, pn, rn string, rs resource.Resource) error {
+	dbrs := newDBResource(rs)
+	res, err := r.querier.ExecContext(ctx, `
+		UPDATE resources AS r
+		JOIN pipelines AS p
+			ON r.pipeline_id = p.id
+		SET r.name = ?, r.type = ?, r.inputs = ?
+		WHERE p.name = ? AND r.name = ?
+	`, dbrs.Name, dbrs.Type, dbrs.Inputs, pn, rn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to update resource: %w", err)
+	}
+
+	return nil
+}
+
 func (r *ResourceRepository) Find(ctx context.Context, pn, rn, rt string) (*resource.Resource, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT r.id, r.name, r.type, r.inputs
@@ -173,6 +194,26 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rt, rn stri
 	}
 
 	return rvs, nil
+}
+
+func (r *ResourceRepository) Delete(ctx context.Context, pn, rn string) error {
+	res, err := r.querier.ExecContext(ctx, `
+		DELETE r
+		FROM resources AS r
+		JOIN pipelines AS p
+			ON r.pipeline_id = p.id
+		WHERE p.name = ? AND r.name = ?
+	`, pn, rn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to delete the Job: %w", err)
+	}
+
+	return nil
 }
 
 func scanResource(s sqlr.Scanner) (*resource.Resource, error) {

@@ -56,6 +56,20 @@ func (mr *JobRepositoryMockRecorder) Create(ctx, pn, j any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*JobRepository)(nil).Create), ctx, pn, j)
 }
 
+// Delete mocks base method.
+func (m *JobRepository) Delete(ctx context.Context, pn, jn string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, pn, jn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *JobRepositoryMockRecorder) Delete(ctx, pn, jn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*JobRepository)(nil).Delete), ctx, pn, jn)
+}
+
 // Filter mocks base method.
 func (m *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, error) {
 	m.ctrl.T.Helper()
@@ -84,4 +98,18 @@ func (m *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, erro
 func (mr *JobRepositoryMockRecorder) Find(ctx, pn, jn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*JobRepository)(nil).Find), ctx, pn, jn)
+}
+
+// Update mocks base method.
+func (m *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", ctx, pn, jn, j)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Update indicates an expected call of Update.
+func (mr *JobRepositoryMockRecorder) Update(ctx, pn, jn, j any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*JobRepository)(nil).Update), ctx, pn, jn, j)
 }

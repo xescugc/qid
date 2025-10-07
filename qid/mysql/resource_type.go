@@ -80,6 +80,27 @@ func (r *ResourceTypeRepository) Create(ctx context.Context, pn string, rt resty
 	return id, nil
 }
 
+func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt restype.ResourceType) error {
+	dbrt := newDBResourceType(rt)
+	res, err := r.querier.ExecContext(ctx, `
+		UPDATE resource_types AS rt
+		JOIN pipelines AS p
+			ON rt.pipeline_id = p.id
+		SET rt.name = ?, rt.check = ?, rt.pull = ?, rt.push = ?, rt.inputs = ?
+		WHERE p.name = ? AND rt.name = ?
+	`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Inputs, pn, rtn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to update resource type: %w", err)
+	}
+
+	return nil
+}
+
 func (r *ResourceTypeRepository) Find(ctx context.Context, pn, rtn string) (*restype.ResourceType, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT rt.id, rt.name, rt.check, rt.pull, rt.push, rt.inputs
@@ -115,6 +136,26 @@ func (r *ResourceTypeRepository) Filter(ctx context.Context, pn string) ([]*rest
 	}
 
 	return restypes, nil
+}
+
+func (r *ResourceTypeRepository) Delete(ctx context.Context, pn, rtn string) error {
+	res, err := r.querier.ExecContext(ctx, `
+		DELETE rt
+		FROM resource_types AS rt
+		JOIN pipelines AS p
+			ON rt.pipeline_id = p.id
+		WHERE p.name = ? AND rt.name = ?
+	`, pn, rtn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to delete the Job: %w", err)
+	}
+
+	return nil
 }
 
 func scanResourceType(s sqlr.Scanner) (*restype.ResourceType, error) {

@@ -23,6 +23,7 @@ import (
 
 type Service interface {
 	CreatePipeline(ctx context.Context, pn string, pp []byte) error
+	UpdatePipeline(ctx context.Context, pn string, pp []byte) error
 	GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, error)
 	DeletePipeline(ctx context.Context, pn string) error
 	ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error)
@@ -156,6 +157,107 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte) error {
 		_, err = q.Resources.Create(ctx, pn, r)
 		if err != nil {
 			return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
+		}
+	}
+	return nil
+}
+
+func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	}
+	var pp pipeline.Pipeline
+	err := hclsimple.Decode("pipeline.hcl", rpp, nil, &pp)
+	if err != nil {
+		return fmt.Errorf("failed to Decode Pipeline config: %w", err)
+	}
+
+	dbpp, err := q.GetPipeline(ctx, pn)
+	if err != nil {
+		return fmt.Errorf("failed to get Pipeline %q: %w", pn, err)
+	}
+
+	dbjbs := make(map[string]struct{})
+	for _, j := range dbpp.Jobs {
+		dbjbs[j.Name] = struct{}{}
+	}
+	for _, j := range pp.Jobs {
+		if !utils.ValidateCanonical(j.Name) {
+			return fmt.Errorf("invalid Job Name format %q", j.Name)
+		}
+		if _, ok := dbjbs[j.Name]; ok {
+			delete(dbjbs, j.Name)
+			err = q.Jobs.Update(ctx, pn, j.Name, j)
+			if err != nil {
+				return fmt.Errorf("failed to update Job %q: %w", j.Name, err)
+			}
+		} else {
+			_, err = q.Jobs.Create(ctx, pn, j)
+			if err != nil {
+				return fmt.Errorf("failed to create Job %q: %w", j.Name, err)
+			}
+		}
+	}
+	for jn := range dbjbs {
+		err = q.Jobs.Delete(ctx, pn, jn)
+		if err != nil {
+			return fmt.Errorf("failed to delete Job %q: %w", jn, err)
+		}
+	}
+
+	dbrts := make(map[string]struct{})
+	for _, rt := range dbpp.ResourceTypes {
+		dbrts[rt.Name] = struct{}{}
+	}
+	for _, rt := range pp.ResourceTypes {
+		if !utils.ValidateCanonical(rt.Name) {
+			return fmt.Errorf("invalid ResourceType Name format %q", rt.Name)
+		}
+		if _, ok := dbrts[rt.Name]; ok {
+			delete(dbrts, rt.Name)
+			err = q.ResourceTypes.Update(ctx, pn, rt.Name, rt)
+			if err != nil {
+				return fmt.Errorf("failed to update ResourceType %q: %w", rt.Name, err)
+			}
+		} else {
+			_, err = q.ResourceTypes.Create(ctx, pn, rt)
+			if err != nil {
+				return fmt.Errorf("failed to create ResourceType %q: %w", rt.Name, err)
+			}
+		}
+	}
+	for rt := range dbrts {
+		err = q.ResourceTypes.Delete(ctx, pn, rt)
+		if err != nil {
+			return fmt.Errorf("failed to delete ResourceType %q: %w", rt, err)
+		}
+	}
+
+	dbrs := make(map[string]struct{})
+	for _, r := range dbpp.Resources {
+		dbrs[r.Name] = struct{}{}
+	}
+	for _, r := range pp.Resources {
+		if !utils.ValidateCanonical(r.Name) {
+			return fmt.Errorf("invalid Resource Name format %q", r.Name)
+		}
+		if _, ok := dbrs[r.Name]; ok {
+			delete(dbrs, r.Name)
+			err = q.Resources.Update(ctx, pn, r.Name, r)
+			if err != nil {
+				return fmt.Errorf("failed to update Resource %q: %w", r.Name, err)
+			}
+		} else {
+			_, err = q.Resources.Create(ctx, pn, r)
+			if err != nil {
+				return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
+			}
+		}
+	}
+	for rn := range dbrs {
+		err = q.Resources.Delete(ctx, pn, rn)
+		if err != nil {
+			return fmt.Errorf("failed to delete Resource %q: %w", rn, err)
 		}
 	}
 	return nil

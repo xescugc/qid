@@ -18,6 +18,16 @@ func makeCreatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 	).Endpoint()
 }
 
+func makeUpdatePipelineEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}"
+	return kithttp.NewClient(
+		http.MethodPost,
+		&u,
+		encodeUpdatePipelineRequest,
+		decodeUpdatePipelineResponse,
+	).Endpoint()
+}
+
 func makeListPipelinesEndpoint(u url.URL) endpoint.Endpoint {
 	u.Path = "/pipelines"
 	return kithttp.NewClient(
