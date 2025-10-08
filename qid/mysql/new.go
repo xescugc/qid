@@ -7,19 +7,23 @@ import (
 
 	"github.com/VividCortex/mysqlerr"
 	"github.com/go-sql-driver/mysql"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // New returns a new sql.DB with the provided parameters. If the Ping to the DB fails
 // due to not existing DB it'll create the DB
 func New(host string, port int, user, password string, ops Options) (*sql.DB, error) {
-	if host == "" {
-		return nil, errors.New("host is a required parameter")
-	} else if port == 0 {
-		return nil, errors.New("port is a required parameter")
-	} else if user == "" {
-		return nil, errors.New("user is a required parameter")
-	} else if password == "" {
-		return nil, errors.New("password is a required parameter")
+	if !ops.Mem {
+		if host == "" {
+			return nil, errors.New("host is a required parameter")
+		} else if port == 0 {
+			return nil, errors.New("port is a required parameter")
+		} else if user == "" {
+			return nil, errors.New("user is a required parameter")
+		} else if password == "" {
+			return nil, errors.New("password is a required parameter")
+		}
 	}
 
 	dns := fmt.Sprintf(
@@ -27,7 +31,19 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 		user, password, host, port, ops.DBName, ops.ClientFoundRows, ops.ParseTime, ops.MultiStatements,
 	)
 
-	db, err := sql.Open("mysql", dns)
+	var (
+		db  *sql.DB
+		err error
+	)
+	if ops.Mem {
+		q := "file::memory:?cache=shared&_foreign_keys=true"
+		if ops.File != "" {
+			q = ops.File + "?_foreign_keys=true"
+		}
+		db, err = sql.Open("sqlite3", q)
+	} else {
+		db, err = sql.Open("mysql", dns)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the MySQL database: %w", err)
 	}
@@ -78,4 +94,6 @@ type Options struct {
 	ClientFoundRows bool
 	ParseTime       bool
 	MultiStatements bool
+	Mem             bool
+	File            string
 }

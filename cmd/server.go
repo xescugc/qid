@@ -44,6 +44,8 @@ var (
 			&cli.StringFlag{Name: "db-password", Usage: "Database Password"},
 			&cli.StringFlag{Name: "db-name", Usage: "Database Name"},
 			&cli.BoolFlag{Name: "run-migrations", Value: true, Usage: "Flag to know if migrations should be ran"},
+			&cli.BoolFlag{Name: "db-mem", Value: true, Usage: "Flag to know if the database should run in memory"},
+			&cli.StringFlag{Name: "db-file", Usage: "Flag to know where the DB is"},
 
 			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with QID server"},
 
@@ -101,6 +103,8 @@ var (
 				DBName:          cfg.DBName,
 				MultiStatements: true,
 				ClientFoundRows: true,
+				Mem:             cfg.DBMem,
+				File:            cfg.DBFile,
 			})
 			if err != nil {
 				panic(err)
@@ -109,7 +113,7 @@ var (
 
 			if cmd.Bool("run-migrations") {
 				logger.Log("msg", "Running migrations")
-				err := migrate.Migrate(db)
+				err := migrate.Migrate(db, cfg.DBMem)
 				if err != nil {
 					panic(err)
 				}

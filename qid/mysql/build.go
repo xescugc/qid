@@ -123,13 +123,18 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE builds AS b
-		JOIN jobs AS j
-			ON b.job_id = j.id
-		JOIN pipelines AS p
-			ON j.pipeline_id = p.id
-		SET b.get = ?, b.task = ?, b.status = ?, b.error = ?
-		WHERE p.name = ? AND j.name = ? AND b.id = ?
-	`, dbb.Get, dbb.Task, dbb.Status, dbb.Error, pn, jn, bID)
+		SET get = ?, task = ?, status = ?, error = ?
+		FROM (
+			SELECT b.id
+			FROM builds AS b
+			JOIN jobs AS j
+				ON b.job_id = j.id
+			JOIN pipelines AS p
+				ON j.pipeline_id = p.id
+			WHERE p.name = ? AND j.name = ? AND b.id = ?
+		) AS bb
+		WHERE bb.id = b.id;
+	`, dbb.Get, dbb.Task, dbb.Status, dbb.Error, pn, jn, bID, bID)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
