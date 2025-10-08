@@ -63,8 +63,8 @@ func New(host string) (*Client, error) {
 	return cl, nil
 }
 
-func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte) error {
-	response, err := cl.createPipeline(ctx, transport.CreatePipelineRequest{Name: pn, Config: pp})
+func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error {
+	response, err := cl.createPipeline(ctx, transport.CreatePipelineRequest{Name: pn, Config: pp, Vars: vars})
 	if err != nil {
 		return err
 	}
@@ -77,8 +77,8 @@ func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte) erro
 	return nil
 }
 
-func (cl *Client) UpdatePipeline(ctx context.Context, pn string, pp []byte) error {
-	response, err := cl.updatePipeline(ctx, transport.UpdatePipelineRequest{Name: pn, Config: pp})
+func (cl *Client) UpdatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error {
+	response, err := cl.updatePipeline(ctx, transport.UpdatePipelineRequest{Name: pn, Config: pp, Vars: vars})
 	if err != nil {
 		return err
 	}

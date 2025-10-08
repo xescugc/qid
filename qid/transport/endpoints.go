@@ -58,8 +58,9 @@ func MakeServerEndpoints(s qid.Service) Endpoints {
 }
 
 type CreatePipelineRequest struct {
-	Name   string `json:"name"`
-	Config []byte `json:"config"`
+	Name   string                 `json:"name"`
+	Config []byte                 `json:"config"`
+	Vars   map[string]interface{} `json:"vars"`
 }
 type CreatePipelineResponse struct {
 	Err string `json:"error,omitempty"`
@@ -68,7 +69,7 @@ type CreatePipelineResponse struct {
 func MakeCreatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreatePipelineRequest)
-		err := s.CreatePipeline(ctx, req.Name, req.Config)
+		err := s.CreatePipeline(ctx, req.Name, req.Config, req.Vars)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -78,8 +79,9 @@ func MakeCreatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type UpdatePipelineRequest struct {
-	Name   string `json:"name"`
-	Config []byte `json:"config"`
+	Name   string                 `json:"name"`
+	Config []byte                 `json:"config"`
+	Vars   map[string]interface{} `json:"vars"`
 }
 type UpdatePipelineResponse struct {
 	Err string `json:"error,omitempty"`
@@ -88,7 +90,7 @@ type UpdatePipelineResponse struct {
 func MakeUpdatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdatePipelineRequest)
-		err := s.UpdatePipeline(ctx, req.Name, req.Config)
+		err := s.UpdatePipeline(ctx, req.Name, req.Config, req.Vars)
 		var errs string
 		if err != nil {
 			errs = err.Error()

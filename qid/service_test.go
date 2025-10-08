@@ -6,11 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xescugc/qid/qid/job"
-	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/queue"
 	"go.uber.org/mock/gomock"
 	"gocloud.dev/pubsub"
@@ -22,27 +20,19 @@ func TestCreatePipeline(t *testing.T) {
 	ctx := context.TODO()
 	ppn := "pipeline-name"
 
-	b, err := os.ReadFile("testdata/resource_pipeline.hcl")
+	b, err := os.ReadFile("testdata/pipeline.hcl")
 	require.NoError(t, err)
 
-	var pp pipeline.Pipeline
-	err = hclsimple.Decode("pipeline.hcl", b, nil, &pp)
-	require.NoError(t, err)
-
-	pp.Name = ppn
-
-	s.Pipelines.EXPECT().Create(ctx, pp).Return(uint32(1), nil)
-	for _, j := range pp.Jobs {
-		s.Jobs.EXPECT().Create(ctx, ppn, j).Return(uint32(1), nil)
-	}
-	for _, rt := range pp.ResourceTypes {
-		s.ResourceTypes.EXPECT().Create(ctx, ppn, rt).Return(uint32(1), nil)
-	}
-	for _, r := range pp.Resources {
-		s.Resources.EXPECT().Create(ctx, ppn, r).Return(uint32(1), nil)
+	mvars := map[string]interface{}{
+		"repo_name": "repo",
 	}
 
-	err = s.S.CreatePipeline(ctx, ppn, b)
+	s.Pipelines.EXPECT().Create(ctx, gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, ppn, gomock.Any()).Return(uint32(1), nil).Times(3)
+	s.ResourceTypes.EXPECT().Create(ctx, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
+	s.Resources.EXPECT().Create(ctx, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
+
+	err = s.S.CreatePipeline(ctx, ppn, b, mvars)
 	require.NoError(t, err)
 }
 

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/awalterschulze/gographviz"
-	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
@@ -22,8 +21,8 @@ import (
 )
 
 type Service interface {
-	CreatePipeline(ctx context.Context, pn string, pp []byte) error
-	UpdatePipeline(ctx context.Context, pn string, pp []byte) error
+	CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
+	UpdatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
 	GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, error)
 	DeletePipeline(ctx context.Context, pn string) error
 	ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error)
@@ -113,19 +112,19 @@ func (q *Qid) resourceCheck(ctx context.Context) {
 	}
 }
 
-func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte) error {
+func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars map[string]interface{}) error {
 	if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	}
-	var pp pipeline.Pipeline
-	err := hclsimple.Decode("pipeline.hcl", rpp, nil, &pp)
+
+	pp, err := q.readPipeline(ctx, rpp, vars)
 	if err != nil {
-		return fmt.Errorf("failed to Decode Pipeline config: %w", err)
+		return fmt.Errorf("failed to read Pipeline config: %w", err)
 	}
 
 	pp.Name = pn
 
-	_, err = q.Pipelines.Create(ctx, pp)
+	_, err = q.Pipelines.Create(ctx, *pp)
 	if err != nil {
 		return fmt.Errorf("failed to create Pipeline %q: %w", pn, err)
 	}
@@ -162,14 +161,14 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte) error {
 	return nil
 }
 
-func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte) error {
+func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte, vars map[string]interface{}) error {
 	if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	}
-	var pp pipeline.Pipeline
-	err := hclsimple.Decode("pipeline.hcl", rpp, nil, &pp)
+
+	pp, err := q.readPipeline(ctx, rpp, vars)
 	if err != nil {
-		return fmt.Errorf("failed to Decode Pipeline config: %w", err)
+		return fmt.Errorf("failed to read Pipeline config: %w", err)
 	}
 
 	dbpp, err := q.GetPipeline(ctx, pn)
