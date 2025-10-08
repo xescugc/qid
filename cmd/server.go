@@ -38,14 +38,14 @@ var (
 
 			&cli.IntFlag{Name: "port", Aliases: []string{"p"}, Value: 8080, Usage: "Port in which to start the server"},
 
+			&cli.StringFlag{Name: "db-system", Value: mysql.Mem, Usage: "Flag to know if the database should run (mem, sqlite, mysql)"},
 			&cli.StringFlag{Name: "db-host", Usage: "Database Host"},
 			&cli.IntFlag{Name: "db-port", Usage: "Database Port"},
 			&cli.StringFlag{Name: "db-user", Usage: "Database User"},
 			&cli.StringFlag{Name: "db-password", Usage: "Database Password"},
 			&cli.StringFlag{Name: "db-name", Usage: "Database Name"},
 			&cli.BoolFlag{Name: "run-migrations", Value: true, Usage: "Flag to know if migrations should be ran"},
-			&cli.BoolFlag{Name: "db-mem", Value: true, Usage: "Flag to know if the database should run in memory"},
-			&cli.StringFlag{Name: "db-file", Usage: "Flag to know where the DB is"},
+			&cli.StringFlag{Name: "db-file", Usage: "Flag to know where the DB File is"},
 
 			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with QID server"},
 
@@ -92,28 +92,33 @@ var (
 			var cfg config.Config
 			k.Unmarshal("qid.server", &cfg)
 
+			if cfg.DBSystem != mysql.Mem && cfg.DBSystem != mysql.MySQL && cfg.DBSystem != mysql.SQLite {
+				return fmt.Errorf("invalid DBSystem %q, should be one of: %s, %s or %s", cfg.DBSystem, mysql.Mem, mysql.MySQL, mysql.SQLite)
+			}
+
 			topic, err := pubsub.OpenTopic(ctx, getTopicURL(cfg.PubSubSystem))
 			if err != nil {
 				return fmt.Errorf("failed to open: %v", err)
 			}
 			defer topic.Shutdown(ctx)
 
-			logger.Log("msg", "MariaDB connection starting ...")
+			logger.Log("msg", "DB connection starting ...", "db-system", cfg.DBSystem)
 			db, err := mysql.New(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, mysql.Options{
 				DBName:          cfg.DBName,
 				MultiStatements: true,
 				ClientFoundRows: true,
-				Mem:             cfg.DBMem,
-				File:            cfg.DBFile,
+				System:          cfg.DBSystem,
+				DBFile:          cfg.DBFile,
 			})
 			if err != nil {
 				panic(err)
 			}
-			logger.Log("msg", "MariaDB connection started")
+			logger.Log("msg", "DB connection started", "db-system", cfg.DBSystem)
 
 			if cmd.Bool("run-migrations") {
 				logger.Log("msg", "Running migrations")
-				err := migrate.Migrate(db, cfg.DBMem)
+				isSQLite := (cfg.DBSystem == mysql.Mem) || (cfg.DBSystem == mysql.SQLite)
+				err := migrate.Migrate(db, isSQLite)
 				if err != nil {
 					panic(err)
 				}
