@@ -95,10 +95,15 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rn string, rs resou
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resources AS r
-		JOIN pipelines AS p
-			ON r.pipeline_id = p.id
 		SET r.name = ?, r.type = ?, r.inputs = ?
-		WHERE p.name = ? AND r.name = ?
+		FROM (
+			SELECT r.id
+			FROM resources AS r
+			JOIN pipelines AS p
+				ON r.pipeline_id = p.id
+			WHERE p.name = ? AND r.name = ?
+		) AS rr
+		WHERE rr.id = r.id
 	`, dbrs.Name, dbrs.Type, dbrs.Inputs, pn, rn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

@@ -89,7 +89,7 @@ func (r *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, 
 
 func (r *PipelineRepository) Delete(ctx context.Context, pn string) error {
 	res, err := r.querier.ExecContext(ctx, `
-		DELETE p
+		DELETE
 		FROM pipelines AS p
 		WHERE p.name = ?
 	`, pn)

@@ -147,7 +147,7 @@ var (
 
 							pp, err := c.GetPipeline(ctx, cmd.String("name"))
 							if err != nil {
-								return fmt.Errorf("failed to create Pipeline %q: %w", cmd.String("name"), err)
+								return fmt.Errorf("failed to get Pipeline %q: %w", cmd.String("name"), err)
 							}
 
 							spew.Dump(pp)

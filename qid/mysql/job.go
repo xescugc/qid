@@ -76,10 +76,15 @@ func (r *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) er
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE jobs AS j
-		JOIN pipelines AS p
-			ON j.pipeline_id = p.id
 		SET j.name = ?, j.get = ?, j.task = ?
-		WHERE p.name = ? AND j.name = ?
+		FROM (
+			SELECT j.id
+			FROM jobs AS j
+			JOIN pipelines AS p
+				ON j.pipeline_id = p.id
+			WHERE p.name = ? AND j.name = ?
+		) AS jj
+		WHERE jj.id = j.id
 	`, dbj.Name, dbj.Get, dbj.Task, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
@@ -132,7 +137,7 @@ func (r *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, erro
 
 func (r *JobRepository) Delete(ctx context.Context, pn, jn string) error {
 	res, err := r.querier.ExecContext(ctx, `
-		DELETE j
+		DELETE
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id

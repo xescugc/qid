@@ -20,8 +20,10 @@ require (
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/lopezator/migrator v0.3.1
+	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.4.1
+	github.com/zclconf/go-cty v1.16.3
 	go.uber.org/mock v0.6.0
 	gocloud.dev v0.43.0
 	gocloud.dev/pubsub/natspubsub v0.43.0
@@ -42,6 +44,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -52,7 +55,6 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/zclconf/go-cty v1.16.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect

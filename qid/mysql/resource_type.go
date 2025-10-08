@@ -84,10 +84,15 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt 
 	dbrt := newDBResourceType(rt)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resource_types AS rt
-		JOIN pipelines AS p
-			ON rt.pipeline_id = p.id
-		SET rt.name = ?, rt.check = ?, rt.pull = ?, rt.push = ?, rt.inputs = ?
-		WHERE p.name = ? AND rt.name = ?
+		SET rt.name = ?, `+"rt.`check`"+` = ?, rt.pull = ?, rt.push = ?, rt.inputs = ?
+		FROM (
+		SELECT rt.id
+			FROM resource_types AS rt
+			JOIN pipelines AS p
+				ON rt.pipeline_id = p.id
+			WHERE p.name = ? AND rt.name = ?
+		) AS rtt
+		WHERE rtt.id = rt.id
 	`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Inputs, pn, rtn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
@@ -103,7 +108,7 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt 
 
 func (r *ResourceTypeRepository) Find(ctx context.Context, pn, rtn string) (*restype.ResourceType, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT rt.id, rt.name, rt.check, rt.pull, rt.push, rt.inputs
+		SELECT rt.id, rt.name, `+"rt.`check`"+`, rt.pull, rt.push, rt.inputs
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
@@ -120,7 +125,7 @@ func (r *ResourceTypeRepository) Find(ctx context.Context, pn, rtn string) (*res
 
 func (r *ResourceTypeRepository) Filter(ctx context.Context, pn string) ([]*restype.ResourceType, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT rt.id, rt.name, rt.check, rt.pull, rt.push, rt.inputs
+		SELECT rt.id, rt.name, `+"rt.`check`"+`, rt.pull, rt.push, rt.inputs
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
