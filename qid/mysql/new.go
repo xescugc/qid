@@ -11,10 +11,17 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+const (
+	Mem    = "mem"
+	MySQL  = "mysql"
+	SQLite = "sqlite"
+)
+
 // New returns a new sql.DB with the provided parameters. If the Ping to the DB fails
 // due to not existing DB it'll create the DB
 func New(host string, port int, user, password string, ops Options) (*sql.DB, error) {
-	if !ops.Mem {
+	switch ops.System {
+	case MySQL:
 		if host == "" {
 			return nil, errors.New("host is a required parameter")
 		} else if port == 0 {
@@ -24,6 +31,13 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 		} else if password == "" {
 			return nil, errors.New("password is a required parameter")
 		}
+	case Mem:
+	case SQLite:
+		if ops.DBFile == "" {
+			return nil, fmt.Errorf("DBFile is required")
+		}
+	default:
+		return nil, fmt.Errorf("invalid db system %q", ops.System)
 	}
 
 	dns := fmt.Sprintf(
@@ -35,10 +49,10 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 		db  *sql.DB
 		err error
 	)
-	if ops.Mem {
+	if ops.System == Mem || ops.System == SQLite {
 		q := "file::memory:?cache=shared&_foreign_keys=true"
-		if ops.File != "" {
-			q = ops.File + "?_foreign_keys=true"
+		if ops.System == SQLite {
+			q = ops.DBFile + "?_foreign_keys=true"
 		}
 		db, err = sql.Open("sqlite3", q)
 	} else {
@@ -94,6 +108,6 @@ type Options struct {
 	ClientFoundRows bool
 	ParseTime       bool
 	MultiStatements bool
-	Mem             bool
-	File            string
+	System          string
+	DBFile          string
 }
