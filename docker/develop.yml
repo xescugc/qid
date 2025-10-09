@@ -17,7 +17,6 @@ services:
       - DB_NAME=qid_develop
       - NATS_SERVER_URL=nats:4222
       - DB_MEM=true
-      #- DB_FILE=test.db
 
   worker:
     image: golang:1.25.1 

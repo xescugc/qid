@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/cliflagv3"
@@ -35,6 +36,8 @@ var (
 			&cli.StringFlag{Name: "qid-url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server"},
 
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
+
+			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -82,14 +85,14 @@ var (
 			}
 			defer topic.Shutdown(ctx)
 
-			runWorker(ctx, cfg.PubSubSystem, topic, c)
+			runWorker(ctx, cfg.PubSubSystem, topic, c, cfg.Concurrency)
 
 			return nil
 		},
 	}
 )
 
-func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service) error {
+func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int) error {
 	var logger log.Logger
 	logger = log.NewLogfmtLogger(os.Stderr)
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
@@ -102,11 +105,21 @@ func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service) err
 	}
 	defer subscription.Shutdown(ctx)
 
-	w := worker.New(s, t, subscription, logger)
+	var wg sync.WaitGroup
+	for i := range c {
+		wg.Add(1)
+		nlogger := log.With(logger, "num", i+1)
+		nlogger.Log("msg", fmt.Sprintf("Starting Worker %d", i+1))
+		w := worker.New(s, t, subscription, nlogger)
 
-	err = w.Run(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to Run worker: %w", err)
+		go func() {
+			err = w.Run(ctx)
+			if err != nil {
+				logger.Log("error", fmt.Errorf("failed to Run worker: %w", err).Error())
+			}
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 	return nil
 }

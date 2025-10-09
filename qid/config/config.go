@@ -15,7 +15,8 @@ type Config struct {
 	// SQLite
 	DBFile string `koanf:"db-file"`
 
-	RunWorker bool `koanf:"run-worker"`
+	RunWorker   bool `koanf:"run-worker"`
+	Concurrency int  `koanf:"concurrency"`
 
 	PubSubSystem string `koanf:"pubsub-system"`
 }

@@ -48,6 +48,7 @@ var (
 			&cli.StringFlag{Name: "db-file", Usage: "Flag to know where the DB File is"},
 
 			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with QID server"},
+			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
 
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
 		},
@@ -163,7 +164,7 @@ var (
 			if cfg.RunWorker {
 				logger.Log("message", "Starting Worker ...")
 				go func() {
-					err := runWorker(ctx, cfg.PubSubSystem, topic, svc)
+					err := runWorker(ctx, cfg.PubSubSystem, topic, svc, cfg.Concurrency)
 					errs <- fmt.Errorf("worker failed to start: %w", err)
 				}()
 			}
