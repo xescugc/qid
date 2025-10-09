@@ -13,8 +13,10 @@ import (
 
 type Endpoints struct {
 	// Web
-	ShowPipeline     endpoint.Endpoint
-	GetPipelineImage endpoint.Endpoint
+	ShowPipeline          endpoint.Endpoint
+	GetPipelineImage      endpoint.Endpoint
+	IndexJobBuilds        endpoint.Endpoint
+	IndexResourceVersions endpoint.Endpoint
 
 	// API
 	CreatePipeline endpoint.Endpoint
@@ -28,16 +30,21 @@ type Endpoints struct {
 
 	CreateJobBuild endpoint.Endpoint
 	UpdateJobBuild endpoint.Endpoint
-	ListJobBuilds  endpoint.Endpoint
+
+	UpdatePipelineResource endpoint.Endpoint
 
 	CreateResourceVersion endpoint.Endpoint
 	ListResourceVersions  endpoint.Endpoint
+
+	GetPipelineResource endpoint.Endpoint
 }
 
 func MakeServerEndpoints(s qid.Service) Endpoints {
 	return Endpoints{
-		ShowPipeline:     MakeShowPipelineEndpoint(s),
-		GetPipelineImage: MakeGetPipelineImageEndpoint(s),
+		ShowPipeline:          MakeShowPipelineEndpoint(s),
+		GetPipelineImage:      MakeGetPipelineImageEndpoint(s),
+		IndexJobBuilds:        MakeIndexJobBuildsEndpoint(s),
+		IndexResourceVersions: MakeIndexResourceVersionsEndpoint(s),
 
 		CreatePipeline: MakeCreatePipelineEndpoint(s),
 		UpdatePipeline: MakeUpdatePipelineEndpoint(s),
@@ -50,7 +57,8 @@ func MakeServerEndpoints(s qid.Service) Endpoints {
 
 		CreateJobBuild: MakeCreateJobBuildEndpoint(s),
 		UpdateJobBuild: MakeUpdateJobBuildEndpoint(s),
-		ListJobBuilds:  MakeListJobBuildsEndpoint(s),
+
+		UpdatePipelineResource: MakeUpdatePipelineResourceEndpoint(s),
 
 		CreateResourceVersion: MakeCreateResourceVersionEndpoint(s),
 		ListResourceVersions:  MakeListResourceVersionsEndpoint(s),
@@ -286,6 +294,50 @@ func MakeListResourceVersionsEndpoint(s qid.Service) endpoint.Endpoint {
 	}
 }
 
+type GetPipelineResourceRequest struct {
+	PipelineName string `json:"pipeline_name"`
+	ResourceName string `json:"resource_name"`
+	ResourceType string `json:"resource_type"`
+}
+type GetPipelineResourceResponse struct {
+	Resource *resource.Resource
+	Err      string `json:"error,omitempty"`
+}
+
+func MakeGetPipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(GetPipelineResourceRequest)
+		res, err := s.GetPipelineResource(ctx, req.PipelineName, req.ResourceType, req.ResourceName)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return GetPipelineResourceResponse{Resource: res, Err: errs}, nil
+	}
+}
+
+type UpdatePipelineResourceRequest struct {
+	PipelineName string            `json:"pipeline_name"`
+	ResourceName string            `json:"resource_name"`
+	ResourceType string            `json:"resource_type"`
+	Resource     resource.Resource `json:"resource"`
+}
+type UpdatePipelineResourceResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func MakeUpdatePipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(UpdatePipelineResourceRequest)
+		err := s.UpdatePipelineResource(ctx, req.PipelineName, req.ResourceType, req.ResourceName, req.Resource)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return UpdatePipelineResourceResponse{Err: errs}, nil
+	}
+}
+
 type ShowPipelineRequest struct {
 	Name string `json:"name"`
 }
@@ -332,27 +384,67 @@ type ListJobBuildsRequest struct {
 	JobName      string `json:"job_name"`
 }
 type ListJobBuildsResponse struct {
+	Builds []*build.Build `json:"builds,omitempty"`
+	Err    string         `json:"error,omitempty"`
+}
+
+type IndexJobBuildsRequest struct {
+	PipelineName string `json:"pipeline_name"`
+	JobName      string `json:"job_name"`
+}
+type IndexJobBuildsResponse struct {
 	Pipeline *pipeline.Pipeline `json:"pipeline,omitempty"`
 	Job      *job.Job           `json:"pipeline,omitempty"`
 	Builds   []*build.Build     `json:"builds,omitempty"`
 	Err      string             `json:"error,omitempty"`
 }
 
-func MakeListJobBuildsEndpoint(s qid.Service) endpoint.Endpoint {
+func MakeIndexJobBuildsEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(ListJobBuildsRequest)
+		req := request.(IndexJobBuildsRequest)
 		pp, err := s.GetPipeline(ctx, req.PipelineName)
 		if err != nil {
-			return ListJobBuildsResponse{Err: err.Error()}, nil
+			return IndexJobBuildsResponse{Err: err.Error()}, nil
 		}
 		job, err := s.GetPipelineJob(ctx, req.PipelineName, req.JobName)
 		if err != nil {
-			return ListJobBuildsResponse{Err: err.Error()}, nil
+			return IndexJobBuildsResponse{Err: err.Error()}, nil
 		}
 		builds, err := s.ListJobBuilds(ctx, req.PipelineName, req.JobName)
 		if err != nil {
-			return ListJobBuildsResponse{Err: err.Error()}, nil
+			return IndexJobBuildsResponse{Err: err.Error()}, nil
 		}
-		return ListJobBuildsResponse{Pipeline: pp, Job: job, Builds: builds}, nil
+		return IndexJobBuildsResponse{Pipeline: pp, Job: job, Builds: builds}, nil
+	}
+}
+
+type IndexResourceVersionsRequest struct {
+	PipelineName string `json:"pipeline_name"`
+	ResourceType string `json:"resource_type"`
+	ResourceName string `json:"resource_name"`
+}
+type IndexResourceVersionsResponse struct {
+	Pipeline *pipeline.Pipeline  `json:"pipeline,omitempty"`
+	Resource *resource.Resource  `json:"resource,omitempty"`
+	Versions []*resource.Version `json:"versions,omitempty"`
+	Err      string              `json:"error,omitempty"`
+}
+
+func MakeIndexResourceVersionsEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(IndexResourceVersionsRequest)
+		pp, err := s.GetPipeline(ctx, req.PipelineName)
+		if err != nil {
+			return IndexResourceVersionsResponse{Err: err.Error()}, nil
+		}
+		resource, err := s.GetPipelineResource(ctx, req.PipelineName, req.ResourceType, req.ResourceName)
+		if err != nil {
+			return IndexResourceVersionsResponse{Err: err.Error()}, nil
+		}
+		versions, err := s.ListResourceVersions(ctx, req.PipelineName, req.ResourceType, req.ResourceName)
+		if err != nil {
+			return IndexResourceVersionsResponse{Err: err.Error()}, nil
+		}
+		return IndexResourceVersionsResponse{Pipeline: pp, Resource: resource, Versions: versions}, nil
 	}
 }

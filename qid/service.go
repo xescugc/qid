@@ -36,8 +36,10 @@ type Service interface {
 	UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error
 	ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error)
 
-	CreateResourceVersion(ctx context.Context, pn, rn, rt string, v resource.Version) error
-	ListResourceVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error)
+	GetPipelineResource(ctx context.Context, pn, rt, rn string) (*resource.Resource, error)
+	UpdatePipelineResource(ctx context.Context, pn, rt, rn string, r resource.Resource) error
+	CreateResourceVersion(ctx context.Context, pn, rj, rn string, v resource.Version) error
+	ListResourceVersions(ctx context.Context, pn, rk, rn string) ([]*resource.Version, error)
 }
 
 type Qid struct {
@@ -242,7 +244,7 @@ func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 		}
 		if _, ok := dbrs[r.Name]; ok {
 			delete(dbrs, r.Name)
-			err = q.Resources.Update(ctx, pn, r.Name, r)
+			err = q.Resources.Update(ctx, pn, r.Type, r.Name, r)
 			if err != nil {
 				return fmt.Errorf("failed to update Resource %q: %w", r.Name, err)
 			}
@@ -377,6 +379,11 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 	// Print all the resources
 	for _, r := range pp.Resources {
 		// TODO: Change this to be the canonical of the r (type+name)
+		vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/%s/versions"`, "http://localhost:4000", pp.Name, r.Type, r.Name)
+		color := "0"
+		if r.Logs != "" {
+			color = "1"
+		}
 		err = graph.AddNode(pn, r.Name, map[string]string{
 			string(gographviz.Margin):      "0.1",
 			string(gographviz.Shape):       "cds",
@@ -384,6 +391,8 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 			string(gographviz.Style):       "filled",
 			string(gographviz.FontColor):   "white",
 			string(gographviz.ColorScheme): colorscheme,
+			string(gographviz.URL):         vurl,
+			string(gographviz.Color):       color,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
@@ -460,6 +469,7 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 			if len(g.Passed) != 0 {
 				for _, p := range g.Passed {
 					nn := fmt.Sprintf(`"%s-%s-%s"`, p, g.Name, j.Name)
+					//vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/%s/versions"`, "http://localhost:4000", pp.Name, r.Type, r.Name)
 					err = graph.AddNode(pn, nn, map[string]string{
 						string(gographviz.Label):       g.Name,
 						string(gographviz.Margin):      "0.1",
@@ -468,6 +478,7 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 						string(gographviz.Style):       "filled",
 						string(gographviz.FontColor):   "white",
 						string(gographviz.ColorScheme): colorscheme,
+						//string(gographviz.URL):         vurl,
 					})
 					if err != nil {
 						return nil, fmt.Errorf("failed to add node to Graph: %w", err)
@@ -596,6 +607,7 @@ func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rt, rn string, v re
 
 	return nil
 }
+
 func (q *Qid) ListResourceVersions(ctx context.Context, pn, rt, rn string) ([]*resource.Version, error) {
 	if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
@@ -626,4 +638,38 @@ func (q *Qid) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build,
 	}
 
 	return builds, nil
+}
+
+func (q *Qid) GetPipelineResource(ctx context.Context, pn, rt, rn string) (*resource.Resource, error) {
+	if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(rt) {
+		return nil, fmt.Errorf("invalid Resource Type format %q", rt)
+	} else if !utils.ValidateCanonical(rn) {
+		return nil, fmt.Errorf("invalid Resource Name format %q", rn)
+	}
+
+	r, err := q.Resources.Find(ctx, pn, rt, rn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Resource: %w", err)
+	}
+
+	return r, nil
+}
+
+func (q *Qid) UpdatePipelineResource(ctx context.Context, pn, rt, rn string, r resource.Resource) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(rt) {
+		return fmt.Errorf("invalid Resource Type format %q", rt)
+	} else if !utils.ValidateCanonical(rn) {
+		return fmt.Errorf("invalid Resource Name format %q", rn)
+	}
+
+	err := q.Resources.Update(ctx, pn, rt, rn, r)
+	if err != nil {
+		return fmt.Errorf("failed to update Resource: %w", err)
+	}
+
+	return nil
 }

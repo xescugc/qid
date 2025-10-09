@@ -116,30 +116,30 @@ func (mr *ResourceRepositoryMockRecorder) FilterVersions(ctx, pn, rt, rn any) *g
 }
 
 // Find mocks base method.
-func (m *ResourceRepository) Find(ctx context.Context, pn, rn, rt string) (*resource.Resource, error) {
+func (m *ResourceRepository) Find(ctx context.Context, pn, rt, rn string) (*resource.Resource, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, pn, rn, rt)
+	ret := m.ctrl.Call(m, "Find", ctx, pn, rt, rn)
 	ret0, _ := ret[0].(*resource.Resource)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *ResourceRepositoryMockRecorder) Find(ctx, pn, rn, rt any) *gomock.Call {
+func (mr *ResourceRepositoryMockRecorder) Find(ctx, pn, rt, rn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*ResourceRepository)(nil).Find), ctx, pn, rn, rt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*ResourceRepository)(nil).Find), ctx, pn, rt, rn)
 }
 
 // Update mocks base method.
-func (m *ResourceRepository) Update(ctx context.Context, pn, rn string, r resource.Resource) error {
+func (m *ResourceRepository) Update(ctx context.Context, pn, rt, rn string, r resource.Resource) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, pn, rn, r)
+	ret := m.ctrl.Call(m, "Update", ctx, pn, rt, rn, r)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *ResourceRepositoryMockRecorder) Update(ctx, pn, rn, r any) *gomock.Call {
+func (mr *ResourceRepositoryMockRecorder) Update(ctx, pn, rt, rn, r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*ResourceRepository)(nil).Update), ctx, pn, rn, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*ResourceRepository)(nil).Update), ctx, pn, rt, rn, r)
 }

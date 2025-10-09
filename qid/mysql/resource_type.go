@@ -84,7 +84,7 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt 
 	dbrt := newDBResourceType(rt)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resource_types AS rt
-		SET rt.name = ?, `+"rt.`check`"+` = ?, rt.pull = ?, rt.push = ?, rt.inputs = ?
+		SET name = ?, `+"`check`"+` = ?, pull = ?, push = ?, inputs = ?
 		FROM (
 		SELECT rt.id
 			FROM resource_types AS rt

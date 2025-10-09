@@ -16,17 +16,23 @@ import (
 )
 
 type Client struct {
-	createPipeline        endpoint.Endpoint
-	updatePipeline        endpoint.Endpoint
-	getPipeline           endpoint.Endpoint
-	getPipelineImage      endpoint.Endpoint
-	listPipelines         endpoint.Endpoint
-	deletePipeline        endpoint.Endpoint
-	triggerPipelineJob    endpoint.Endpoint
-	getPipelineJob        endpoint.Endpoint
-	createJobBuild        endpoint.Endpoint
-	updateJobBuild        endpoint.Endpoint
-	listJobBuilds         endpoint.Endpoint
+	createPipeline   endpoint.Endpoint
+	updatePipeline   endpoint.Endpoint
+	getPipeline      endpoint.Endpoint
+	getPipelineImage endpoint.Endpoint
+	listPipelines    endpoint.Endpoint
+	deletePipeline   endpoint.Endpoint
+
+	triggerPipelineJob endpoint.Endpoint
+	getPipelineJob     endpoint.Endpoint
+
+	createJobBuild endpoint.Endpoint
+	updateJobBuild endpoint.Endpoint
+	listJobBuilds  endpoint.Endpoint
+
+	getPipelineResource    endpoint.Endpoint
+	updatePipelineResource endpoint.Endpoint
+
 	createResourceVersion endpoint.Endpoint
 	listResourceVersions  endpoint.Endpoint
 }
@@ -45,17 +51,23 @@ func New(host string) (*Client, error) {
 	}
 
 	cl := &Client{
-		createPipeline:        makeCreatePipelineEndpoint(*u),
-		updatePipeline:        makeUpdatePipelineEndpoint(*u),
-		getPipeline:           makeGetPipelineEndpoint(*u),
-		getPipelineImage:      makeGetPipelineImageEndpoint(*u),
-		listPipelines:         makeListPipelinesEndpoint(*u),
-		deletePipeline:        makeDeletePipelineEndpoint(*u),
-		triggerPipelineJob:    makeTriggerPipelineJobEndpoint(*u),
-		getPipelineJob:        makeGetPipelineJobEndpoint(*u),
-		createJobBuild:        makeCreateJobBuildEndpoint(*u),
-		updateJobBuild:        makeUpdateJobBuildEndpoint(*u),
-		listJobBuilds:         makeListJobBuildsEndpoint(*u),
+		createPipeline:   makeCreatePipelineEndpoint(*u),
+		updatePipeline:   makeUpdatePipelineEndpoint(*u),
+		getPipeline:      makeGetPipelineEndpoint(*u),
+		getPipelineImage: makeGetPipelineImageEndpoint(*u),
+		listPipelines:    makeListPipelinesEndpoint(*u),
+		deletePipeline:   makeDeletePipelineEndpoint(*u),
+
+		triggerPipelineJob: makeTriggerPipelineJobEndpoint(*u),
+		getPipelineJob:     makeGetPipelineJobEndpoint(*u),
+
+		createJobBuild: makeCreateJobBuildEndpoint(*u),
+		updateJobBuild: makeUpdateJobBuildEndpoint(*u),
+		listJobBuilds:  makeListJobBuildsEndpoint(*u),
+
+		getPipelineResource:    makeGetPipelineResourceEndpoint(*u),
+		updatePipelineResource: makeUpdatePipelineResourceEndpoint(*u),
+
 		createResourceVersion: makeCreateResourceVersionEndpoint(*u),
 		listResourceVersions:  makeListResourceVersionsEndpoint(*u),
 	}
@@ -232,7 +244,7 @@ func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rt, rn string, 
 }
 
 func (cl *Client) ListResourceVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error) {
-	response, err := cl.updateJobBuild(ctx, transport.ListResourceVersionsRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt})
+	response, err := cl.listResourceVersions(ctx, transport.ListResourceVersionsRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt})
 	if err != nil {
 		return nil, err
 	}
@@ -243,4 +255,32 @@ func (cl *Client) ListResourceVersions(ctx context.Context, pn, rn, rt string) (
 	}
 
 	return resp.Versions, nil
+}
+
+func (cl *Client) GetPipelineResource(ctx context.Context, pn, rn, rt string) (*resource.Resource, error) {
+	response, err := cl.getPipelineResource(ctx, transport.GetPipelineResourceRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := response.(transport.GetPipelineResourceResponse)
+	if resp.Err != "" {
+		return nil, errors.New(resp.Err)
+	}
+
+	return resp.Resource, nil
+}
+
+func (cl *Client) UpdatePipelineResource(ctx context.Context, pn, rn, rt string, r resource.Resource) error {
+	response, err := cl.updatePipelineResource(ctx, transport.UpdatePipelineResourceRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt, Resource: r})
+	if err != nil {
+		return err
+	}
+
+	resp := response.(transport.UpdatePipelineResourceResponse)
+	if resp.Err != "" {
+		return errors.New(resp.Err)
+	}
+
+	return nil
 }

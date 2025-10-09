@@ -47,6 +47,7 @@ var V0Initial = Migration{
 				name VARCHAR(255),
 				` + "`type`" + ` VARCHAR(255),
 				inputs TEXT,
+				logs TEXT,
 
 				pipeline_id INT UNSIGNED NOT NULL,
 

@@ -137,3 +137,23 @@ func makeListResourceVersionsEndpoint(u url.URL) endpoint.Endpoint {
 		decodeListResourceVersionsResponse,
 	).Endpoint()
 }
+
+func makeGetPipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeGetPipelineResourceRequest,
+		decodeGetPipelineResourceResponse,
+	).Endpoint()
+}
+
+func makeUpdatePipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}"
+	return kithttp.NewClient(
+		http.MethodPut,
+		&u,
+		encodeUpdatePipelineResourceRequest,
+		decodeUpdatePipelineResourceResponse,
+	).Endpoint()
+}

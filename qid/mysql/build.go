@@ -133,7 +133,7 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 				ON j.pipeline_id = p.id
 			WHERE p.name = ? AND j.name = ? AND b.id = ?
 		) AS bb
-		WHERE bb.id = b.id;
+		WHERE bb.id = b.id
 	`, dbb.Get, dbb.Task, dbb.Status, dbb.Error, pn, jn, bID, bID)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
