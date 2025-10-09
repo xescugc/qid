@@ -223,12 +223,11 @@ func (w *Worker) Run(ctx context.Context) error {
 								goto END
 							}
 							for _, h := range hashs {
-								// TODO: Check DB to see if there are new ones comparing from the last one
 								for _, j := range pp.Jobs {
 									for _, g := range j.Get {
 										// If Passed is not 0 it means is waiting for another job
 										// and this trigger is only for resources
-										if g.Name == r.Name && g.Trigger && len(g.Passed) == 0 {
+										if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
 											b := queue.Body{
 												PipelineName: pp.Name,
 												JobName:      j.Name,

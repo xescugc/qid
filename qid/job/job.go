@@ -8,6 +8,7 @@ type Job struct {
 }
 
 type GetStep struct {
+	Type    string   `json:"type" hcl:"type,label"`
 	Name    string   `json:"name" hcl:"name,label"`
 	Passed  []string `json:"passed" hcl:"passed,optional"`
 	Trigger bool     `json:"trigger" hcl:"trigger,optional"`

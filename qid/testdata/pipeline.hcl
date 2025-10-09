@@ -50,7 +50,7 @@ resource "git" "my_repo" {
 }
 
 job "gen" {
-  get "my_repo" {
+  get "git" "my_repo" {
     trigger = true
   }
   task "gen" {
@@ -66,7 +66,7 @@ job "gen" {
 }
 
 job "notify_slack" {
-  get "my_repo" {
+  get "git" "my_repo" {
     trigger = true
   }
   task "notify" {
@@ -80,7 +80,7 @@ job "notify_slack" {
 }
 
 job "test" {
-  get "my_repo" {
+  get "git" "my_repo" {
     passed  = ["gen"]
     trigger = true
   }
