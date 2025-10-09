@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"slices"
 
 	"github.com/go-kit/kit/endpoint"
 	"github.com/xescugc/qid/qid"
@@ -414,6 +415,7 @@ func MakeIndexJobBuildsEndpoint(s qid.Service) endpoint.Endpoint {
 		if err != nil {
 			return IndexJobBuildsResponse{Err: err.Error()}, nil
 		}
+		slices.Reverse(builds)
 		return IndexJobBuildsResponse{Pipeline: pp, Job: job, Builds: builds}, nil
 	}
 }

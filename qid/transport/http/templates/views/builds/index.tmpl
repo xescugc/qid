@@ -2,77 +2,80 @@
 {{define "content"}}
   <div class="container">
     <h1>Pipeline: {{ .Pipeline.Name }}</h1>
-    <h2>Job {{ .Job.Name }}</h2>
-    <ul class="nav nav-tabs">
+    <div class="row">
+      <div class="col">
+        <h2>Job {{ .Job.Name }}</h2>
+      </div>
+      <div class="col">
+        <button type="button" id="trigger-job" class="btn btn-primary">Trigger Job</button>
+      </div>
+    </div>
+    <ul class="nav nav-tabs" role="tablist">
       {{ range $i, $b := .Builds }}
-        <li class="nav-item">
+        <li class="nav-item" role="presentation">
           {{ if eq $i 0 }}
-            <button type="button" data-target="{{ $b.ID }}" class="nav-link status-{{ $b.Status }} active">{{ $b.ID }}</button>
+            <button type="button" role="tab" aria-controls="{{ $b.ID }}" data-bs-toggle="tab" data-bs-target="#{{ $b.ID }}" class="nav-link status-{{ $b.Status }} active">{{ $b.ID }}</button>
           {{ else }}
-            <button type="button" data-target="{{ $b.ID }}" class="nav-link status-{{ $b.Status }}">{{ $b.ID }}</button>
+            <button type="button" role="tab" aria-controls="{{ $b.ID }}" data-bs-toggle="tab" data-bs-target="#{{ $b.ID }}" class="nav-link status-{{ $b.Status }}">{{ $b.ID }}</button>
           {{ end }}
         </li>
       {{ end }}
     </ul>
-    {{ range $i, $b := .Builds }}
-      {{ if eq $i 0 }}
-        <div class="" id="{{ $b.ID }}">
-      {{ else }}
-        <div class="d-none" id="{{ $b.ID }}">
-      {{ end }}
-				<div class="accordion" id="build-steps">
-					{{ range $i, $g := $b.Get }}
-            <div class="accordion-item">
-              <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#g-{{ $i }}" aria-controls="collapseOne">
-                  get: {{ $g.Name }}
-                </button>
-              </h2>
-              <div id="g-{{ $i }}" class="accordion-collapse collapse" data-bs-parent="#build-steps">
-                <div class="accordion-body">
-                  <pre>
-                    {{- $g.Logs -}}
-                  </pre>
+    <div class="tab-content">
+      {{ range $i, $b := .Builds }}
+        {{ if eq $i 0 }}
+          <div class="tab-pane fade show active" id="{{ $b.ID }}" role="tabpanel" >
+        {{ else }}
+          <div class="tab-pane fade" id="{{ $b.ID }}" role="tabpanel" >
+        {{ end }}
+		  		<div class="accordion" id="build-steps">
+		  			{{ range $i, $g := $b.Get }}
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#g-{{ $i }}" aria-controls="collapseOne">
+                    get: {{ $g.Name }}
+                  </button>
+                </h2>
+                <div id="g-{{ $i }}" class="accordion-collapse collapse" data-bs-parent="#build-steps">
+                  <div class="accordion-body">
+                    <pre>
+                      {{- $g.Logs -}}
+                    </pre>
+                  </div>
                 </div>
               </div>
-            </div>
-					{{ end }}	
-					{{ range $i, $t := $b.Task }}
-            <div class="accordion-item">
-              <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#t-{{ $i }}" aria-controls="collapseOne">
-                  task: {{ $t.Name }}
-                </button>
-              </h2>
-              <div id="t-{{ $i }}" class="accordion-collapse collapse" data-bs-parent="#build-steps">
-                <div class="accordion-body">
-                  <pre>
-                    {{- $t.Logs -}}
-                  </pre>
+		  			{{ end }}	
+		  			{{ range $i, $t := $b.Task }}
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#t-{{ $i }}" aria-controls="collapseOne">
+                    task: {{ $t.Name }}
+                  </button>
+                </h2>
+                <div id="t-{{ $i }}" class="accordion-collapse collapse" data-bs-parent="#build-steps">
+                  <div class="accordion-body">
+                    <pre>
+                      {{- $t.Logs -}}
+                    </pre>
+                  </div>
                 </div>
               </div>
-            </div>
-					{{ end }}	
+		  			{{ end }}	
+          </div>
         </div>
-      </div>
-    {{ end }}
+      {{ end }}
+    </div>
   </div>
 	<script type = "text/javascript">
-    var elements = document.getElementsByTagName("button");
-
-    var clickBtnFn = function() {
-      var target = this.getAttribute("data-target");
-      document.getElementById(target).className = ""
-      for (var i = 0; i < elements.length; i++) {
-        var tg = elements[i].getAttribute("data-target")
-        if tg !== target {
-          document.getElementById(target).className = "d-none"
-        }
-      }
-    };
-
-    for (var i = 0; i < elements.length; i++) {
-      elements[i].addEventListener('click', clickBtnFn, false);
+    var triggerJob = document.getElementById("trigger-job");
+    var triggerJobFn = function() {
+      fetch(location.href.replace("builds","trigger"), {
+          method: "POST",
+          headers: {'Content-Type': 'application/json'}, 
+      }).then(res => {
+          console.log("Request complete! response:", res);
+      });
     }
+    triggerJob.addEventListener('click', triggerJobFn, false);
   </script>
 {{end}}

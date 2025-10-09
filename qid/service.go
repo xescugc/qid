@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -408,6 +409,7 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to filter builds from Job %q: %w", j.Name, err)
 		}
+		slices.Reverse(builds)
 		color := "9"
 		var (
 			cb *build.Build
