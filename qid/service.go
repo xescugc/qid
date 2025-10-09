@@ -376,6 +376,7 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 	graph.AddAttr(pn, string(gographviz.RankDir), "LR")
 	graph.AddAttr(pn, string(gographviz.ColorScheme), colorscheme)
 
+	resourceColors := make(map[string]string)
 	// Print all the resources
 	for _, r := range pp.Resources {
 		// TODO: Change this to be the canonical of the r (type+name)
@@ -384,6 +385,7 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 		if r.Logs != "" {
 			color = "1"
 		}
+		resourceColors[fmt.Sprintf("%s:%s", r.Type, r.Name)] = color
 		err = graph.AddNode(pn, r.Name, map[string]string{
 			string(gographviz.Margin):      "0.1",
 			string(gographviz.Shape):       "cds",
@@ -433,7 +435,6 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 		}
 
 		jg = fmt.Sprintf("cluster_%d", i)
-		//graph.AddSubGraph(njg, jg, map[string]string{
 		graph.AddSubGraph(pn, jg, map[string]string{
 			string(gographviz.Style):       style,
 			string(gographviz.Color):       jobColors[build.Started],
@@ -469,7 +470,8 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 			if len(g.Passed) != 0 {
 				for _, p := range g.Passed {
 					nn := fmt.Sprintf(`"%s-%s-%s"`, p, g.Name, j.Name)
-					//vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/%s/versions"`, "http://localhost:4000", pp.Name, r.Type, r.Name)
+					vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/%s/versions"`, "http://localhost:4000", pp.Name, g.Type, g.Name)
+					color := resourceColors[fmt.Sprintf("%s:%s", g.Type, g.Name)]
 					err = graph.AddNode(pn, nn, map[string]string{
 						string(gographviz.Label):       g.Name,
 						string(gographviz.Margin):      "0.1",
@@ -478,7 +480,8 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 						string(gographviz.Style):       "filled",
 						string(gographviz.FontColor):   "white",
 						string(gographviz.ColorScheme): colorscheme,
-						//string(gographviz.URL):         vurl,
+						string(gographviz.URL):         vurl,
+						string(gographviz.Color):       color,
 					})
 					if err != nil {
 						return nil, fmt.Errorf("failed to add node to Graph: %w", err)
