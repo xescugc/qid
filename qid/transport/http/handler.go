@@ -105,6 +105,20 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		options...,
 	))
 
+	api.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}").Handler(kithttp.NewServer(
+		e.GetPipelineResource,
+		decodeGetPipelineResourceRequest,
+		encodeGetPipelineResourceResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodPut).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}").Handler(kithttp.NewServer(
+		e.UpdatePipelineResource,
+		decodeUpdatePipelineResourceRequest,
+		encodeUpdatePipelineResourceResponse,
+		options...,
+	))
+
 	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}").Handler(kithttp.NewServer(
 		e.ShowPipeline,
 		decodeShowPipelineRequest,
@@ -120,9 +134,16 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 	))
 
 	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds").Handler(kithttp.NewServer(
-		e.ListJobBuilds,
-		decodeListJobBuildsRequest,
-		encodeListJobBuildsResponse,
+		e.IndexJobBuilds,
+		decodeIndexJobBuildsRequest,
+		encodeIndexJobBuildsResponse,
+		options...,
+	))
+
+	r.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/resources/{resource_type}/{resource_name}/versions").Handler(kithttp.NewServer(
+		e.IndexResourceVersions,
+		decodeIndexResourceVersionsRequest,
+		encodeIndexResourceVersionsResponse,
 		options...,
 	))
 
@@ -349,6 +370,52 @@ func encodeListResourceVersionsResponse(ctx context.Context, w http.ResponseWrit
 	return nil
 }
 
+func decodeGetPipelineResourceRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	rc := strings.Split(vars["resource_canonical"], ":")
+	req := transport.GetPipelineResourceRequest{
+		PipelineName: vars["pipeline_name"],
+		ResourceType: rc[0],
+		ResourceName: rc[1],
+	}
+
+	return req, nil
+}
+
+func encodeGetPipelineResourceResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.GetPipelineResourceResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeUpdatePipelineResourceRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	rc := strings.Split(vars["resource_canonical"], ":")
+	req := transport.UpdatePipelineResourceRequest{
+		PipelineName: vars["pipeline_name"],
+		ResourceType: rc[0],
+		ResourceName: rc[1],
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&req.Resource)
+
+	return req, err
+}
+
+func encodeUpdatePipelineResourceResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.UpdatePipelineResourceResponse)
+
+	json.NewEncoder(w).Encode(resp)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	return nil
+}
+
 func decodeShowPipelineRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	vars := mux.Vars(r)
 	return transport.ShowPipelineRequest{
@@ -376,16 +443,31 @@ func encodeGetPipelineImageResponse(ctx context.Context, w http.ResponseWriter, 
 	return nil
 }
 
-func decodeListJobBuildsRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeIndexJobBuildsRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	vars := mux.Vars(r)
-	return transport.ListJobBuildsRequest{
+	return transport.IndexJobBuildsRequest{
 		PipelineName: vars["pipeline_name"],
 		JobName:      vars["job_name"],
 	}, nil
 }
 
-func encodeListJobBuildsResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	resp := response.(transport.ListJobBuildsResponse)
+func encodeIndexJobBuildsResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.IndexJobBuildsResponse)
 	t, _ := templates.Templates["views/builds/index.tmpl"]
+	return t.Execute(w, resp)
+}
+
+func decodeIndexResourceVersionsRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	return transport.IndexResourceVersionsRequest{
+		PipelineName: vars["pipeline_name"],
+		ResourceType: vars["resource_type"],
+		ResourceName: vars["resource_name"],
+	}, nil
+}
+
+func encodeIndexResourceVersionsResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	resp := response.(transport.IndexResourceVersionsResponse)
+	t, _ := templates.Templates["views/resource_versions/index.tmpl"]
 	return t.Execute(w, resp)
 }

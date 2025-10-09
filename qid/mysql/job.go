@@ -76,7 +76,7 @@ func (r *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) er
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE jobs AS j
-		SET j.name = ?, j.get = ?, j.task = ?
+		SET name = ?, get = ?, task = ?
 		FROM (
 			SELECT j.id
 			FROM jobs AS j

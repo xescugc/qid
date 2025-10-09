@@ -6,6 +6,8 @@ type Resource struct {
 	Name string `json:"name" hcl:"name,label"`
 
 	Inputs map[string]string `json:"Inputs" hcl:",remain"`
+
+	Logs string `json:"log"`
 }
 
 type Version struct {

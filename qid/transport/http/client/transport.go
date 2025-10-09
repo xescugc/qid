@@ -262,3 +262,41 @@ func decodeListResourceVersionsResponse(_ context.Context, r *http.Response) (in
 	}
 	return response, nil
 }
+
+func encodeGetPipelineResourceRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.GetPipelineResourceRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", strings.Join([]string{req.ResourceType, req.ResourceName}, ":"), 1)
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeGetPipelineResourceResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.GetPipelineResourceResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func encodeUpdatePipelineResourceRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.UpdatePipelineResourceRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", strings.Join([]string{req.ResourceType, req.ResourceName}, ":"), 1)
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeUpdatePipelineResourceResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.UpdatePipelineResourceResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}

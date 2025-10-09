@@ -201,8 +201,21 @@ func (w *Worker) Run(ctx context.Context) error {
 							}
 							stdouterr, err := cmd.CombinedOutput()
 							if err != nil {
+								r.Logs = string(stdouterr)
+								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Type, r.Name, r)
+								if err != nil {
+									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
+								}
 								w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
 								goto END
+							}
+							if r.Logs != "" {
+								r.Logs = ""
+								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Type, r.Name, r)
+								if err != nil {
+									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
+									goto END
+								}
 							}
 							hashs := strings.Split(string(stdouterr), "\n")
 							if len(hashs) == 0 || string(stdouterr) == "" {

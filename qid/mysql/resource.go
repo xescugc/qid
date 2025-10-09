@@ -25,6 +25,7 @@ type dbResource struct {
 	Name   sql.NullString
 	Type   sql.NullString
 	Inputs sql.NullString
+	Logs   sql.NullString
 }
 
 type dbResourceVersion struct {
@@ -38,6 +39,7 @@ func newDBResource(r resource.Resource) dbResource {
 		Name:   toNullString(r.Name),
 		Type:   toNullString(r.Type),
 		Inputs: toNullString(string(i)),
+		Logs:   toNullString(r.Logs),
 	}
 }
 
@@ -46,6 +48,7 @@ func (dbr *dbResource) toDomainEntity() *resource.Resource {
 		ID:   uint32(dbr.ID.Int64),
 		Name: dbr.Name.String,
 		Type: dbr.Type.String,
+		Logs: dbr.Logs.String,
 	}
 
 	_ = json.Unmarshal([]byte(dbr.Inputs.String), &r.Inputs)
@@ -91,20 +94,20 @@ func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.
 	return id, nil
 }
 
-func (r *ResourceRepository) Update(ctx context.Context, pn, rn string, rs resource.Resource) error {
+func (r *ResourceRepository) Update(ctx context.Context, pn, rt, rn string, rs resource.Resource) error {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resources AS r
-		SET r.name = ?, r.type = ?, r.inputs = ?
+		SET name = ?, type = ?, inputs = ?, logs = ?
 		FROM (
 			SELECT r.id
 			FROM resources AS r
 			JOIN pipelines AS p
 				ON r.pipeline_id = p.id
-			WHERE p.name = ? AND r.name = ?
+			WHERE p.name = ? AND r.name = ? AND r.type = ?
 		) AS rr
 		WHERE rr.id = r.id
-	`, dbrs.Name, dbrs.Type, dbrs.Inputs, pn, rn)
+	`, dbrs.Name, dbrs.Type, dbrs.Inputs, dbrs.Logs, pn, rn, rt)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -117,14 +120,14 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rn string, rs resou
 	return nil
 }
 
-func (r *ResourceRepository) Find(ctx context.Context, pn, rn, rt string) (*resource.Resource, error) {
+func (r *ResourceRepository) Find(ctx context.Context, pn, rt, rn string) (*resource.Resource, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT r.id, r.name, r.type, r.inputs
+		SELECT r.id, r.name, r.type, r.inputs, r.logs
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
-		WHERE p.name = ? AND r.name = ? AND r.type = ?
-	`, pn, rn, rt)
+		WHERE p.name = ? AND r.type = ? AND r.name = ?
+	`, pn, rt, rn)
 
 	rs, err := scanResource(row)
 	if err != nil {
@@ -136,7 +139,7 @@ func (r *ResourceRepository) Find(ctx context.Context, pn, rn, rt string) (*reso
 
 func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource.Resource, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT r.id, r.name, r.type, r.inputs
+		SELECT r.id, r.name, r.type, r.inputs, r.logs
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
@@ -229,6 +232,7 @@ func scanResource(s sqlr.Scanner) (*resource.Resource, error) {
 		&r.Name,
 		&r.Type,
 		&r.Inputs,
+		&r.Logs,
 	)
 
 	if err != nil {
