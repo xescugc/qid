@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>QID</title>
+    <link href="/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="/css/qid.css" rel="stylesheet" />
+    <link href="/images/favicon.png" rel="icon" type="image/png"/>
+  </head>
+
+  <body>
+    <div id="app">
+    </div>
+
+    <script type = "text/javascript" src="/js/jquery.min.js"></script>
+    <script type = "text/javascript" src="/js/underscorejs.min.js"></script>
+    <script type = "text/javascript" src="/js/backbonejs.min.js"></script>
+    <script type = "text/javascript" src="/js/bootstrap.bundle.min.js"></script>
+    <script type = "text/javascript" src="/js/viz-global.js"></script>
+
+    <script type="text/template" id="main-view">
+      <header>
+      </header>
+      <main class="container">
+        <div id="error"></div>
+        <div id="main"></div>
+      </main>
+      <footer>
+      </footer>
+    </script>
+
+    <script type="text/template" id="header-view">
+      <nav class="navbar bg-body-tertiary">
+        <div class="container-fluid">
+          <a class="navbar-brand" id="logo" href="/">
+            <img src="/images/logo.png" alt="Logo" width="45" height="25" class="d-inline-block align-text-top">
+            QID
+          </a>
+        </div>
+      </nav>
+    </script>
+
+    <script type="text/template" id="error-view">
+      <div>
+        <% if (error) { %>
+          <div class="alert alert-danger" role="alert">
+            <%- error %>
+          </div>
+        <% } %>
+      </div>
+    </script>
+
+    <script type="text/template" id="pipelines-view">
+      <div class="row">
+        <div class="col">
+          <h1>Pipelines</h1>
+        </div>
+        <div class="col">
+          <a type="button" id="pipelines-new" class="btn btn-success float-end" href="/pipelines/new">New</a>
+        </div>
+      </div>
+      </br>
+      <div class="row row-cols-1 row-cols-md-3 g-4" id="pipelines">
+      </div>
+    </script>
+
+    <script type="text/template" id="pipelines-card-view">
+      <div class="card h-100">
+        <div class="card-header">
+          <%- name %>
+        </div>
+        <div class="card-img-top">
+        </div>
+      </div>
+    </script>
+
+    <script type="text/template" id="pipeline-show-view">
+      <div class="row">
+        <div class="col">
+          <h1>Pipeline: <%- name %></h1>
+        </div>
+        <div class="col">
+          <div class="btn-group float-end">
+            <button type="button" id="edit-pipeline" class="btn btn-info float-end">Edit</button>
+            <button type="button" id="delete-pipeline" class="btn btn-danger float-end">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div id="graphviz"></div>
+    </script>
+
+    <script type="text/template" id="pipeline-graph-view">
+      <div id="pipeline-graph"></div>
+    </script>
+
+    <script type="text/template" id="pipelines-new-view">
+      <h1><%- id ? "Update Pipeline":"New Pipeline" %></h1>
+      <form>
+        <div class="mb-3">
+          <label for="name" class="form-label">Name</label>
+          <input type="text" class="form-control" id="name" aria-describedby="name" value="<%- name %>" <%- id ? "disabled" : ""%>>
+        </div>
+        <div class="mb-3">
+          <div class="row">
+            <div class="col">
+              <div class="mb-3">
+                <label for="pipeline" class="form-label">Pipeline</label>
+                <textarea type="text" rows="20" class="form-control" id="pipeline" aria-describedby="pipeline"><%- raw %></textarea>
+              </div>
+
+              <div class="mb-3">
+                <label for="vars" class="form-label">Vars</label>
+                <textarea type="text" rows="10" class="form-control" id="vars" aria-describedby="vars"></textarea>
+              </div>
+            </div>
+            <div class="col">
+              <div id="graph">
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary"><%- id ? "Update":"Create" %></button>
+      </form>
+    </script>
+
+    <script type="text/template" id="job-builds-view">
+      <h1>Pipeline: <%- pipeline.name %></h1>
+      <div class="row">
+        <div class="col">
+          <h2>Job: <%- job.name %></h2>
+        </div>
+        <div class="col">
+          <button type="button" id="trigger-job" class="btn btn-warning float-end">Trigger Job</button>
+        </div>
+      </div>
+      <div class="">
+        <div class="btn-group" id="builds-tabs" role="group">
+        </div>
+        <div class="tab-content" id="builds-content">
+        </div>
+      </div>
+    </script>
+
+    <script type="text/template" id="job-builds-tab-view">
+      <%- id %>
+    </script>
+
+    <script type="text/template" id="job-builds-content-view">
+      <div id="c-<%- id %>">
+        <div class="accordion <%- active ? '':'d-none' %>" id="<%- id %>-build-steps">
+          <% _.each(get, function(g, i) { %>
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#g-<%- i %>" aria-controls="collapseOne">
+                  get: <%- g.name %>
+                </button>
+              </h2>
+              <div id="g-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
+                <div class="accordion-body">
+                  <pre>
+                    <%- g.logs %>
+                  </pre>
+                </div>
+              </div>
+            </div>
+          <% }) %>
+          <% _.each(task, function(t, i) { %>
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#t-<%- i %>" aria-controls="collapseOne">
+                    task: <%- t.name %>
+                  </button>
+                </h2>
+                <div id="t-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
+                  <div class="accordion-body">
+                    <pre>
+                      <%- t.logs %>
+                    </pre>
+                  </div>
+                </div>
+              </div>
+          <% }) %>
+        </div>
+      </div>
+    </script>
+
+    <script type="text/template" id="resource-versions-view">
+      <h1>Pipeline: <%- pipeline.name %></h1>
+      <div class="row">
+        <div class="col">
+          <h2>Resource: <%- resource.name %></h2>
+        </div>
+      </div>
+      <% if (resource.logs) { %>
+        <div class="row">
+          <div class="alert alert-danger" role="alert">
+            <%- resource.logs %>
+          </div>
+        </div>
+      <% } %>
+      </div>
+      <div class="row" id="resource-versions">
+      </div>
+    </script>
+
+    <script type="text/template" id="resource-version-view">
+      <div class="">
+        <div class="accordion" id="<%- id %>-build-steps">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#v-<%- id %>" aria-controls="collapseOne">
+                Hash: <%- hash %>
+              </button>
+            </h2>
+            <div id="v-<%- id %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
+              <div class="accordion-body">
+                <p>ID: <%- id %></p>
+                <p>Hash: <%- hash %></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </script>
+
+    <script type = "text/javascript">
+      'use strict';
+      var app = {};
+
+      //--------------
+      // Models
+      //--------------
+      app.Pipeline = Backbone.Model.extend({
+        idAttribute: "name",
+        defaults: {
+          id: null,
+          raw: null,
+          name: null,
+        },
+        parse: function(response) {
+          if (response.data){
+            return response.data
+          }
+          return response;
+        }
+      });
+      app.PipelineImage = Backbone.Model.extend({
+        url: function() {
+          return this.pipeline.url() + "/image.dot"
+        },
+        initialize: function(attr, opts) {
+          opts = opts || {}
+          this.pipeline = opts.pipeline
+        },
+      });
+      app.Job = Backbone.Model.extend({
+        idAttribute: "name",
+        parse: function(response) {
+          if (response.data){
+            return response.data
+          }
+          return response;
+        },
+        fetchTrigger: function() {
+          this.fetch({url: this.url()+"/trigger", type: "POST"})
+        },
+      });
+      app.Build = Backbone.Model.extend({
+        idAttribute: "id",
+        parse: function(response) {
+          if (response.data){
+            return response.data
+          }
+          return response;
+        }
+      });
+      app.Resource = Backbone.Model.extend({
+        idAttribute: "canonical",
+        parse: function(response) {
+          return response.data;
+        }
+      });
+      app.ResourceVersion = Backbone.Model.extend({
+        idAttribute: "id",
+        parse: function(response) {
+          if (response.data){
+            return response.data
+          }
+          return response;
+        }
+      });
+      app.APIError = Backbone.Model.extend({
+        clear: function(){
+          this.set({error: ""})
+        }
+      })
+      app.apiError = new app.APIError()
+
+      //--------------
+      // Collections
+      //--------------
+      app.Pipelines = Backbone.Collection.extend({
+        model: app.Pipeline,
+        url: "/pipelines",
+        parse: function(response) {
+          return response.data;
+        }
+      });
+      app.Jobs = Backbone.Collection.extend({
+        model: app.Job,
+        url: function() {
+          return this.pipeline.url() + "/jobs"
+        },
+        initialize: function(attr, opts) {
+          this.pipeline = opts.pipeline
+        },
+        parse: function(response) {
+          return response.data;
+        }
+      });
+      app.Resources = Backbone.Collection.extend({
+        model: app.Build,
+        url: function() {
+          return this.pipeline.url() + "/resources"
+        },
+        initialize: function(attr, opts) {
+          this.pipeline = opts.pipeline
+        },
+        parse: function(response) {
+          return response.data;
+        }
+      });
+      app.Builds = Backbone.Collection.extend({
+        model: app.Build,
+        url: function() {
+          return this.job.url() + "/builds"
+        },
+        initialize: function(attr, opts) {
+          this.job = opts.job
+        },
+        parse: function(response) {
+          return response.data;
+        },
+        setActive: function(id) {
+          if (!id) {
+            id = this.first().get("id")
+          }
+          this.each(function(m){
+            m.set("active", m.get("id") == id)
+          })
+        },
+      });
+      app.ResourceVersions = Backbone.Collection.extend({
+        model: app.Build,
+        url: function() {
+          return this.resource.url() + "/versions"
+        },
+        initialize: function(attr, opts) {
+          this.resource = opts.resource
+        },
+        parse: function(response) {
+          return response.data;
+        }
+      });
+
+      app.pipelines = new app.Pipelines();
+
+
+      //--------------
+      // Views
+      //--------------
+      app.MainView = Backbone.View.extend({
+        template: _.template($('#main-view').html()),
+        initialize: function () {
+          this.render();
+          this.header = new app.HeaderView({ el: 'header' });
+          this.error = new app.ErrorView({ el: '#error', model: app.apiError });
+        },
+        render: function () {
+          this.$el.html(this.template());
+          return this; // enable chained calls
+        }
+      })
+      app.HeaderView = Backbone.View.extend({
+        template: _.template($('#header-view').html()),
+        initialize: function() {
+          this.render();
+        },
+        events: {
+          'click a#logo': 'clickLink',
+        },
+        clickLink: function(event) {
+          event.preventDefault();
+          if (event.target.tagName === "IMG") {
+            event.target = event.target.parentElement
+          }
+          var url = new URL(event.target.href)
+          app.router.navigate(url.pathname, { trigger: true });
+        },
+        render: function () {
+          this.$el.html(this.template());
+          return this; // enable chained calls
+        }
+      })
+      app.ErrorView = Backbone.View.extend({
+        template: _.template($('#error-view').html()),
+        initialize: function() {
+          this.listenTo(this.model, "change", this.render)
+        },
+        render: function() {
+          this.$el.html(this.template(this.model.toJSON()));
+          return this; // enable chained calls
+        },
+      })
+      app.PipelinesView = Backbone.View.extend({
+        template: _.template($('#pipelines-view').html()),
+        initialize: function() {
+          this.listenTo(this.collection, "add", this.addPipeline)
+
+          app.pipelines.fetch()
+        },
+        events: {
+          'click #pipelines-new': 'clickLink',
+        },
+        addPipeline: function(pp) {
+          var view = new app.PipelinesCardView({model: pp});
+          this.$el.find('#pipelines').append(view.render().el);
+        },
+        render: function () {
+          this.$el.html(this.template());
+
+          var that = this
+          this.collection.each(function(m) {
+            that.addPipeline(m)
+          })
+          return this; // enable chained calls
+        },
+        clickLink: function(event) {
+          event.preventDefault();
+          var url = new URL(event.target.href)
+          app.router.navigate(url.pathname, { trigger: true });
+        },
+      })
+      app.PipelinesCardView = Backbone.View.extend({
+        template: _.template($('#pipelines-card-view').html()),
+        attributes: {
+          class: "col",
+        },
+        events: {
+          'click': 'clickCard',
+        },
+        initialize: function() {
+          this.image = new app.PipelineImage(null, {pipeline: this.model})
+          this.image.fetch()
+        },
+        render: function () {
+          this.$el.html(this.template(this.model.toJSON()));
+          this.$el.find(".card-img-top").html(new app.PipelineGraphView({model: this.image, noLinks: true}).render().el)
+          return this; // enable chained calls
+        },
+        clickCard: function(event) {
+          event.preventDefault();
+          app.router.navigate("/pipelines/"+this.model.get("name"), { trigger: true });
+        },
+      })
+      app.PipelineShowView = Backbone.View.extend({
+        template: _.template($('#pipeline-show-view').html()),
+        initialize: function(options) {
+          this.image = options.image
+          this.image.fetch()
+
+          var that = this
+          this.intervalID = window.setInterval(function() {
+            that.image.fetch()
+          }, 1000);
+        },
+        events: {
+          'click': 'clickPipeline',
+          'click #edit-pipeline': 'clickEdit',
+          'click #delete-pipeline': 'clickDelete',
+        },
+        render: function () {
+          this.$el.html(this.template(this.model.toJSON()));
+          this.$el.find("#graphviz").html(new app.PipelineGraphView({model: this.image}).render().el)
+          this.image.trigger("change", this.image)
+          return this; // enable chained calls
+        },
+        remove: function() {
+          clearInterval(this.intervalID)
+          Backbone.View.prototype.remove.call(this);
+        },
+        clickPipeline: function(event) {
+          event.preventDefault();
+          if (event.target.parentElement.href !== undefined){
+            var url = new URL(event.target.parentElement.href.baseVal)
+            app.router.navigate(url.pathname, { trigger: true });
+          }
+        },
+        clickEdit: function(){
+          event.preventDefault();
+          app.router.navigate("/pipelines/"+this.model.get("name")+"/edit", { trigger: true });
+        },
+        clickDelete: function(){
+          event.preventDefault();
+          if (confirm("Are you sure you want to delete Pipeline '"+this.model.get("name")+"'")) {
+            this.model.destroy({
+              success: function() {
+                app.router.navigate('pipelines', { trigger: true });
+              },
+            })
+          }
+        },
+      })
+      app.PipelineGraphView = Backbone.View.extend({
+        template: _.template($('#pipeline-graph-view').html()),
+        initialize: function(options) {
+          this.noLinks = options.noLinks||false
+          this.listenTo(this.model, "change", this.render)
+        },
+        render: function() {
+          if (this.model.get("image")) {
+            window.Viz.instance().then(viz =>{
+              let svg = viz.renderSVGElement(this.model.get("image"))
+              svg.setAttribute("width","100%")
+              svg.setAttribute("height","100%")
+              this.$el.html(this.template());
+              this.$el.find("#pipeline-graph").html(svg);
+              if (this.noLinks) {
+                this.$el.find("a").each(function() {
+                  $(this).attr("xlink:href",null)
+                })
+              }
+            })
+          }
+          return this
+        },
+      })
+      app.PipelinesNewView = Backbone.View.extend({
+        template: _.template($('#pipelines-new-view').html()),
+        events: {
+          'click #create': 'clickCreate',
+          'submit form':   'clickCreate',
+          'change textarea#pipeline': 'changePipeline',
+          'change textarea#vars': 'changePipeline',
+        },
+        render: function () {
+          var data = this.model.toJSON()
+          if (data.raw) {
+            data.raw = atob(data.raw)
+          }
+          this.$el.html(this.template(data));
+          this.image = new app.PipelineImage()
+          this.$el.find("#graph").html(new app.PipelineGraphView({model: this.image, noLinks: true}).render().el)
+          if (data.raw) {
+            this.changePipeline(new Event("fake"))
+          }
+          return this; // enable chained calls
+        },
+        clickCreate: function() {
+          event.preventDefault();
+          var name = this.$el.find("#name").get(0).value
+          var pp = this.$el.find("#pipeline").get(0).value
+          var rvars = this.$el.find("#vars").get(0).value||"{}"
+          try{
+            var vars = JSON.parse(rvars)
+          } catch (error){
+            app.apiError.set({error: "Error parsing Vars: "+error})
+            return
+          }
+
+          var data = [];
+          for (var i = 0; i < pp.length; i++){
+            data.push(pp.charCodeAt(i));
+          }
+          if (this.model.get("id")){
+            app.pipelines.create({name: name, config: data, vars: vars}, {
+              url: app.pipelines.url+"/"+this.model.get("name"),
+              success: function() {
+                app.router.navigate('pipelines/'+name, { trigger: true });
+              },
+            })
+          } else {
+            app.pipelines.create({name: name, config: data, vars: vars}, {
+              type: "POST",
+              // TODO: Try to find a way to create a model with the idAttribute
+              // set with POST
+              url: app.pipelines.url,
+              success: function() {
+                app.router.navigate('pipelines/'+name, { trigger: true });
+              },
+            })
+          }
+        },
+        changePipeline: function(event) {
+          event.preventDefault();
+          var pp = this.$el.find("#pipeline").get(0).value
+          var rvars = this.$el.find("#vars").get(0).value||"{}"
+          try{
+            var vars = JSON.parse(rvars)
+          } catch (error){
+            app.apiError.set({error: "Error parsing Vars: "+error})
+            return
+          }
+
+          var data = [];
+          for (var i = 0; i < pp.length; i++){
+            data.push(pp.charCodeAt(i));
+          }
+          this.image.save({config: data, vars: vars}, {url: "/pipelines/image.dot"})
+        },
+      })
+      app.JobBuildsView = Backbone.View.extend({
+        template: _.template($('#job-builds-view').html()),
+        initialize: function() {
+          this.listenTo(this.collection, "add", this.addBuild)
+
+          // TODO: most likely add the {reset: true} as the
+          // order is really important
+          var that = this
+          this.collection.fetch({
+            success: function(){ that.collection.setActive() },
+          })
+        },
+        events: {
+          'click #trigger-job': 'clickTriggerJob',
+          'click button.build-tab': 'clickOnTab',
+        },
+        render: function () {
+          this.$el.html(this.template({
+            pipeline: this.collection.job.collection.pipeline.toJSON(),
+            job: this.collection.job.toJSON(),
+          }));
+          return this; // enable chained calls
+        },
+        addBuild: function(m) {
+          var tab = new app.JobBuildsTabView({model: m})
+          var cont = new app.JobBuildsContentView({model: m})
+          $('#builds-tabs').append(tab.render().el);
+          $('#builds-content').append(cont.render().el);
+        },
+        clickTriggerJob: function(event) {
+          event.preventDefault();
+          this.collection.job.fetchTrigger()
+        },
+        clickOnTab: function(event) {
+          event.preventDefault();
+          this.collection.setActive(event.target.id.split("-")[1])
+        }
+      })
+      app.JobBuildsTabView = Backbone.View.extend({
+        tagName: "button",
+        attributes: function() {
+          return {
+            type: "button",
+            class: "btn btn-"+this.statusToClass()+" build-tab",
+            id: "t-"+this.model.get("id"),
+          }
+        },
+        initialize: function() {
+          this.listenTo(this.model, "change", this.render)
+        },
+        template: _.template($('#job-builds-tab-view').html()),
+        render: function () {
+          if (this.model.get("active")) {
+            this.$el.addClass("active")
+          } else {
+            this.$el.removeClass("active")
+          }
+          var data = this.model.toJSON()
+          this.$el.html(this.template(data));
+          return this; // enable chained calls
+        },
+        statusToClass: function() {
+          switch(this.model.get("status")){
+            case "succeeded":
+              return "success"
+            case "failed":
+              return "danger"
+            case "started":
+              return "warning"
+          }
+        },
+      })
+      app.JobBuildsContentView = Backbone.View.extend({
+        // TODO: Check to set the attributes
+        template: _.template($('#job-builds-content-view').html()),
+        initialize: function() {
+          this.listenTo(this.model, "change", this.render)
+        },
+        render: function () {
+          var data =this.model.toJSON()
+          data.active = this.model.get("active")
+          this.$el.html(this.template(data));
+          return this; // enable chained calls
+        },
+      })
+      app.ResourceVersionsView = Backbone.View.extend({
+        template: _.template($('#resource-versions-view').html()),
+        initialize: function() {
+          this.listenTo(this.collection, "add", this.addVersion)
+
+          // TODO: most likely add the {reset: true} as the
+          // order is really important
+          this.collection.fetch()
+        },
+        render: function () {
+          this.$el.html(this.template({
+            pipeline: this.collection.resource.collection.pipeline.toJSON(),
+            resource: this.collection.resource.toJSON(),
+          }));
+          return this; // enable chained calls
+        },
+        addVersion: function(m) {
+          var ver = new app.ResourceVersionView({model: m})
+          $('#resource-versions').append(ver.render().el);
+        }
+      })
+      app.ResourceVersionView = Backbone.View.extend({
+        // TODO: Check to set the attributes
+        template: _.template($('#resource-version-view').html()),
+        render: function () {
+          this.$el.html(this.template(this.model.toJSON()));
+          return this; // enable chained calls
+        },
+      })
+
+      //--------------
+      // Routers
+      //--------------
+      app.Router = Backbone.Router.extend({
+        routes: {
+          '' :              'pipelinesIndex',
+          'pipelines' :     'pipelinesIndex',
+          'pipelines/new' : 'pipelinesNew',
+          'pipelines/:pn':  'pipelinesShow',
+          'pipelines/:pn/edit' : 'pipelinesEdit',
+
+          'pipelines/:pn/jobs/:jn/builds':  'jobBuilds',
+
+          'pipelines/:pn/resources/:rCan/versions': 'resourceVersions',
+          '*notFound': 'notFound',
+        },
+        pipelinesIndex: function() {
+          this.setup();
+          this.contentView = new app.PipelinesView({collection: app.pipelines});
+          $('#main').html(this.contentView.render().el)
+        },
+        pipelinesNew: function() {
+          this.setup();
+          this.contentView = new app.PipelinesNewView({collection: app.pipelines, model: new app.Pipeline()});
+          $('#main').html(this.contentView.render().el)
+        },
+        pipelinesEdit: function(pn) {
+          this.setup();
+          var promises = []
+          var pp = app.pipelines.get(pn)
+          if (pp === undefined) {
+            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
+            promises.push(pp)
+          }
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.PipelinesNewView({collection: app.pipelines, model: pp});
+            $('#main').html(that.contentView.render().el)
+          })
+        },
+        pipelinesShow: function(pn) {
+          this.setup();
+          var promises = []
+          var pp = app.pipelines.get(pn)
+          if (pp === undefined) {
+            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
+            promises.push(pp)
+          }
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.PipelineShowView({model: pp, image: new app.PipelineImage(null, {pipeline: pp}) });
+            $('#main').html(that.contentView.render().el)
+          })
+        },
+        jobBuilds: function(pn, jn) {
+          this.setup();
+          var promises = []
+          var pp = app.pipelines.get(pn)
+          if (pp === undefined) {
+            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
+            promises.push(pp)
+          }
+          var jbs = new app.Jobs(null, {pipeline: pp})
+          var jb = new app.Job({name: jn}, {collection: jbs})
+          promises.push(jb)
+          var builds = new app.Builds(null, {job: jb})
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.JobBuildsView({
+              collection: builds,
+            });
+            $('#main').html(that.contentView.render().el)
+          })
+        },
+        resourceVersions: function(pn, rCan) {
+          this.setup();
+          var promises = []
+          var pp = app.pipelines.get(pn)
+          if (pp === undefined) {
+            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
+            promises.push(pp)
+          }
+          var rss = new app.Resources(null, {pipeline: pp})
+          var rs = new app.Resource({canonical: rCan}, {collection: rss})
+          promises.push(rs)
+          var versions = new app.ResourceVersions(null, {resource: rs})
+
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.ResourceVersionsView({
+              collection: versions,
+            });
+            $('#main').html(that.contentView.render().el)
+          })
+        },
+        notFound: function() {
+          app.router.navigate('', { trigger: true });
+        },
+        setup: function () {
+          app.apiError.clear()
+          if (!this.mainView) {
+            this.mainView = new app.MainView({ el: '#app' });
+          }
+          if (this.contentView) {
+            // TODO: Recheck this
+            //// COMPLETELY UNBIND THE VIEW
+            this.contentView.undelegateEvents();
+
+            this.contentView.$el.removeData().unbind(); 
+
+            //// Remove view from DOM
+            this.contentView.remove();
+            Backbone.View.prototype.remove.call(this.contentView);
+          }
+        }
+      }); 
+
+
+      //--------------
+      // Initializers
+      //--------------
+      var backboneSync = Backbone.sync;
+      Backbone.sync = function (method, model, options) {
+        options.headers = {
+          'Content-Type': 'application/json',
+        };
+        var optError = options.error
+        options.error = function(response){
+          app.apiError.set({error: response.responseJSON.error})
+          if (optError) {
+            optError(response)
+          }
+        }
+        var optSuccess = options.success
+        options.success = function(response){
+          app.apiError.clear()
+          if (optSuccess) {
+            optSuccess(response)
+          }
+        }
+        return backboneSync(method, model, options);
+      };
+      app.router = new app.Router();
+      Backbone.history.start({pushState: true});
+    </script>
+
+  </body>
+</html>

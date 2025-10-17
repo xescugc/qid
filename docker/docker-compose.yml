@@ -1,7 +1,7 @@
 services:
   qid:
-    depends_on:
-      - mariadb
+    #depends_on:
+      #- mariadb
     networks:
       - qid
     volumes:

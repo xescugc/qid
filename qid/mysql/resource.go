@@ -21,11 +21,12 @@ func NewResourceRepository(db sqlr.Querier) *ResourceRepository {
 }
 
 type dbResource struct {
-	ID     sql.NullInt64
-	Name   sql.NullString
-	Type   sql.NullString
-	Inputs sql.NullString
-	Logs   sql.NullString
+	ID        sql.NullInt64
+	Name      sql.NullString
+	Type      sql.NullString
+	Canonical sql.NullString
+	Inputs    sql.NullString
+	Logs      sql.NullString
 }
 
 type dbResourceVersion struct {
@@ -36,19 +37,21 @@ type dbResourceVersion struct {
 func newDBResource(r resource.Resource) dbResource {
 	i, _ := json.Marshal(r.Inputs)
 	return dbResource{
-		Name:   toNullString(r.Name),
-		Type:   toNullString(r.Type),
-		Inputs: toNullString(string(i)),
-		Logs:   toNullString(r.Logs),
+		Name:      toNullString(r.Name),
+		Type:      toNullString(r.Type),
+		Canonical: toNullString(r.Canonical),
+		Inputs:    toNullString(string(i)),
+		Logs:      toNullString(r.Logs),
 	}
 }
 
 func (dbr *dbResource) toDomainEntity() *resource.Resource {
 	r := &resource.Resource{
-		ID:   uint32(dbr.ID.Int64),
-		Name: dbr.Name.String,
-		Type: dbr.Type.String,
-		Logs: dbr.Logs.String,
+		ID:        uint32(dbr.ID.Int64),
+		Name:      dbr.Name.String,
+		Type:      dbr.Type.String,
+		Canonical: dbr.Canonical.String,
+		Logs:      dbr.Logs.String,
 	}
 
 	_ = json.Unmarshal([]byte(dbr.Inputs.String), &r.Inputs)
@@ -74,14 +77,14 @@ func (dbrv *dbResourceVersion) toDomainEntity() *resource.Version {
 func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.Resource) (uint32, error) {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO resources(name, `+"`type`"+`, inputs, pipeline_id)
-		VALUES (?, ?, ?,
+		INSERT INTO resources(name, `+"`type`"+`, canonical, inputs, pipeline_id)
+		VALUES (?, ?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
 				FROM pipelines AS p
 				WHERE p.name = ?
-			))`, dbrs.Name, dbrs.Type, dbrs.Inputs, pn)
+			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -94,20 +97,20 @@ func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.
 	return id, nil
 }
 
-func (r *ResourceRepository) Update(ctx context.Context, pn, rt, rn string, rs resource.Resource) error {
+func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs resource.Resource) error {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resources AS r
-		SET name = ?, type = ?, inputs = ?, logs = ?
+		SET name = ?, type = ?, canonical = ?, inputs = ?, logs = ?
 		FROM (
 			SELECT r.id
 			FROM resources AS r
 			JOIN pipelines AS p
 				ON r.pipeline_id = p.id
-			WHERE p.name = ? AND r.name = ? AND r.type = ?
+			WHERE p.name = ? AND r.canonical = ?
 		) AS rr
 		WHERE rr.id = r.id
-	`, dbrs.Name, dbrs.Type, dbrs.Inputs, dbrs.Logs, pn, rn, rt)
+	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, dbrs.Logs, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -120,14 +123,14 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rt, rn string, rs r
 	return nil
 }
 
-func (r *ResourceRepository) Find(ctx context.Context, pn, rt, rn string) (*resource.Resource, error) {
+func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT r.id, r.name, r.type, r.inputs, r.logs
+		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.logs
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
-		WHERE p.name = ? AND r.type = ? AND r.name = ?
-	`, pn, rt, rn)
+		WHERE p.name = ? AND r.canonical = ?
+	`, pn, rCan)
 
 	rs, err := scanResource(row)
 	if err != nil {
@@ -139,7 +142,7 @@ func (r *ResourceRepository) Find(ctx context.Context, pn, rt, rn string) (*reso
 
 func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource.Resource, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT r.id, r.name, r.type, r.inputs, r.logs
+		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.logs
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
@@ -157,7 +160,7 @@ func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource
 	return resources, nil
 }
 
-func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rt, rn string, rv resource.Version) (uint32, error) {
+func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string, rv resource.Version) (uint32, error) {
 	dbrv := newDBResourceVersion(rv)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO resource_versions(hash, resource_id)
@@ -168,8 +171,8 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rt, rn strin
 				FROM resources AS r
 				JOIN pipelines AS p
 					ON r.pipeline_id = p.id
-				WHERE p.name = ? AND r.name = ? AND r.type = ?
-			))`, dbrv.Hash, pn, rn, rt)
+				WHERE p.name = ? AND r.canonical = ?
+			))`, dbrv.Hash, pn, rCan)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -182,7 +185,7 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rt, rn strin
 	return id, nil
 }
 
-func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rt, rn string) ([]*resource.Version, error) {
+func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT rv.id, rv.hash
 		FROM resource_versions AS rv
@@ -190,8 +193,8 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rt, rn stri
 			ON rv.resource_id = r.id
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
-		WHERE p.name = ? AND r.name = ? AND r.type = ?
-	`, pn, rn, rt)
+		WHERE p.name = ? AND r.canonical = ?
+	`, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter Resources: %w", err)
 	}
@@ -204,14 +207,18 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rt, rn stri
 	return rvs, nil
 }
 
-func (r *ResourceRepository) Delete(ctx context.Context, pn, rn string) error {
+func (r *ResourceRepository) Delete(ctx context.Context, pn, rCan string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE r
-		FROM resources AS r
-		JOIN pipelines AS p
-			ON r.pipeline_id = p.id
-		WHERE p.name = ? AND r.name = ?
-	`, pn, rn)
+		FROM resources
+		WHERE id IN (
+			SELECT r.id
+			FROM resources AS r
+			JOIN pipelines AS p
+				ON r.pipeline_id = p.id
+			WHERE p.name = ? AND r.canonical = ?
+		)
+	`, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -231,6 +238,7 @@ func scanResource(s sqlr.Scanner) (*resource.Resource, error) {
 		&r.ID,
 		&r.Name,
 		&r.Type,
+		&r.Canonical,
 		&r.Inputs,
 		&r.Logs,
 	)

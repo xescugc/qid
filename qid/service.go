@@ -29,6 +29,7 @@ type Service interface {
 	ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error)
 
 	GetPipelineImage(ctx context.Context, pn, format string) ([]byte, error)
+	CreatePipelineImage(ctx context.Context, pp []byte, vars map[string]interface{}, format string) ([]byte, error)
 
 	TriggerPipelineJob(ctx context.Context, pn, jn string) error
 	GetPipelineJob(ctx context.Context, pn, jn string) (*job.Job, error)
@@ -37,10 +38,10 @@ type Service interface {
 	UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error
 	ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error)
 
-	GetPipelineResource(ctx context.Context, pn, rt, rn string) (*resource.Resource, error)
-	UpdatePipelineResource(ctx context.Context, pn, rt, rn string, r resource.Resource) error
-	CreateResourceVersion(ctx context.Context, pn, rj, rn string, v resource.Version) error
-	ListResourceVersions(ctx context.Context, pn, rk, rn string) ([]*resource.Version, error)
+	GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error)
+	UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error
+	CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) error
+	ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error)
 }
 
 type Qid struct {
@@ -126,6 +127,7 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 	}
 
 	pp.Name = pn
+	pp.Raw = rpp
 
 	_, err = q.Pipelines.Create(ctx, *pp)
 	if err != nil {
@@ -173,6 +175,11 @@ func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 	if err != nil {
 		return fmt.Errorf("failed to read Pipeline config: %w", err)
 	}
+
+	pp.Name = pn
+	pp.Raw = rpp
+
+	err = q.Pipelines.Update(ctx, pn, *pp)
 
 	dbpp, err := q.GetPipeline(ctx, pn)
 	if err != nil {
@@ -245,7 +252,7 @@ func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 		}
 		if _, ok := dbrs[r.Name]; ok {
 			delete(dbrs, r.Name)
-			err = q.Resources.Update(ctx, pn, r.Type, r.Name, r)
+			err = q.Resources.Update(ctx, pn, r.Canonical, r)
 			if err != nil {
 				return fmt.Errorf("failed to update Resource %q: %w", r.Name, err)
 			}
@@ -371,6 +378,20 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 		return nil, fmt.Errorf("failed to get Pipeline %q: %w", pn, err)
 	}
 
+	img, err := q.generateImage(ctx, pp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate image: %w", err)
+	}
+
+	return img, err
+}
+
+func (q *Qid) generateImage(ctx context.Context, pp *pipeline.Pipeline) ([]byte, error) {
+	var (
+		pn  = pp.Name
+		err error
+	)
+
 	graph := gographviz.NewGraph()
 	graph.SetName(pn)
 	graph.SetStrict(true)
@@ -380,14 +401,13 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 	resourceColors := make(map[string]string)
 	// Print all the resources
 	for _, r := range pp.Resources {
-		// TODO: Change this to be the canonical of the r (type+name)
-		vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/%s/versions"`, "http://localhost:4000", pp.Name, r.Type, r.Name)
+		vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/versions"`, "http://localhost:4000", pp.Name, r.Canonical)
 		color := "0"
 		if r.Logs != "" {
 			color = "1"
 		}
-		resourceColors[fmt.Sprintf("%s:%s", r.Type, r.Name)] = color
-		err = graph.AddNode(pn, r.Name, map[string]string{
+		resourceColors[r.Canonical] = color
+		err = graph.AddNode(pn, fmt.Sprintf(`"%s"`, r.Canonical), map[string]string{
 			string(gographviz.Margin):      "0.1",
 			string(gographviz.Shape):       "cds",
 			string(gographviz.FillColor):   "9",
@@ -458,7 +478,8 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 		}
 		for _, g := range j.Get {
 			if len(g.Passed) == 0 {
-				err = graph.AddEdge(g.Name, j.Name, false, nil)
+				rCan := fmt.Sprintf(`"%s.%s"`, g.Type, g.Name)
+				err = graph.AddEdge(rCan, j.Name, false, nil)
 				if err != nil {
 					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
 				}
@@ -472,10 +493,11 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 			if len(g.Passed) != 0 {
 				for _, p := range g.Passed {
 					nn := fmt.Sprintf(`"%s-%s-%s"`, p, g.Name, j.Name)
-					vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/%s/versions"`, "http://localhost:4000", pp.Name, g.Type, g.Name)
-					color := resourceColors[fmt.Sprintf("%s:%s", g.Type, g.Name)]
+					rCan := fmt.Sprintf("%s.%s", g.Type, g.Name)
+					vurl := fmt.Sprintf(`"%s/pipelines/%s/resources/%s/versions"`, "http://localhost:4000", pp.Name, rCan)
+					color := resourceColors[rCan]
 					err = graph.AddNode(pn, nn, map[string]string{
-						string(gographviz.Label):       g.Name,
+						string(gographviz.Label):       fmt.Sprintf(`"%s"`, rCan),
 						string(gographviz.Margin):      "0.1",
 						string(gographviz.Shape):       "cds",
 						string(gographviz.FillColor):   "9",
@@ -501,7 +523,25 @@ func (q *Qid) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, 
 		}
 	}
 
-	return []byte(graph.String()), nil
+	str := graph.String()
+	// TODO: check for errors
+	return []byte(str), nil
+}
+
+func (q *Qid) CreatePipelineImage(ctx context.Context, pipeline []byte, vars map[string]interface{}, format string) ([]byte, error) {
+	pp, err := q.readPipeline(ctx, pipeline, vars)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Pipeline: %w", err)
+	}
+
+	pp.Name = "qid"
+
+	img, err := q.generateImage(ctx, pp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate image: %w", err)
+	}
+
+	return img, err
 }
 
 func (q *Qid) DeletePipeline(ctx context.Context, pn string) error {
@@ -596,16 +636,14 @@ func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b b
 	return nil
 }
 
-func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rt, rn string, v resource.Version) error {
+func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) error {
 	if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
-	} else if !utils.ValidateCanonical(rt) {
-		return fmt.Errorf("invalid Resource Type format %q", rt)
-	} else if !utils.ValidateCanonical(rn) {
-		return fmt.Errorf("invalid Resource Name format %q", rn)
+	} else if !utils.ValidateResourceCanonical(rCan) {
+		return fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	_, err := q.Resources.CreateVersion(ctx, pn, rt, rn, v)
+	_, err := q.Resources.CreateVersion(ctx, pn, rCan, v)
 	if err != nil {
 		return fmt.Errorf("failed to Create Resource Version: %w", err)
 	}
@@ -613,19 +651,19 @@ func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rt, rn string, v re
 	return nil
 }
 
-func (q *Qid) ListResourceVersions(ctx context.Context, pn, rt, rn string) ([]*resource.Version, error) {
+func (q *Qid) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
 	if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
-	} else if !utils.ValidateCanonical(rt) {
-		return nil, fmt.Errorf("invalid Resource Type format %q", rt)
-	} else if !utils.ValidateCanonical(rn) {
-		return nil, fmt.Errorf("invalid Resource Name format %q", rn)
+	} else if !utils.ValidateResourceCanonical(rCan) {
+		return nil, fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	rvers, err := q.Resources.FilterVersions(ctx, pn, rt, rn)
+	rvers, err := q.Resources.FilterVersions(ctx, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to List Resource Version: %w", err)
 	}
+
+	slices.Reverse(rvers)
 
 	return rvers, nil
 }
@@ -642,19 +680,19 @@ func (q *Qid) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build,
 		return nil, fmt.Errorf("failed to list Builds: %w", err)
 	}
 
+	slices.Reverse(builds)
+
 	return builds, nil
 }
 
-func (q *Qid) GetPipelineResource(ctx context.Context, pn, rt, rn string) (*resource.Resource, error) {
+func (q *Qid) GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
 	if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
-	} else if !utils.ValidateCanonical(rt) {
-		return nil, fmt.Errorf("invalid Resource Type format %q", rt)
-	} else if !utils.ValidateCanonical(rn) {
-		return nil, fmt.Errorf("invalid Resource Name format %q", rn)
+	} else if !utils.ValidateResourceCanonical(rCan) {
+		return nil, fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	r, err := q.Resources.Find(ctx, pn, rt, rn)
+	r, err := q.Resources.Find(ctx, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Resource: %w", err)
 	}
@@ -662,16 +700,14 @@ func (q *Qid) GetPipelineResource(ctx context.Context, pn, rt, rn string) (*reso
 	return r, nil
 }
 
-func (q *Qid) UpdatePipelineResource(ctx context.Context, pn, rt, rn string, r resource.Resource) error {
+func (q *Qid) UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error {
 	if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
-	} else if !utils.ValidateCanonical(rt) {
-		return fmt.Errorf("invalid Resource Type format %q", rt)
-	} else if !utils.ValidateCanonical(rn) {
-		return fmt.Errorf("invalid Resource Name format %q", rn)
+	} else if !utils.ValidateResourceCanonical(rCan) {
+		return fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	err := q.Resources.Update(ctx, pn, rt, rn, r)
+	err := q.Resources.Update(ctx, pn, rCan, r)
 	if err != nil {
 		return fmt.Errorf("failed to update Resource: %w", err)
 	}

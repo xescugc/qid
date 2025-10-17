@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl/v2"
@@ -26,8 +27,6 @@ func (q *Qid) readPipeline(ctx context.Context, rpp []byte, vars map[string]inte
 	if err != nil {
 		return nil, fmt.Errorf("failed to Decode Pipeline config: %w", err)
 	}
-
-	//spew.Dump(pvars.Variables)
 
 	ecvars := make(map[string]cty.Value)
 	for _, v := range pvars.Variables {
@@ -107,6 +106,9 @@ func (q *Qid) readPipeline(ctx context.Context, rpp []byte, vars map[string]inte
 			spew.Dump(e)
 		}
 		return nil, fmt.Errorf("failed to Decode Pipeline config: %w", err)
+	}
+	for i, r := range pp.Resources {
+		pp.Resources[i].Canonical = strings.Join([]string{r.Type, r.Name}, ".")
 	}
 	return &pp, nil
 }

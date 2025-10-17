@@ -88,7 +88,8 @@ func (w *Worker) Run(ctx context.Context) error {
 							if g.Name == m.ResourceName && g.Type == m.ResourceType && m.VersionHash != "" {
 								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", m.VersionHash))
 							} else {
-								vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, g.Type, g.Name)
+								rCan := strings.Join([]string{g.Type, g.Name}, ".")
+								vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, rCan)
 								if err != nil {
 									ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 									w.failBuild(ctx, m, b, ferr)
@@ -191,7 +192,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						if rt.Name == r.Type {
 							cmd := exec.CommandContext(ctx, rt.Check.Path, rt.Check.Args...)
 
-							vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, rt.Name, r.Name)
+							vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
 							if err != nil {
 								ferr := fmt.Errorf("failed to list resource versions: %w", err)
 								w.logger.Log("error", ferr)
@@ -208,7 +209,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							stdouterr, err := cmd.CombinedOutput()
 							if err != nil {
 								r.Logs = string(stdouterr)
-								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Type, r.Name, r)
+								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
 								if err != nil {
 									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
 								}
@@ -217,7 +218,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							}
 							if r.Logs != "" {
 								r.Logs = ""
-								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Type, r.Name, r)
+								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
 								if err != nil {
 									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
 									goto END
@@ -252,7 +253,7 @@ func (w *Worker) Run(ctx context.Context) error {
 										}
 									}
 								}
-								err = w.qid.CreateResourceVersion(ctx, m.PipelineName, rt.Name, r.Name, resource.Version{
+								err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
 									Hash: h,
 								})
 								if err != nil {

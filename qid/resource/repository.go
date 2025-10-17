@@ -6,11 +6,11 @@ import "context"
 
 type Repository interface {
 	Create(ctx context.Context, pn string, r Resource) (uint32, error)
-	Update(ctx context.Context, pn, rt, rn string, r Resource) error
-	Find(ctx context.Context, pn, rt, rn string) (*Resource, error)
+	Update(ctx context.Context, pn, rCan string, r Resource) error
+	Find(ctx context.Context, pn, rCan string) (*Resource, error)
 	Filter(ctx context.Context, pn string) ([]*Resource, error)
-	Delete(ctx context.Context, pn, rn string) error
+	Delete(ctx context.Context, pn, rCan string) error
 
-	CreateVersion(ctx context.Context, pn, rt, rn string, v Version) (uint32, error)
-	FilterVersions(ctx context.Context, pn, rt, rn string) ([]*Version, error)
+	CreateVersion(ctx context.Context, pn, rCan string, v Version) (uint32, error)
+	FilterVersions(ctx context.Context, pn, rCan string) ([]*Version, error)
 }

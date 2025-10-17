@@ -8,12 +8,13 @@ import (
 )
 
 type Pipeline struct {
-	ID            uint32
-	Name          string
+	ID            uint32                 `json:"id"`
+	Name          string                 `json:"name"`
 	Jobs          []job.Job              `json:"jobs" hcl:"job,block"`
 	Resources     []resource.Resource    `json:"resources" hcl:"resource,block"`
 	ResourceTypes []restype.ResourceType `json:"resource_types" hcl:"resource_type,block"`
-	Remain        hcl.Body               `hcl:",remain"`
+	Remain        hcl.Body               `json:"-" hcl:",remain"`
+	Raw           []byte                 `json:"raw"`
 }
 
 type Variables struct {
