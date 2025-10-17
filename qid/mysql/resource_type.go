@@ -86,7 +86,7 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt 
 		UPDATE resource_types AS rt
 		SET name = ?, `+"`check`"+` = ?, pull = ?, push = ?, inputs = ?
 		FROM (
-		SELECT rt.id
+			SELECT rt.id
 			FROM resource_types AS rt
 			JOIN pipelines AS p
 				ON rt.pipeline_id = p.id

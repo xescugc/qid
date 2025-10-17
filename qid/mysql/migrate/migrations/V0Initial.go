@@ -9,6 +9,7 @@ var V0Initial = Migration{
 		CREATE TABLE IF NOT EXISTS pipelines (
 				id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 				name VARCHAR(255),
+				raw TEXT,
 
 				CONSTRAINT uq__name UNIQUE ( name )
 		);
@@ -48,10 +49,11 @@ var V0Initial = Migration{
 				` + "`type`" + ` VARCHAR(255),
 				inputs TEXT,
 				logs TEXT,
+				canonical VARCHAR(255),
 
 				pipeline_id INT UNSIGNED NOT NULL,
 
-				CONSTRAINT uq__name UNIQUE ( pipeline_id, ` + "`type`" + `, name ),
+				CONSTRAINT uq__pipeline__canonical UNIQUE ( pipeline_id, canonical ),
 
 				CONSTRAINT fk__resources__pipelines
 						FOREIGN KEY (pipeline_id) REFERENCES pipelines (id)

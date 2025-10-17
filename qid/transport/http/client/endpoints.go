@@ -58,6 +58,16 @@ func makeGetPipelineImageEndpoint(u url.URL) endpoint.Endpoint {
 	).Endpoint()
 }
 
+func makeCreatePipelineImageEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/image{format}"
+	return kithttp.NewClient(
+		http.MethodGet,
+		&u,
+		encodeCreatePipelineImageRequest,
+		decodeCreatePipelineImageResponse,
+	).Endpoint()
+}
+
 func makeDeletePipelineEndpoint(u url.URL) endpoint.Endpoint {
 	u.Path = "/pipelines/{pipeline_name}"
 	return kithttp.NewClient(

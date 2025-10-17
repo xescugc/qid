@@ -138,10 +138,14 @@ func (r *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, erro
 func (r *JobRepository) Delete(ctx context.Context, pn, jn string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
-		FROM jobs AS j
-		JOIN pipelines AS p
-			ON j.pipeline_id = p.id
-		WHERE p.name = ? AND j.name = ?
+		FROM jobs
+		WHERE id IN (
+			SELECT j.id
+			FROM jobs AS j
+			JOIN pipelines AS p
+				ON j.pipeline_id = p.id
+			WHERE p.name = ? AND j.name = ?
+		)
 	`, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

@@ -1,13 +1,14 @@
 package resource
 
 type Resource struct {
-	ID   uint32 `json:"id"`
-	Type string `json:"type" hcl:"type,label"`
-	Name string `json:"name" hcl:"name,label"`
+	ID        uint32 `json:"id"`
+	Type      string `json:"type" hcl:"type,label"`
+	Name      string `json:"name" hcl:"name,label"`
+	Canonical string `json:"canonical"`
 
-	Inputs map[string]string `json:"Inputs" hcl:",remain"`
+	Inputs map[string]string `json:"inputs" hcl:",remain"`
 
-	Logs string `json:"log"`
+	Logs string `json:"logs"`
 }
 
 type Version struct {

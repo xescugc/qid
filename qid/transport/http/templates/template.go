@@ -2,9 +2,9 @@ package templates
 
 import (
 	"embed"
-	"html/template"
 	"io/fs"
 	"path/filepath"
+	"text/template"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 var (
 	layoutsDir = filepath.Join(viewsDir, "layouts")
 
-	//go:embed views/layouts/* views/pipelines/* views/builds/* views/resource_versions/*
+	//go:embed views/layouts/*
 	files embed.FS
 
 	// Templates is the cache of all the templates we have

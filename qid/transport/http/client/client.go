@@ -16,12 +16,13 @@ import (
 )
 
 type Client struct {
-	createPipeline   endpoint.Endpoint
-	updatePipeline   endpoint.Endpoint
-	getPipeline      endpoint.Endpoint
-	getPipelineImage endpoint.Endpoint
-	listPipelines    endpoint.Endpoint
-	deletePipeline   endpoint.Endpoint
+	createPipeline      endpoint.Endpoint
+	updatePipeline      endpoint.Endpoint
+	getPipeline         endpoint.Endpoint
+	getPipelineImage    endpoint.Endpoint
+	createPipelineImage endpoint.Endpoint
+	listPipelines       endpoint.Endpoint
+	deletePipeline      endpoint.Endpoint
 
 	triggerPipelineJob endpoint.Endpoint
 	getPipelineJob     endpoint.Endpoint
@@ -51,19 +52,20 @@ func New(host string) (*Client, error) {
 	}
 
 	cl := &Client{
-		createPipeline:   makeCreatePipelineEndpoint(*u),
-		updatePipeline:   makeUpdatePipelineEndpoint(*u),
-		getPipeline:      makeGetPipelineEndpoint(*u),
-		getPipelineImage: makeGetPipelineImageEndpoint(*u),
-		listPipelines:    makeListPipelinesEndpoint(*u),
-		deletePipeline:   makeDeletePipelineEndpoint(*u),
+		createPipeline:      makeCreatePipelineEndpoint(*u),
+		updatePipeline:      makeUpdatePipelineEndpoint(*u),
+		getPipeline:         makeGetPipelineEndpoint(*u),
+		getPipelineImage:    makeGetPipelineImageEndpoint(*u),
+		createPipelineImage: makeCreatePipelineImageEndpoint(*u),
+		listPipelines:       makeListPipelinesEndpoint(*u),
+		deletePipeline:      makeDeletePipelineEndpoint(*u),
 
 		triggerPipelineJob: makeTriggerPipelineJobEndpoint(*u),
 		getPipelineJob:     makeGetPipelineJobEndpoint(*u),
 
+		listJobBuilds:  makeListJobBuildsEndpoint(*u),
 		createJobBuild: makeCreateJobBuildEndpoint(*u),
 		updateJobBuild: makeUpdateJobBuildEndpoint(*u),
-		listJobBuilds:  makeListJobBuildsEndpoint(*u),
 
 		getPipelineResource:    makeGetPipelineResourceEndpoint(*u),
 		updatePipelineResource: makeUpdatePipelineResourceEndpoint(*u),
@@ -128,7 +130,21 @@ func (cl *Client) GetPipelineImage(ctx context.Context, pn, format string) ([]by
 		return nil, errors.New(resp.Err)
 	}
 
-	return resp.Image, nil
+	return []byte(resp.Image), nil
+}
+
+func (cl *Client) CreatePipelineImage(ctx context.Context, pp []byte, vars map[string]interface{}, format string) ([]byte, error) {
+	response, err := cl.createPipelineImage(ctx, transport.CreatePipelineImageRequest{Config: pp, Vars: vars, Format: format})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := response.(transport.CreatePipelineImageResponse)
+	if resp.Err != "" {
+		return nil, errors.New(resp.Err)
+	}
+
+	return []byte(resp.Image), nil
 }
 
 func (cl *Client) ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error) {
@@ -229,8 +245,8 @@ func (cl *Client) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Bu
 	return resp.Builds, nil
 }
 
-func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rt, rn string, rv resource.Version) error {
-	response, err := cl.updateJobBuild(ctx, transport.CreateResourceVersionRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt, Version: rv})
+func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rCan string, rv resource.Version) error {
+	response, err := cl.updateJobBuild(ctx, transport.CreateResourceVersionRequest{PipelineName: pn, ResourceCanonical: rCan, Version: rv})
 	if err != nil {
 		return err
 	}
@@ -243,8 +259,8 @@ func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rt, rn string, 
 	return nil
 }
 
-func (cl *Client) ListResourceVersions(ctx context.Context, pn, rn, rt string) ([]*resource.Version, error) {
-	response, err := cl.listResourceVersions(ctx, transport.ListResourceVersionsRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt})
+func (cl *Client) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
+	response, err := cl.listResourceVersions(ctx, transport.ListResourceVersionsRequest{PipelineName: pn, ResourceCanonical: rCan})
 	if err != nil {
 		return nil, err
 	}
@@ -257,8 +273,8 @@ func (cl *Client) ListResourceVersions(ctx context.Context, pn, rn, rt string) (
 	return resp.Versions, nil
 }
 
-func (cl *Client) GetPipelineResource(ctx context.Context, pn, rn, rt string) (*resource.Resource, error) {
-	response, err := cl.getPipelineResource(ctx, transport.GetPipelineResourceRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt})
+func (cl *Client) GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
+	response, err := cl.getPipelineResource(ctx, transport.GetPipelineResourceRequest{PipelineName: pn, ResourceCanonical: rCan})
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +287,8 @@ func (cl *Client) GetPipelineResource(ctx context.Context, pn, rn, rt string) (*
 	return resp.Resource, nil
 }
 
-func (cl *Client) UpdatePipelineResource(ctx context.Context, pn, rn, rt string, r resource.Resource) error {
-	response, err := cl.updatePipelineResource(ctx, transport.UpdatePipelineResourceRequest{PipelineName: pn, ResourceName: rn, ResourceType: rt, Resource: r})
+func (cl *Client) UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error {
+	response, err := cl.updatePipelineResource(ctx, transport.UpdatePipelineResourceRequest{PipelineName: pn, ResourceCanonical: rCan, Resource: r})
 	if err != nil {
 		return err
 	}

@@ -22,11 +22,13 @@ func NewPipelineRepository(db sqlr.Querier) *PipelineRepository {
 type dbPipeline struct {
 	ID   sql.NullInt64
 	Name sql.NullString
+	Raw  sql.NullString
 }
 
-func newDBPipeline(o pipeline.Pipeline) dbPipeline {
+func newDBPipeline(p pipeline.Pipeline) dbPipeline {
 	return dbPipeline{
-		Name: toNullString(o.Name),
+		Name: toNullString(p.Name),
+		Raw:  toNullString(string(p.Raw)),
 	}
 }
 
@@ -34,15 +36,16 @@ func (dbp *dbPipeline) toDomainEntity() *pipeline.Pipeline {
 	return &pipeline.Pipeline{
 		ID:   uint32(dbp.ID.Int64),
 		Name: dbp.Name.String,
+		Raw:  []byte(dbp.Raw.String),
 	}
 }
 
 func (r *PipelineRepository) Create(ctx context.Context, p pipeline.Pipeline) (uint32, error) {
 	dbp := newDBPipeline(p)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO pipelines(name)
-		VALUES (?)
-	`, dbp.Name)
+		INSERT INTO pipelines(name, raw)
+		VALUES (?, ?)
+	`, dbp.Name, dbp.Raw)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -55,9 +58,28 @@ func (r *PipelineRepository) Create(ctx context.Context, p pipeline.Pipeline) (u
 	return id, nil
 }
 
+func (r *PipelineRepository) Update(ctx context.Context, pn string, p pipeline.Pipeline) error {
+	dbp := newDBPipeline(p)
+	res, err := r.querier.ExecContext(ctx, `
+		UPDATE pipelines AS p
+		SET name = ?, raw = ?
+		WHERE p.name = ?
+	`, dbp.Name, dbp.Raw, pn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to update job: %w", err)
+	}
+
+	return nil
+}
+
 func (r *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pipeline, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT p.id, p.name
+		SELECT p.id, p.name, p.raw
 		FROM pipelines AS p
 		WHERE p.name = ?
 	`, pn)
@@ -72,7 +94,7 @@ func (r *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pip
 
 func (r *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT p.id, p.name
+		SELECT p.id, p.name, p.raw
 		FROM pipelines AS p
 	`)
 	if err != nil {
@@ -111,6 +133,7 @@ func scanPipeline(s sqlr.Scanner) (*pipeline.Pipeline, error) {
 	err := s.Scan(
 		&p.ID,
 		&p.Name,
+		&p.Raw,
 	)
 
 	if err != nil {
