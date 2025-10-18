@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"slices"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/uuid"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/queue"
@@ -54,6 +56,17 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 
+		cwduuid, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("failed to initialize UUIDV7: %w", err)
+		}
+		cwd := cwduuid.String()
+
+		err = os.Mkdir(cwd, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create dir %q: %w", cwd, err)
+		}
+
 		pp, err := w.qid.GetPipeline(ctx, m.PipelineName)
 		if err != nil {
 			w.logger.Log("error", fmt.Errorf("failed GetPipeline: %w", err))
@@ -85,6 +98,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					for _, rt := range pp.ResourceTypes {
 						if rt.Name == r.Type {
 							cmd := exec.CommandContext(ctx, rt.Pull.Path, rt.Pull.Args...)
+							cmd.Dir = cwd
 							if g.Name == m.ResourceName && g.Type == m.ResourceType && m.VersionHash != "" {
 								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", m.VersionHash))
 							} else {
@@ -133,6 +147,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 			for _, t := range j.Task {
 				cmd := exec.CommandContext(ctx, t.Run.Path, t.Run.Args...)
+				cmd.Dir = cwd
 				stdouterr, err := cmd.CombinedOutput()
 				if err != nil {
 					b.Task = append(b.Task, build.Step{
@@ -191,6 +206,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					for _, rt := range pp.ResourceTypes {
 						if rt.Name == r.Type {
 							cmd := exec.CommandContext(ctx, rt.Check.Path, rt.Check.Args...)
+							cmd.Dir = cwd
 
 							vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
 							if err != nil {
@@ -270,6 +286,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		// Messages must always be acknowledged with Ack.
 		//defer func() { msg.Ack() }()
 		msg.Ack()
+		os.RemoveAll(cwd)
 	}
 	return nil
 }

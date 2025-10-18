@@ -8,8 +8,6 @@ resource_type "git" {
     args = [
       "-ec",
       <<-EOT
-        cd /
-        rm -rf $NAME
         git clone --quiet $URL $NAME
         cd $NAME
         if [[ -n $LAST_VERSION_HASH ]]; then
@@ -25,8 +23,6 @@ resource_type "git" {
     args = [
       "-ec",
       <<-EOT
-        cd /
-        rm -rf $NAME
         git clone $URL $NAME
         cd $NAME
         git checkout $VERSION_HASH
