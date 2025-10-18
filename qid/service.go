@@ -479,7 +479,13 @@ func (q *Qid) generateImage(ctx context.Context, pp *pipeline.Pipeline) ([]byte,
 		for _, g := range j.Get {
 			if len(g.Passed) == 0 {
 				rCan := fmt.Sprintf(`"%s.%s"`, g.Type, g.Name)
-				err = graph.AddEdge(rCan, j.Name, false, nil)
+				opt := make(map[string]string)
+				if g.Trigger {
+					opt[string(gographviz.Style)] = "solid"
+				} else {
+					opt[string(gographviz.Style)] = "dashed"
+				}
+				err = graph.AddEdge(rCan, j.Name, false, opt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
 				}
