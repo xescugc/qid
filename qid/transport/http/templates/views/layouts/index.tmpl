@@ -610,18 +610,29 @@
       app.JobBuildsView = Backbone.View.extend({
         template: _.template($('#job-builds-view').html()),
         initialize: function() {
+          this.listenTo(this.collection, "reset", this.addBuilds)
           this.listenTo(this.collection, "add", this.addBuild)
 
-          // TODO: most likely add the {reset: true} as the
-          // order is really important
           var that = this
           this.collection.fetch({
+            reset: true,
             success: function(){ that.collection.setActive() },
           })
+
+          var that = this
+          this.intervalID = window.setInterval(function() {
+            that.collection.fetch()
+          }, 1000);
         },
         events: {
           'click #trigger-job': 'clickTriggerJob',
           'click button.build-tab': 'clickOnTab',
+        },
+        addBuilds: function() {
+          var that = this
+          this.collection.each(function(m) {
+            that.addBuild(m)
+          })
         },
         render: function () {
           this.$el.html(this.template({
@@ -630,11 +641,21 @@
           }));
           return this; // enable chained calls
         },
+        remove: function() {
+          clearInterval(this.intervalID)
+          Backbone.View.prototype.remove.call(this);
+        },
         addBuild: function(m) {
           var tab = new app.JobBuildsTabView({model: m})
           var cont = new app.JobBuildsContentView({model: m})
-          $('#builds-tabs').append(tab.render().el);
-          $('#builds-content').append(cont.render().el);
+          var append = this.collection.first().get("id")>m.get("id")
+          if (append) {
+            $('#builds-tabs').append(tab.render().el);
+            $('#builds-content').append(cont.render().el);
+          } else {
+            $('#builds-tabs').prepend(tab.render().el);
+            $('#builds-content').prepend(cont.render().el);
+          }
         },
         clickTriggerJob: function(event) {
           event.preventDefault();
@@ -664,6 +685,11 @@
           } else {
             this.$el.removeClass("active")
           }
+          this.$el.removeClass("btn-success")
+          this.$el.removeClass("btn-danger")
+          this.$el.removeClass("btn-warning")
+          this.$el.addClass("btn-"+this.statusToClass())
+
           var data = this.model.toJSON()
           this.$el.html(this.template(data));
           return this; // enable chained calls
