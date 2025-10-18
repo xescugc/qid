@@ -21,5 +21,5 @@ type TaskStep struct {
 
 type RunCommand struct {
 	Path string   `json:"path" hcl:"path"`
-	Args []string `json:"args" hcl:"args"`
+	Args []string `json:"args" hcl:"args,optional"`
 }
