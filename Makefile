@@ -46,3 +46,14 @@ gen:
 test:
 	@go test ./...
 
+PLATFORMS := linux/amd64 windows/amd64 darwin/amd64
+
+temp = $(subst /, ,$@)
+os = $(word 1, $(temp))
+arch = $(word 2, $(temp))
+
+.PHONY: release $(PLATFORMS)
+release: $(PLATFORMS)
+
+$(PLATFORMS):
+	GOOS=$(os) GOARCH=$(arch) go build -o ./builds/'$(os)-$(arch)' .
