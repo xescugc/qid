@@ -92,6 +92,23 @@ job "test" {
   }
 }
 
+job "build" {
+  get "git" "qid" {
+    passed  = ["test"]
+    trigger = true
+  }
+  task "build" {
+    run {
+      path = "make"
+      args = [ 
+        "-C",
+        "${var.repo_name}",
+        "release"
+      ]
+    }
+  }
+}
+
 variable "repo_url" {
   type = string
   default = "https://github.com/xescugc/qid.git"
