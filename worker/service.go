@@ -200,7 +200,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				continue
 			}
 		} else if m.PipelineName != "" && m.ResourceName != "" {
-			// This is for the Periodic resource checks
+			// This is for the periodic resource checks
 			for _, r := range pp.Resources {
 				if r.Name == m.ResourceName {
 					for _, rt := range pp.ResourceTypes {
@@ -246,6 +246,13 @@ func (w *Worker) Run(ctx context.Context) error {
 								goto END
 							}
 							for _, h := range hashs {
+								err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
+									Hash: h,
+								})
+								if err != nil {
+									w.logger.Log("error", fmt.Errorf("failed to create Resource Version body: %w", err))
+									goto END
+								}
 								for _, j := range pp.Jobs {
 									for _, g := range j.Get {
 										// If Passed is not 0 it means is waiting for another job
@@ -268,13 +275,6 @@ func (w *Worker) Run(ctx context.Context) error {
 											})
 										}
 									}
-								}
-								err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
-									Hash: h,
-								})
-								if err != nil {
-									w.logger.Log("error", fmt.Errorf("failed to create Resource Version body: %w", err))
-									goto END
 								}
 							}
 						}

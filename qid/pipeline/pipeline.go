@@ -22,8 +22,7 @@ type Variables struct {
 	Remain    hcl.Body   `hcl:",remain"`
 }
 type Variable struct {
-	Name        string      `json:"name" hcl:"name,label"`
-	Type        string      `json:"type" hcl:"type"`
-	Default     interface{} `json:"default" hcl:"default,optional"`
-	Description string      `json:"description" hcl:"description,optional"`
+	Name    string      `json:"name" hcl:"name,label"`
+	Type    string      `json:"type" hcl:"type"`
+	Default interface{} `json:"default" hcl:"default,optional"`
 }
