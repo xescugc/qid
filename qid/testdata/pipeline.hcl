@@ -40,13 +40,13 @@ resource_type "git" {
   }
 }
 
-resource "git" "my_repo" {
+resource "git" "qid" {
   url = var.repo_url 
-  name = "my_${var.repo_name}"
+  name = "${var.repo_name}"
 }
 
 job "gen" {
-  get "git" "my_repo" {
+  get "git" "qid" {
     trigger = true
   }
   task "gen" {
@@ -54,7 +54,7 @@ job "gen" {
       path = "make"
       args = [ 
         "-C",
-        "/my_potato",
+        "${var.repo_name}",
         "gen"
       ]
     }
@@ -62,7 +62,7 @@ job "gen" {
 }
 
 job "notify_slack" {
-  get "git" "my_repo" {
+  get "git" "qid" {
     trigger = true
   }
   task "notify" {
@@ -76,7 +76,7 @@ job "notify_slack" {
 }
 
 job "test" {
-  get "git" "my_repo" {
+  get "git" "qid" {
     passed  = ["gen"]
     trigger = true
   }
@@ -85,7 +85,7 @@ job "test" {
       path = "make"
       args = [ 
         "-C",
-        "/my_potato",
+        "${var.repo_name}",
         "test"
       ]
     }

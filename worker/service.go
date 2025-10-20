@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/google/uuid"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/queue"
@@ -56,16 +55,15 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 
-		cwduuid, err := uuid.NewV7()
+		cwd, err := os.MkdirTemp("", "qid")
 		if err != nil {
-			return fmt.Errorf("failed to initialize UUIDV7: %w", err)
+			return fmt.Errorf("failed to creat Temp Dir: %w", err)
 		}
-		cwd := cwduuid.String()
 
-		err = os.Mkdir(cwd, 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create dir %q: %w", cwd, err)
-		}
+		//err = os.Mkdir(cwd, 0755)
+		//if err != nil {
+		//return fmt.Errorf("failed to create dir %q: %w", cwd, err)
+		//}
 
 		pp, err := w.qid.GetPipeline(ctx, m.PipelineName)
 		if err != nil {

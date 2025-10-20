@@ -16,7 +16,7 @@ Job that depends on that Resource that changed. If there is then a new job/s wil
 Then when it finishes it checks if another job depends on it and queues for that job/s to be triggered.
 
 Workers execute everything on the host machine for now (either on the server if local or on the worker host), each time something is executed
-it's done on a UUID folder so it never collisions with a previous run, will potentially [change](https://github.com/xescugc/qid/issues/57) on the future
+it's done on a unique `tmp/` folder so it never collisions with a previous run, will potentially [change](https://github.com/xescugc/qid/issues/57) on the future
 
 ## Server Configuration
 
@@ -83,7 +83,7 @@ You can define variables to the pipeline configuration for reusability purpose (
 
 Another usecase for the Variables is to pass secrets to the Pipeline. On the future I may implement a dedicated element [`secret_type` and `secret`](https://github.com/xescugc/qid/issues/12) that would make it more simpler and declarative to use secrets.
 
-When creating a Pipeline, one of the options is the `vars` which is a JSON withe the overwrited values of the Variables
+When creating a Pipeline, one of the options is the `vars` which is a JSON withe the overwrite values of the Variables
 
 Variables are used like:
 * `attribute = var.my_var`
