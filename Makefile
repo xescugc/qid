@@ -26,9 +26,13 @@ nats-up: ## Starts the dependencies
 down: ## Stops the containers
 	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml down -v --remove-orphans
 
+.PHONY: dserve
+dserve: ## Serves the server
+	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml run --name qid --rm -p 4000:4000 qid go run . server
+
 .PHONY: serve
 serve: ## Serves the server
-	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml run --name qid --rm -p 4000:4000 qid go run . server
+	@go run . server -p 4000
 
 .PHONY: worker
 worker: ## Starts a worker

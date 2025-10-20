@@ -1,7 +1,8 @@
 <p align="center">
-    <img src="aseprite/logo.png" width=50% height=50%>
+    <img src="aseprite/logo.png" width=25% height=25%>
 </p>
 
+![](docs/qid.gif)
 
 # QID (Queue CI/CD)
 
