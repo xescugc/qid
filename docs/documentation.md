@@ -51,6 +51,32 @@ The main blocks of the Pipeline are:
 * `resource`: An execution of a `resource_type` passing the needed parameters (like git_url or credentials)
 * `job`: The main block that executes the task having as context the resource that it depends on and that can automatically trigger it
 
+### HCL
+
+A quick introduction to people not use to HCL.
+
+HCL has 2 main structures
+
+#### Attribute
+
+A simple assignation of a value to a key
+
+```
+key = "value"
+```
+
+#### Block
+
+A block is defined for a key and N labels and then `{}`
+
+```
+my_block "label1" "label2" {}
+```
+
+In case of QID if it has a label it means it can be defined multiple times in the context.
+For example the Job Task can be defined multiple times to have multiple tasks.
+
+
 ### Variables
 
 You can define variables to the pipeline configuration for reusability purpose (same Pipeline for different usecases).
