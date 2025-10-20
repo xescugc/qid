@@ -10,6 +10,6 @@ type ResourceType struct {
 }
 
 type Run struct {
-	Path string   `json:"path" hcl:"path"`
-	Args []string `json:"args" hcl:"args"`
+	Path string   `json:"path" hcl:"path,optional"`
+	Args []string `json:"args" hcl:"args,optional"`
 }
