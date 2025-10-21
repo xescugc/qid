@@ -21,7 +21,7 @@ func makeCreatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 func makeUpdatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 	u.Path = "/pipelines/{pipeline_name}"
 	return kithttp.NewClient(
-		http.MethodPost,
+		http.MethodPut,
 		&u,
 		encodeUpdatePipelineRequest,
 		decodeUpdatePipelineResponse,
