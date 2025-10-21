@@ -36,8 +36,9 @@ func decodeCreatePipelineResponse(_ context.Context, r *http.Response) (interfac
 }
 
 func encodeUpdatePipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
-	cfr := request.(transport.UpdatePipelineRequest)
-	b, err := json.Marshal(cfr)
+	req := request.(transport.UpdatePipelineRequest)
+	r.URL.Path = strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1)
+	b, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}

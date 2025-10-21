@@ -33,7 +33,7 @@ var (
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the config file"},
 
-			&cli.StringFlag{Name: "qid-url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server"},
+			&cli.StringFlag{Name: "qid-url", Aliases: []string{"u"}, Value: "localhost:8080", Usage: "URL to the QID server"},
 
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
 
