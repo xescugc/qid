@@ -22,6 +22,7 @@
       </header>
       <main class="container">
         <div id="error"></div>
+        <div id="breadcrumb"></div>
         <div id="main"></div>
       </main>
       <footer>
@@ -52,9 +53,6 @@
     <script type="text/template" id="pipelines-view">
       <div class="row">
         <div class="col">
-          <h1>Pipelines</h1>
-        </div>
-        <div class="col">
           <a type="button" id="pipelines-new" class="btn btn-success float-end" href="/pipelines/new">New</a>
         </div>
       </div>
@@ -75,9 +73,6 @@
 
     <script type="text/template" id="pipeline-show-view">
       <div class="row">
-        <div class="col">
-          <h1>Pipeline: <%- name %></h1>
-        </div>
         <div class="col">
           <div class="btn-group float-end">
             <button type="button" id="edit-pipeline" class="btn btn-info float-end">Edit</button>
@@ -124,11 +119,7 @@
     </script>
 
     <script type="text/template" id="job-builds-view">
-      <h1>Pipeline: <%- pipeline.name %></h1>
       <div class="row">
-        <div class="col">
-          <h2>Job: <%- job.name %></h2>
-        </div>
         <div class="col">
           <button type="button" id="trigger-job" class="btn btn-warning float-end">Trigger Job</button>
         </div>
@@ -139,6 +130,29 @@
         <div class="tab-content" id="builds-content">
         </div>
       </div>
+    </script>
+
+    <script type="text/template" id="breadcrumb-view">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Pipelines</a></li>
+        <% if (pipeline) { %>
+          <% if (!job && !resource) { %>
+            <li class="breadcrumb-item active"><%- pipeline %></li>
+          <% }  else {%>
+            <li class="breadcrumb-item"><a href="/pipelines/<%- pipeline %>"><%- pipeline %></a></li>
+          <% } %>
+        <% } %>
+        <% if (job) { %>
+          <li class="breadcrumb-item active">Jobs</li>
+          <li class="breadcrumb-item active"><%- job %></li>
+          <li class="breadcrumb-item active">Builds</li>
+        <% } %>
+        <% if (resource) { %>
+          <li class="breadcrumb-item active">Resources</li>
+          <li class="breadcrumb-item active"><%- resource %></li>
+          <li class="breadcrumb-item active">Versions</li>
+        <% } %>
+      </ol>
     </script>
 
     <script type="text/template" id="job-builds-tab-view">
@@ -185,12 +199,6 @@
     </script>
 
     <script type="text/template" id="resource-versions-view">
-      <h1>Pipeline: <%- pipeline.name %></h1>
-      <div class="row">
-        <div class="col">
-          <h2>Resource: <%- resource.name %></h2>
-        </div>
-      </div>
       <% if (resource.logs) { %>
         <div class="row">
           <div class="alert alert-danger" role="alert">
@@ -342,7 +350,7 @@
           return response.data;
         },
         setActive: function(id) {
-          if (!id) {
+          if (!id && this.first()) {
             id = this.first().get("id")
           }
           this.each(function(m){
@@ -410,6 +418,34 @@
         render: function() {
           this.$el.html(this.template(this.model.toJSON()));
           return this; // enable chained calls
+        },
+      })
+      app.BreadcrumbView = Backbone.View.extend({
+        tagName: "nav",
+        template: _.template($('#breadcrumb-view').html()),
+        events: {
+          'click a': 'clickLink',
+        },
+        initialize: function(opts) {
+          opts = opts||{}
+          this.pipeline = opts.pipeline
+          this.job = opts.job
+          this.resource = opts.resource
+
+          //this.listenTo(this.model, "change", this.render)
+        },
+        render: function() {
+          this.$el.html(this.template({
+            pipeline: this.pipeline,
+            job: this.job,
+            resource: this.resource,
+          }));
+          return this; // enable chained calls
+        },
+        clickLink: function(event) {
+          event.preventDefault();
+          var url = new URL(event.target.href)
+          app.router.navigate(url.pathname, { trigger: true });
         },
       })
       app.PipelinesView = Backbone.View.extend({
@@ -770,11 +806,13 @@
           this.setup();
           this.contentView = new app.PipelinesView({collection: app.pipelines});
           $('#main').html(this.contentView.render().el)
+          $('#breadcrumb').html(new app.BreadcrumbView().render().el)
         },
         pipelinesNew: function() {
           this.setup();
           this.contentView = new app.PipelinesNewView({collection: app.pipelines, model: new app.Pipeline()});
           $('#main').html(this.contentView.render().el)
+          $('#breadcrumb').html(new app.BreadcrumbView().render().el)
         },
         pipelinesEdit: function(pn) {
           this.setup();
@@ -789,6 +827,9 @@
           $.when.apply($, complete).done(function() {
             that.contentView = new app.PipelinesNewView({collection: app.pipelines, model: pp});
             $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView({
+              pipeline: pp.get("name"),
+            }).render().el)
           })
         },
         pipelinesShow: function(pn) {
@@ -804,6 +845,9 @@
           $.when.apply($, complete).done(function() {
             that.contentView = new app.PipelineShowView({model: pp, image: new app.PipelineImage(null, {pipeline: pp}) });
             $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView({
+              pipeline: pp.get("name"),
+            }).render().el)
           })
         },
         jobBuilds: function(pn, jn) {
@@ -825,6 +869,10 @@
               collection: builds,
             });
             $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView({
+              pipeline: pp.get("name"),
+              job: jb.get("name"),
+            }).render().el)
           })
         },
         resourceVersions: function(pn, rCan) {
@@ -847,6 +895,10 @@
               collection: versions,
             });
             $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView({
+              pipeline: pp.get("name"),
+              resource: rs.get("canonical"),
+            }).render().el)
           })
         },
         notFound: function() {
