@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/xescugc/qid/qid"
@@ -25,6 +26,21 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 	options := []kithttp.ServerOption{
 		kithttp.ServerErrorHandler(kittransport.NewLogErrorHandler(l)),
 	}
+
+	// If the URL ends in `.json` it'll match a URL with `Content-Type=application/json`
+	jsm := func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, rr *http.Request) {
+			if strings.HasSuffix(rr.URL.String(), ".json") {
+				rr.URL.Path = strings.TrimSuffix(rr.URL.Path, ".json")
+				rr.Header.Set("Content-Type", "application/json")
+				r.ServeHTTP(rw, rr)
+				return
+			}
+			h.ServeHTTP(rw, rr)
+		})
+	}
+
+	r.Use(jsm)
 
 	api := r.Headers("Content-Type", "application/json").Subrouter()
 
