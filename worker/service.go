@@ -108,6 +108,12 @@ func (w *Worker) Run(ctx context.Context) error {
 									w.logger.Log("error", ferr)
 									goto END
 								}
+								if len(vers) == 0 {
+									ferr := fmt.Errorf("failed Job %q from Pipeline %q no versions for the resource %q", m.PipelineName, m.JobName, r.Canonical)
+									w.failBuild(ctx, m, b, ferr)
+									w.logger.Log("error", ferr)
+									goto END
+								}
 								slices.Reverse(vers)
 								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", vers[0].Hash))
 							}
@@ -162,7 +168,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
-					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err)
 					w.failBuild(ctx, m, b, ferr)
 					w.logger.Log("error", ferr)
 					continue
@@ -194,7 +200,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			b.Status = build.Succeeded
 			err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 			if err != nil {
-				w.logger.Log("error", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
+				w.logger.Log("error", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err))
 				continue
 			}
 		} else if m.PipelineName != "" && m.ResourceName != "" {
