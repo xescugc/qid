@@ -164,6 +164,11 @@
     <script type="text/template" id="job-builds-content-view">
       <div id="c-<%- id %>">
         <div class="accordion <%- active ? '':'d-none' %>" id="<%- id %>-build-steps">
+          <% if (error) { %>
+            <div class="alert alert-danger" role="alert">
+              <%- error %>
+            </div>
+          <% } %>
           <% _.each(get, function(g, i) { %>
             <div class="accordion-item">
               <h2 class="accordion-header">
