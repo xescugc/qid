@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/cycloidio/sqlr"
 )
@@ -50,6 +51,11 @@ func toNullBool(b bool) sql.NullBool {
 // toNullInt64 returns sql.NullInt64. The int is considered valid if it's not equal 0.
 func toNullInt64(i int) sql.NullInt64 {
 	return sql.NullInt64{Int64: int64(i), Valid: i != 0}
+}
+
+// toNullTime returns sql.NullTIme. The time is considered valid if it's not equal Zero.
+func toNullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{Time: t, Valid: !t.IsZero()}
 }
 
 func scanCount(s sqlr.Scanner) (int, error) {

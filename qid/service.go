@@ -72,7 +72,7 @@ func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repo
 }
 
 func (q *Qid) resourceCheck(ctx context.Context) {
-	t := time.NewTicker(10 * time.Second)
+	t := time.NewTicker(1 * time.Second)
 	defer t.Stop()
 	for {
 		select {
@@ -90,6 +90,21 @@ func (q *Qid) resourceCheck(ctx context.Context) {
 					//return nil, fmt.Errorf("failed to get Resource Types from Pipeline %q: %w", pn, err)
 				}
 				for _, r := range resources {
+					// Default interval is 1m so if it's not set we'll check that
+					ci := "1m"
+					if r.CheckInterval != "" {
+						ci = r.CheckInterval
+					}
+					d, err := time.ParseDuration(ci)
+					if err != nil {
+						q.logger.Log("msg", "failed to parse CheckInterval", "CheckInterval", ci, "error", err.Error())
+						continue
+					}
+
+					if time.Now().Sub(r.LastCheck) < d {
+						// Not yet on the interval to check
+						continue
+					}
 					for _, rt := range restypes {
 						if r.Type == rt.Name {
 							m := queue.Body{
@@ -106,6 +121,8 @@ func (q *Qid) resourceCheck(ctx context.Context) {
 							if err != nil {
 								//return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
 							}
+							r.LastCheck = time.Now()
+							_ = q.UpdatePipelineResource(ctx, pp.Name, r.Canonical, *r)
 						}
 					}
 				}

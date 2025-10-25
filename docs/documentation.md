@@ -203,12 +203,25 @@ Resources are the implementation of the Resource Type by initializing it with th
 
 When defined a `resource` the first label is the `resource_type` and the 2nd is the name of the resource.
 
+#### `inputs`
+
+Is a block that contains all the `resource_type.inputs` defined that will be passed to it
+
+#### `check_interval`
+
+Interval in which to check the resource. By default the value is `1m` and the syntax is the [time.Duration](https://pkg.go.dev/time#example-Duration) string syntax
+
+The value cannot be lower than `1s` as this is the interval in which QID checks for resources to check
+
 #### Example
 
 ```hcl
 resource "git" "my_repo" {
-  url = "https://github.com/xescugc/qid.git"
-  name = "qid"
+  inputs {
+    url = "https://github.com/xescugc/qid.git"
+    name = "qid"
+  }
+  check_interval = "3s"
 }
 ```
 

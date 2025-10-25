@@ -104,8 +104,10 @@ resource_type "git" {
 }
 
 resource "git" "repo" {
-  url = var.repo_url 
-  name = var.repo_name 
+  inputs {
+    url = var.repo_url 
+    name = var.repo_name 
+  }
 }
 
 job "test" {
