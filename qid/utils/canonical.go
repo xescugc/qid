@@ -14,3 +14,5 @@ func ValidateResourceCanonical(rc string) bool {
 	rcs := strings.Split(rc, ".")
 	return ValidateCanonical(rcs[0]) && ValidateCanonical(rcs[1])
 }
+
+func ResourceCanonical(rt, rn string) string { return strings.Join([]string{rt, rn}, ".") }

@@ -31,8 +31,9 @@ type Client struct {
 	updateJobBuild endpoint.Endpoint
 	listJobBuilds  endpoint.Endpoint
 
-	getPipelineResource    endpoint.Endpoint
-	updatePipelineResource endpoint.Endpoint
+	getPipelineResource     endpoint.Endpoint
+	updatePipelineResource  endpoint.Endpoint
+	triggerPipelineResource endpoint.Endpoint
 
 	createResourceVersion endpoint.Endpoint
 	listResourceVersions  endpoint.Endpoint
@@ -67,8 +68,9 @@ func New(host string) (*Client, error) {
 		createJobBuild: makeCreateJobBuildEndpoint(*u),
 		updateJobBuild: makeUpdateJobBuildEndpoint(*u),
 
-		getPipelineResource:    makeGetPipelineResourceEndpoint(*u),
-		updatePipelineResource: makeUpdatePipelineResourceEndpoint(*u),
+		getPipelineResource:     makeGetPipelineResourceEndpoint(*u),
+		updatePipelineResource:  makeUpdatePipelineResourceEndpoint(*u),
+		triggerPipelineResource: makeTriggerPipelineResourceEndpoint(*u),
 
 		createResourceVersion: makeCreateResourceVersionEndpoint(*u),
 		listResourceVersions:  makeListResourceVersionsEndpoint(*u),
@@ -294,6 +296,20 @@ func (cl *Client) UpdatePipelineResource(ctx context.Context, pn, rCan string, r
 	}
 
 	resp := response.(transport.UpdatePipelineResourceResponse)
+	if resp.Err != "" {
+		return errors.New(resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) TriggerPipelineResource(ctx context.Context, pn, rCan string) error {
+	response, err := cl.triggerPipelineResource(ctx, transport.TriggerPipelineResourceRequest{PipelineName: pn, ResourceCanonical: rCan})
+	if err != nil {
+		return err
+	}
+
+	resp := response.(transport.TriggerPipelineResourceResponse)
 	if resp.Err != "" {
 		return errors.New(resp.Err)
 	}

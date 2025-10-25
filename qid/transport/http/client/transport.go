@@ -319,3 +319,22 @@ func decodeUpdatePipelineResourceResponse(_ context.Context, r *http.Response) (
 	}
 	return response, nil
 }
+
+func encodeTriggerPipelineResourceRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.TriggerPipelineResourceRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1)
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeTriggerPipelineResourceResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.TriggerPipelineResourceResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}

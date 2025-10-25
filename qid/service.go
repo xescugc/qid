@@ -40,6 +40,7 @@ type Service interface {
 
 	GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error)
 	UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error
+	TriggerPipelineResource(ctx context.Context, pn, rCan string) error
 	CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) error
 	ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error)
 }
@@ -108,8 +109,8 @@ func (q *Qid) resourceCheck(ctx context.Context) {
 					for _, rt := range restypes {
 						if r.Type == rt.Name {
 							m := queue.Body{
-								PipelineName: pp.Name,
-								ResourceName: r.Name,
+								PipelineName:      pp.Name,
+								ResourceCanonical: r.Canonical,
 							}
 							mb, err := json.Marshal(m)
 							if err != nil {
@@ -734,6 +735,38 @@ func (q *Qid) UpdatePipelineResource(ctx context.Context, pn, rCan string, r res
 	if err != nil {
 		return fmt.Errorf("failed to update Resource: %w", err)
 	}
+
+	return nil
+}
+
+func (q *Qid) TriggerPipelineResource(ctx context.Context, pn, rCan string) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateResourceCanonical(rCan) {
+		return fmt.Errorf("invalid Resource Canonical format %q", rCan)
+	}
+
+	r, err := q.Resources.Find(ctx, pn, rCan)
+	if err != nil {
+		return fmt.Errorf("failed to find Resource: %w", err)
+	}
+
+	m := queue.Body{
+		PipelineName:      pn,
+		ResourceCanonical: rCan,
+	}
+	mb, err := json.Marshal(m)
+	if err != nil {
+		//return fmt.Errorf("failed to marshal Message Body: %w", err)
+	}
+	err = q.Topic.Send(ctx, &pubsub.Message{
+		Body: mb,
+	})
+	if err != nil {
+		//return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
+	}
+	r.LastCheck = time.Now()
+	_ = q.UpdatePipelineResource(ctx, pn, r.Canonical, *r)
 
 	return nil
 }

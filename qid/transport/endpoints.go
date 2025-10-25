@@ -30,7 +30,8 @@ type Endpoints struct {
 	UpdateJobBuild endpoint.Endpoint
 	ListJobBuilds  endpoint.Endpoint
 
-	UpdatePipelineResource endpoint.Endpoint
+	UpdatePipelineResource  endpoint.Endpoint
+	TriggerPipelineResource endpoint.Endpoint
 
 	CreateResourceVersion endpoint.Endpoint
 	ListResourceVersions  endpoint.Endpoint
@@ -56,7 +57,8 @@ func MakeServerEndpoints(s qid.Service) Endpoints {
 		UpdateJobBuild: MakeUpdateJobBuildEndpoint(s),
 		ListJobBuilds:  MakeListJobBuildsEndpoint(s),
 
-		UpdatePipelineResource: MakeUpdatePipelineResourceEndpoint(s),
+		UpdatePipelineResource:  MakeUpdatePipelineResourceEndpoint(s),
+		TriggerPipelineResource: MakeTriggerPipelineResourceEndpoint(s),
 
 		CreateResourceVersion: MakeCreateResourceVersionEndpoint(s),
 		ListResourceVersions:  MakeListResourceVersionsEndpoint(s),
@@ -380,6 +382,28 @@ func MakeUpdatePipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 			errs = err.Error()
 		}
 		return UpdatePipelineResourceResponse{Err: errs}, nil
+	}
+}
+
+type TriggerPipelineResourceRequest struct {
+	PipelineName      string `json:"pipeline_name"`
+	ResourceCanonical string `json:"resource_canonical"`
+}
+type TriggerPipelineResourceResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r TriggerPipelineResourceResponse) Error() string { return r.Err }
+
+func MakeTriggerPipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(TriggerPipelineResourceRequest)
+		err := s.TriggerPipelineResource(ctx, req.PipelineName, req.ResourceCanonical)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return TriggerPipelineResourceResponse{Err: errs}, nil
 	}
 }
 

@@ -38,9 +38,8 @@ type Subscription interface {
 }
 
 type Body struct {
-	PipelineName string `json:"pipeline_name,omitempty"`
-	JobName      string `json:"job_name,omitempty"`
-	ResourceName string `json:"resource_name,omitempty"`
-	ResourceType string `json:"resource_type,omitempty"`
-	VersionHash  string `json:"version_hash,omitempty"`
+	PipelineName      string `json:"pipeline_name,omitempty"`
+	JobName           string `json:"job_name,omitempty"`
+	ResourceCanonical string `json:"resource_canonical,omitempty"`
+	VersionHash       string `json:"version_hash,omitempty"`
 }

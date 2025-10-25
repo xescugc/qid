@@ -167,3 +167,13 @@ func makeUpdatePipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
 		decodeUpdatePipelineResourceResponse,
 	).Endpoint()
 }
+
+func makeTriggerPipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}/trigger"
+	return kithttp.NewClient(
+		http.MethodPost,
+		&u,
+		encodeTriggerPipelineResourceRequest,
+		decodeTriggerPipelineResourceResponse,
+	).Endpoint()
+}
