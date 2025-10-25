@@ -5,8 +5,12 @@ import (
 )
 
 var (
+	AppName = "qid"
+)
+
+var (
 	Cmd = &cli.Command{
-		Name:  "qid",
+		Name:  AppName,
 		Usage: "QID is a small CI/CD build on top of a Queue(Pub/Sub) system",
 		Commands: []*cli.Command{
 			serverCmd,

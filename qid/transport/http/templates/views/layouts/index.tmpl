@@ -767,22 +767,36 @@
         template: _.template($('#resource-versions-view').html()),
         initialize: function() {
           this.listenTo(this.collection, "add", this.addVersion)
+          this.listenTo(this.model, "change", this.render)
 
           // TODO: most likely add the {reset: true} as the
           // order is really important
           this.collection.fetch()
+
+          var that = this
+          this.intervalID = window.setInterval(function() {
+            that.model.fetch()
+          }, 1000);
         },
         render: function () {
           this.$el.html(this.template({
             pipeline: this.collection.resource.collection.pipeline.toJSON(),
             resource: this.collection.resource.toJSON(),
           }));
+          var that = this;
+          this.collection.each(function(m) {
+            that.addVersion(m)
+          })
           return this; // enable chained calls
         },
         addVersion: function(m) {
           var ver = new app.ResourceVersionView({model: m})
           $('#resource-versions').append(ver.render().el);
-        }
+        },
+        remove: function() {
+          clearInterval(this.intervalID)
+          Backbone.View.prototype.remove.call(this);
+        },
       })
       app.ResourceVersionView = Backbone.View.extend({
         // TODO: Check to set the attributes
@@ -899,6 +913,7 @@
           var that = this
           $.when.apply($, complete).done(function() {
             that.contentView = new app.ResourceVersionsView({
+              model: rs,
               collection: versions,
             });
             $('#main').html(that.contentView.render().el)

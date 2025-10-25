@@ -16,7 +16,7 @@ Job that depends on that Resource that changed. If there is then a new job/s wil
 Then when it finishes it checks if another job depends on it and queues for that job/s to be triggered.
 
 Workers execute everything on the host machine for now (either on the server if local or on the worker host), each time something is executed
-it's done on a unique `tmp/` folder so it never collisions with a previous run, will potentially [change](https://github.com/xescugc/qid/issues/57) on the future
+it's done on a unique `$XDG_CACHE_HOME/qid/{UUID}/` folder so it never collisions with a previous run, will potentially [change](https://github.com/xescugc/qid/issues/57) on the future
 
 ## Server Configuration
 
@@ -28,8 +28,7 @@ it's done on a unique `tmp/` folder so it never collisions with a previous run, 
     * `db-user`: Database User
     * `db-password`: Database Password
     * `db-name`: Database Name
-  * `sqlite`: Uses SQLite
-    * `db-file`: The file in which to store the DB (does not need to exist as it'll be created)
+  * `sqlite`: Uses SQLite. The file will be at `$XDG_DATA_HOME/qid/qid.db`
   * `mem`: Run the DB in memory, which basically uses the SQLite memory option
 * `run-worker`: Specifies if you want to run the workers on the same server or not
 * `concurrency`: How many parallel instances has the worker

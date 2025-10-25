@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/adrg/xdg"
+	"github.com/google/uuid"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/queue"
@@ -55,15 +57,17 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 
-		cwd, err := os.MkdirTemp("", "qid")
+		uuiddir, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("failed to creat UUID %w", err)
+		}
+		// We append a file "qid" just so the CacheFile creates the full dir,
+		// afterward we just get the Dir of the cwd
+		cwd, err := xdg.CacheFile(filepath.Join("qid", uuiddir.String(), "qid"))
 		if err != nil {
 			return fmt.Errorf("failed to creat Temp Dir: %w", err)
 		}
-
-		//err = os.Mkdir(cwd, 0755)
-		//if err != nil {
-		//return fmt.Errorf("failed to create dir %q: %w", cwd, err)
-		//}
+		cwd = filepath.Dir(cwd)
 
 		pp, err := w.qid.GetPipeline(ctx, m.PipelineName)
 		if err != nil {
@@ -127,7 +131,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							if err != nil {
 								b.Get = append(b.Get, build.Step{
 									Name: g.Name,
-									Logs: err.Error(),
+									Logs: string(stdouterr) + "\n" + err.Error(),
 								})
 								w.failBuild(ctx, m, b, nil)
 								w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Pull.Path, rt.Pull.Args, stdouterr, err))
@@ -156,7 +160,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				if err != nil {
 					b.Task = append(b.Task, build.Step{
 						Name: t.Name,
-						Logs: err.Error(),
+						Logs: string(stdouterr) + "\n" + err.Error(),
 					})
 					w.failBuild(ctx, m, b, nil)
 					w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q: %w", t.Run.Path, t.Run.Args, err))
@@ -173,7 +177,6 @@ func (w *Worker) Run(ctx context.Context) error {
 					w.logger.Log("error", ferr)
 					continue
 				}
-				spew.Dump(string(stdouterr))
 				for _, nj := range pp.Jobs {
 					for _, g := range nj.Get {
 						if slices.Contains(g.Passed, j.Name) && g.Trigger {
@@ -228,10 +231,10 @@ func (w *Worker) Run(ctx context.Context) error {
 							}
 							stdouterr, err := cmd.CombinedOutput()
 							if err != nil {
-								r.Logs = string(stdouterr)
-								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
-								if err != nil {
-									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
+								r.Logs = string(stdouterr) + "\n" + err.Error()
+								nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+								if nerr != nil {
+									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, nerr))
 								}
 								w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
 								goto END
