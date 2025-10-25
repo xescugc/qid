@@ -4,12 +4,14 @@ go 1.25.1
 
 require (
 	github.com/VividCortex/mysqlerr v1.0.0
+	github.com/adrg/xdg v0.5.3
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/cycloidio/sqlr v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-kit/kit v0.13.0
 	github.com/go-kit/log v0.2.0
 	github.com/go-sql-driver/mysql v1.9.3
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/gosimple/slug v1.15.0
@@ -44,7 +46,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect

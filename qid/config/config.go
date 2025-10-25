@@ -12,9 +12,6 @@ type Config struct {
 	DBPassword string `koanf:"db-password"`
 	DBName     string `koanf:"db-name"`
 
-	// SQLite
-	DBFile string `koanf:"db-file"`
-
 	RunWorker   bool `koanf:"run-worker"`
 	Concurrency int  `koanf:"concurrency"`
 

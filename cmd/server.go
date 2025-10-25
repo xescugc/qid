@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -27,6 +28,8 @@ import (
 
 	"gocloud.dev/pubsub/mempubsub"
 	"gocloud.dev/pubsub/natspubsub"
+
+	"github.com/adrg/xdg"
 )
 
 var (
@@ -45,7 +48,6 @@ var (
 			&cli.StringFlag{Name: "db-password", Usage: "Database Password"},
 			&cli.StringFlag{Name: "db-name", Usage: "Database Name"},
 			&cli.BoolFlag{Name: "run-migrations", Value: true, Usage: "Flag to know if migrations should be ran"},
-			&cli.StringFlag{Name: "db-file", Usage: "Flag to know where the DB File is"},
 
 			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with QID server"},
 			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
@@ -102,14 +104,17 @@ var (
 				return fmt.Errorf("failed to open: %v", err)
 			}
 			defer topic.Shutdown(ctx)
-
+			dbFile, err := xdg.DataFile(filepath.Join(AppName, AppName+".db"))
+			if err != nil {
+				return fmt.Errorf("failed to create dbFile: %v", err)
+			}
 			logger.Log("msg", "DB connection starting ...", "db-system", cfg.DBSystem)
 			db, err := mysql.New(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, mysql.Options{
 				DBName:          cfg.DBName,
 				MultiStatements: true,
 				ClientFoundRows: true,
 				System:          cfg.DBSystem,
-				DBFile:          cfg.DBFile,
+				DBFile:          dbFile,
 			})
 			if err != nil {
 				panic(err)
