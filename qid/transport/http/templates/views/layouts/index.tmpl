@@ -214,6 +214,11 @@
         </div>
       <% } %>
       </div>
+      <div class="row">
+        <div class="col">
+          <p class="float-end">Last checked at: <%- new Date(resource.last_check).toLocaleString() %>
+        </div>
+      </div>
       <div class="row" id="resource-versions">
       </div>
     </script>
@@ -764,7 +769,11 @@
         },
       })
       app.ResourceVersionsView = Backbone.View.extend({
-        template: _.template($('#resource-versions-view').html()),
+        template: _.template($('#resource-versions-view').html(),{
+          imports: {
+            formatDate(d, f) {},
+          },
+        }),
         initialize: function() {
           this.listenTo(this.collection, "add", this.addVersion)
           this.listenTo(this.model, "change", this.render)

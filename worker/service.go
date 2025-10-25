@@ -122,7 +122,7 @@ func (w *Worker) Run(ctx context.Context) error {
 								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", vers[0].Hash))
 							}
 
-							for k, v := range r.Inputs {
+							for k, v := range r.Inputs.Inputs {
 								if slices.Contains(rt.Inputs, k) {
 									cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
 								}
@@ -224,7 +224,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							if len(vers) != 0 {
 								cmd.Env = append(cmd.Environ(), fmt.Sprintf("LAST_VERSION_HASH=%s", vers[0].Hash))
 							}
-							for k, v := range r.Inputs {
+							for k, v := range r.Inputs.Inputs {
 								if slices.Contains(rt.Inputs, k) {
 									cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
 								}

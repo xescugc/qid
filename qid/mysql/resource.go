@@ -21,12 +21,14 @@ func NewResourceRepository(db sqlr.Querier) *ResourceRepository {
 }
 
 type dbResource struct {
-	ID        sql.NullInt64
-	Name      sql.NullString
-	Type      sql.NullString
-	Canonical sql.NullString
-	Inputs    sql.NullString
-	Logs      sql.NullString
+	ID            sql.NullInt64
+	Name          sql.NullString
+	Type          sql.NullString
+	Canonical     sql.NullString
+	Inputs        sql.NullString
+	Logs          sql.NullString
+	CheckInterval sql.NullString
+	LastCheck     sql.NullTime
 }
 
 type dbResourceVersion struct {
@@ -37,21 +39,25 @@ type dbResourceVersion struct {
 func newDBResource(r resource.Resource) dbResource {
 	i, _ := json.Marshal(r.Inputs)
 	return dbResource{
-		Name:      toNullString(r.Name),
-		Type:      toNullString(r.Type),
-		Canonical: toNullString(r.Canonical),
-		Inputs:    toNullString(string(i)),
-		Logs:      toNullString(r.Logs),
+		Name:          toNullString(r.Name),
+		Type:          toNullString(r.Type),
+		Canonical:     toNullString(r.Canonical),
+		Inputs:        toNullString(string(i)),
+		Logs:          toNullString(r.Logs),
+		CheckInterval: toNullString(r.CheckInterval),
+		LastCheck:     toNullTime(r.LastCheck),
 	}
 }
 
 func (dbr *dbResource) toDomainEntity() *resource.Resource {
 	r := &resource.Resource{
-		ID:        uint32(dbr.ID.Int64),
-		Name:      dbr.Name.String,
-		Type:      dbr.Type.String,
-		Canonical: dbr.Canonical.String,
-		Logs:      dbr.Logs.String,
+		ID:            uint32(dbr.ID.Int64),
+		Name:          dbr.Name.String,
+		Type:          dbr.Type.String,
+		Canonical:     dbr.Canonical.String,
+		Logs:          dbr.Logs.String,
+		CheckInterval: dbr.CheckInterval.String,
+		LastCheck:     dbr.LastCheck.Time,
 	}
 
 	_ = json.Unmarshal([]byte(dbr.Inputs.String), &r.Inputs)
@@ -77,14 +83,14 @@ func (dbrv *dbResourceVersion) toDomainEntity() *resource.Version {
 func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.Resource) (uint32, error) {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO resources(name, `+"`type`"+`, canonical, inputs, pipeline_id)
-		VALUES (?, ?, ?, ?,
+		INSERT INTO resources(name, `+"`type`"+`, canonical, inputs, check_interval, last_check, pipeline_id)
+		VALUES (?, ?, ?, ?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
 				FROM pipelines AS p
 				WHERE p.name = ?
-			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, pn)
+			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, dbrs.CheckInterval, dbrs.LastCheck, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -101,7 +107,7 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resources AS r
-		SET name = ?, type = ?, canonical = ?, inputs = ?, logs = ?
+		SET name = ?, type = ?, canonical = ?, inputs = ?, check_interval = ?, logs = ?, last_check = ?
 		FROM (
 			SELECT r.id
 			FROM resources AS r
@@ -110,7 +116,7 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 			WHERE p.name = ? AND r.canonical = ?
 		) AS rr
 		WHERE rr.id = r.id
-	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, dbrs.Logs, pn, rCan)
+	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, dbrs.CheckInterval, dbrs.Logs, dbrs.LastCheck, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -125,7 +131,7 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 
 func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.logs
+		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.check_interval, r.logs, r.last_check
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
@@ -142,7 +148,7 @@ func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resour
 
 func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource.Resource, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.logs
+		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.check_interval, r.logs, r.last_check
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
@@ -240,7 +246,9 @@ func scanResource(s sqlr.Scanner) (*resource.Resource, error) {
 		&r.Type,
 		&r.Canonical,
 		&r.Inputs,
+		&r.CheckInterval,
 		&r.Logs,
+		&r.LastCheck,
 	)
 
 	if err != nil {
