@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/xescugc/qid/qid/pipeline"
+	"github.com/xescugc/qid/qid/utils"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
@@ -108,7 +108,7 @@ func (q *Qid) readPipeline(ctx context.Context, rpp []byte, vars map[string]inte
 		return nil, fmt.Errorf("failed to Decode Pipeline config: %w", err)
 	}
 	for i, r := range pp.Resources {
-		pp.Resources[i].Canonical = strings.Join([]string{r.Type, r.Name}, ".")
+		pp.Resources[i].Canonical = utils.ResourceCanonical(r.Type, r.Name)
 	}
 	return &pp, nil
 }

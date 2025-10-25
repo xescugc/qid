@@ -1,5 +1,7 @@
 package job
 
+import "github.com/xescugc/qid/qid/utils"
+
 type Job struct {
 	ID   uint32     `json:"id"`
 	Name string     `json:"name" hcl:"name,label"`
@@ -12,6 +14,10 @@ type GetStep struct {
 	Name    string   `json:"name" hcl:"name,label"`
 	Passed  []string `json:"passed" hcl:"passed,optional"`
 	Trigger bool     `json:"trigger" hcl:"trigger,optional"`
+}
+
+func (g *GetStep) ResourceCanonical() string {
+	return utils.ResourceCanonical(g.Type, g.Name)
 }
 
 type TaskStep struct {

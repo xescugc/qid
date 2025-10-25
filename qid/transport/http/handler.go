@@ -142,6 +142,13 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		options...,
 	))
 
+	api.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/trigger").Handler(kithttp.NewServer(
+		e.TriggerPipelineResource,
+		decodeTriggerPipelineResourceRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
 	api.Methods(http.MethodGet).Path("/pipelines/{pipeline_name}/image{ext}").Handler(kithttp.NewServer(
 		e.GetPipelineImage,
 		decodeGetPipelineImageRequest,
@@ -294,6 +301,14 @@ func decodeUpdatePipelineResourceRequest(_ context.Context, r *http.Request) (in
 	err := json.NewDecoder(r.Body).Decode(&req.Resource)
 
 	return req, err
+}
+
+func decodeTriggerPipelineResourceRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	return transport.TriggerPipelineResourceRequest{
+		PipelineName:      vars["pipeline_name"],
+		ResourceCanonical: vars["resource_canonical"],
+	}, nil
 }
 
 func decodeGetPipelineImageRequest(_ context.Context, r *http.Request) (interface{}, error) {

@@ -217,6 +217,7 @@
       <div class="row">
         <div class="col">
           <p class="float-end">Last checked at: <%- new Date(resource.last_check).toLocaleString() %>
+          <button type="button" id="trigger-resource" class="btn btn-warning float-end">Trigger Resource</button>
         </div>
       </div>
       <div class="row" id="resource-versions">
@@ -298,7 +299,10 @@
         idAttribute: "canonical",
         parse: function(response) {
           return response.data;
-        }
+        },
+        fetchTrigger: function() {
+          this.fetch({url: this.url()+"/trigger", type: "POST"})
+        },
       });
       app.ResourceVersion = Backbone.Model.extend({
         idAttribute: "id",
@@ -774,6 +778,9 @@
             formatDate(d, f) {},
           },
         }),
+        events: {
+          'click #trigger-resource': 'clickTriggerResource',
+        },
         initialize: function() {
           this.listenTo(this.collection, "add", this.addVersion)
           this.listenTo(this.model, "change", this.render)
@@ -785,6 +792,7 @@
           var that = this
           this.intervalID = window.setInterval(function() {
             that.model.fetch()
+            that.collection.fetch()
           }, 1000);
         },
         render: function () {
@@ -805,6 +813,10 @@
         remove: function() {
           clearInterval(this.intervalID)
           Backbone.View.prototype.remove.call(this);
+        },
+        clickTriggerResource: function(event) {
+          event.preventDefault();
+          this.collection.resource.fetchTrigger()
         },
       })
       app.ResourceVersionView = Backbone.View.extend({

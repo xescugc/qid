@@ -45,7 +45,6 @@ resource "git" "qid" {
     url = var.repo_url 
     name = "${var.repo_name}"
   }
-  check_interval = "5s"
 }
 
 job "gen" {

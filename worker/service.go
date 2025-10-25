@@ -97,11 +97,14 @@ func (w *Worker) Run(ctx context.Context) error {
 
 			for _, g := range j.Get {
 				for _, r := range pp.Resources {
+					if r.Canonical != m.ResourceCanonical {
+						continue
+					}
 					for _, rt := range pp.ResourceTypes {
 						if rt.Name == r.Type {
 							cmd := exec.CommandContext(ctx, rt.Pull.Path, rt.Pull.Args...)
 							cmd.Dir = cwd
-							if g.Name == m.ResourceName && g.Type == m.ResourceType && m.VersionHash != "" {
+							if g.Name == r.Name && g.Type == r.Type && m.VersionHash != "" {
 								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", m.VersionHash))
 							} else {
 								rCan := strings.Join([]string{g.Type, g.Name}, ".")
@@ -181,10 +184,10 @@ func (w *Worker) Run(ctx context.Context) error {
 					for _, g := range nj.Get {
 						if slices.Contains(g.Passed, j.Name) && g.Trigger {
 							qb := queue.Body{
-								PipelineName: pp.Name,
-								JobName:      nj.Name,
-								ResourceName: g.Name,
-								VersionHash:  m.VersionHash,
+								PipelineName:      pp.Name,
+								JobName:           nj.Name,
+								ResourceCanonical: g.ResourceCanonical(),
+								VersionHash:       m.VersionHash,
 							}
 							mb, err := json.Marshal(qb)
 							if err != nil {
@@ -206,81 +209,81 @@ func (w *Worker) Run(ctx context.Context) error {
 				w.logger.Log("error", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err))
 				continue
 			}
-		} else if m.PipelineName != "" && m.ResourceName != "" {
+		} else if m.PipelineName != "" && m.ResourceCanonical != "" {
 			// This is for the periodic resource checks
 			for _, r := range pp.Resources {
-				if r.Name == m.ResourceName {
-					for _, rt := range pp.ResourceTypes {
-						if rt.Name == r.Type {
-							cmd := exec.CommandContext(ctx, rt.Check.Path, rt.Check.Args...)
-							cmd.Dir = cwd
+				if r.Canonical != m.ResourceCanonical {
+					continue
+				}
+				for _, rt := range pp.ResourceTypes {
+					if rt.Name == r.Type {
+						cmd := exec.CommandContext(ctx, rt.Check.Path, rt.Check.Args...)
+						cmd.Dir = cwd
 
-							vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+						vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+						if err != nil {
+							ferr := fmt.Errorf("failed to list resource versions: %w", err)
+							w.logger.Log("error", ferr)
+							goto END
+						}
+						if len(vers) != 0 {
+							cmd.Env = append(cmd.Environ(), fmt.Sprintf("LAST_VERSION_HASH=%s", vers[0].Hash))
+						}
+						for k, v := range r.Inputs.Inputs {
+							if slices.Contains(rt.Inputs, k) {
+								cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
+							}
+						}
+						stdouterr, err := cmd.CombinedOutput()
+						if err != nil {
+							r.Logs = string(stdouterr) + "\n" + err.Error()
+							nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+							if nerr != nil {
+								w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, nerr))
+							}
+							w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
+							goto END
+						}
+						if r.Logs != "" {
+							r.Logs = ""
+							err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
 							if err != nil {
-								ferr := fmt.Errorf("failed to list resource versions: %w", err)
-								w.logger.Log("error", ferr)
+								w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
 								goto END
 							}
-							if len(vers) != 0 {
-								cmd.Env = append(cmd.Environ(), fmt.Sprintf("LAST_VERSION_HASH=%s", vers[0].Hash))
-							}
-							for k, v := range r.Inputs.Inputs {
-								if slices.Contains(rt.Inputs, k) {
-									cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
-								}
-							}
-							stdouterr, err := cmd.CombinedOutput()
+						}
+						hashs := strings.Split(string(stdouterr), "\n")
+						if len(hashs) == 0 || string(stdouterr) == "" {
+							// Nothing new so we can skip
+							goto END
+						}
+						for _, h := range hashs {
+							err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
+								Hash: h,
+							})
 							if err != nil {
-								r.Logs = string(stdouterr) + "\n" + err.Error()
-								nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
-								if nerr != nil {
-									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, nerr))
-								}
-								w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
+								w.logger.Log("error", fmt.Errorf("failed to create Resource Version body: %w", err))
 								goto END
 							}
-							if r.Logs != "" {
-								r.Logs = ""
-								err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
-								if err != nil {
-									w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
-									goto END
-								}
-							}
-							hashs := strings.Split(string(stdouterr), "\n")
-							if len(hashs) == 0 || string(stdouterr) == "" {
-								// Nothing new so we can skip
-								goto END
-							}
-							for _, h := range hashs {
-								err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
-									Hash: h,
-								})
-								if err != nil {
-									w.logger.Log("error", fmt.Errorf("failed to create Resource Version body: %w", err))
-									goto END
-								}
-								for _, j := range pp.Jobs {
-									for _, g := range j.Get {
-										// If Passed is not 0 it means is waiting for another job
-										// and this trigger is only for resources
-										if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
-											b := queue.Body{
-												PipelineName: pp.Name,
-												JobName:      j.Name,
-												ResourceName: r.Name,
-												ResourceType: r.Type,
-												VersionHash:  h,
-											}
-											mb, err := json.Marshal(b)
-											if err != nil {
-												w.logger.Log("error", fmt.Errorf("failed to run marshal body: %w", err))
-												goto END
-											}
-											w.topic.Send(ctx, &pubsub.Message{
-												Body: mb,
-											})
+							for _, j := range pp.Jobs {
+								for _, g := range j.Get {
+									// If Passed is not 0 it means is waiting for another job
+									// and this trigger is only for resources
+									if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
+										b := queue.Body{
+											PipelineName:      pp.Name,
+											JobName:           j.Name,
+											ResourceCanonical: r.Canonical,
+											VersionHash:       h,
 										}
+										mb, err := json.Marshal(b)
+										if err != nil {
+											w.logger.Log("error", fmt.Errorf("failed to run marshal body: %w", err))
+											goto END
+										}
+										w.topic.Send(ctx, &pubsub.Message{
+											Body: mb,
+										})
 									}
 								}
 							}
