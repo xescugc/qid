@@ -97,9 +97,6 @@ func (w *Worker) Run(ctx context.Context) error {
 
 			for _, g := range j.Get {
 				for _, r := range pp.Resources {
-					if r.Canonical != m.ResourceCanonical {
-						continue
-					}
 					for _, rt := range pp.ResourceTypes {
 						if rt.Name == r.Type {
 							cmd := exec.CommandContext(ctx, rt.Pull.Path, rt.Pull.Args...)
