@@ -523,7 +523,7 @@
 
           var that = this
           this.intervalID = window.setInterval(function() {
-            that.image.fetch()
+            that.image.fetch({isInterval: true})
           }, 1000);
         },
         events: {
@@ -675,7 +675,7 @@
 
           var that = this
           this.intervalID = window.setInterval(function() {
-            that.collection.fetch()
+            that.collection.fetch({isInterval: true})
           }, 1000);
         },
         events: {
@@ -791,8 +791,8 @@
 
           var that = this
           this.intervalID = window.setInterval(function() {
-            that.model.fetch()
-            that.collection.fetch()
+            that.model.fetch({isInterval: true})
+            that.collection.fetch({isInterval: true})
           }, 1000);
         },
         render: function () {
@@ -984,7 +984,9 @@
         }
         var optSuccess = options.success
         options.success = function(response){
-          app.apiError.clear()
+          if (!options.isInterval) {
+            app.apiError.clear()
+          }
           if (optSuccess) {
             optSuccess(response)
           }
