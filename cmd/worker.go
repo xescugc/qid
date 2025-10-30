@@ -20,6 +20,7 @@ import (
 	"github.com/xescugc/qid/worker/config"
 
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log/level"
 
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
@@ -38,6 +39,8 @@ var (
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
 
 			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
+
+			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -85,19 +88,20 @@ var (
 			}
 			defer topic.Shutdown(ctx)
 
-			runWorker(ctx, cfg.PubSubSystem, topic, c, cfg.Concurrency)
+			runWorker(ctx, cfg.PubSubSystem, topic, c, cfg.Concurrency, cfg.LogLevel)
 
 			return nil
 		},
 	}
 )
 
-func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int) error {
+func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int, llvl string) error {
 	var logger log.Logger
 	logger = log.NewLogfmtLogger(os.Stderr)
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
 	logger = log.With(logger, "service", "worker")
+	logger = level.NewFilter(logger, level.Allow(level.ParseDefault(llvl, level.InfoValue())))
 	// Create a subscription connected to that topic.
 	subscription, err := pubsub.OpenSubscription(ctx, getSubscriptionURL(sy))
 	if err != nil {
@@ -109,13 +113,13 @@ func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c i
 	for i := range c {
 		wg.Add(1)
 		nlogger := log.With(logger, "num", i+1)
-		nlogger.Log("msg", fmt.Sprintf("Starting Worker %d", i+1))
+		level.Info(nlogger).Log("msg", fmt.Sprintf("Starting Worker %d", i+1))
 		w := worker.New(s, t, subscription, nlogger)
 
 		go func() {
 			err = w.Run(ctx)
 			if err != nil {
-				logger.Log("error", fmt.Errorf("failed to Run worker: %w", err).Error())
+				level.Error(logger).Log("msg", fmt.Errorf("failed to Run worker: %w", err).Error())
 			}
 			wg.Done()
 		}()

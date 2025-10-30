@@ -19,6 +19,7 @@ import (
 	"gocloud.dev/pubsub"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 )
 
 type Service interface {
@@ -53,7 +54,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		var m queue.Body
 		err = json.Unmarshal(msg.Body, &m)
 		if err != nil {
-			w.logger.Log("error", fmt.Errorf("failed Unmarshal Message body: %w", err))
+			level.Error(w.logger).Log("msg", fmt.Errorf("failed Unmarshal Message body: %w", err))
 			continue
 		}
 
@@ -71,7 +72,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 		pp, err := w.qid.GetPipeline(ctx, m.PipelineName)
 		if err != nil {
-			w.logger.Log("error", fmt.Errorf("failed GetPipeline: %w", err))
+			level.Error(w.logger).Log("msg", fmt.Errorf("failed GetPipeline: %w", err))
 			continue
 		}
 		if m.PipelineName != "" && m.JobName != "" {
@@ -82,7 +83,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 			nb, err := w.qid.CreateJobBuild(ctx, m.PipelineName, m.JobName, b)
 			if err != nil {
-				w.logger.Log("error", fmt.Errorf("failed create Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
+				level.Error(w.logger).Log("msg", fmt.Errorf("failed create Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 				continue
 			}
 			// We keep 'b' as a reference
@@ -91,7 +92,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			if err != nil {
 				ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 				w.failBuild(ctx, m, b, ferr)
-				w.logger.Log("error", ferr)
+				level.Error(w.logger).Log("msg", ferr)
 				continue
 			}
 
@@ -109,13 +110,13 @@ func (w *Worker) Run(ctx context.Context) error {
 								if err != nil {
 									ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 									w.failBuild(ctx, m, b, ferr)
-									w.logger.Log("error", ferr)
+									level.Error(w.logger).Log("msg", ferr)
 									goto END
 								}
 								if len(vers) == 0 {
 									ferr := fmt.Errorf("failed Job %q from Pipeline %q no versions for the resource %q", m.PipelineName, m.JobName, r.Canonical)
 									w.failBuild(ctx, m, b, ferr)
-									w.logger.Log("error", ferr)
+									level.Error(w.logger).Log("msg", ferr)
 									goto END
 								}
 								slices.Reverse(vers)
@@ -134,7 +135,7 @@ func (w *Worker) Run(ctx context.Context) error {
 									Logs: string(stdouterr) + "\n" + err.Error(),
 								})
 								w.failBuild(ctx, m, b, nil)
-								w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Pull.Path, rt.Pull.Args, stdouterr, err))
+								level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Pull.Path, rt.Pull.Args, stdouterr, err))
 								goto END
 							}
 							b.Get = append(b.Get, build.Step{
@@ -146,7 +147,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							if err != nil {
 								ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 								w.failBuild(ctx, m, b, ferr)
-								w.logger.Log("error", ferr)
+								level.Error(w.logger).Log("msg", ferr)
 								continue
 							}
 						}
@@ -163,7 +164,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						Logs: string(stdouterr) + "\n" + err.Error(),
 					})
 					w.failBuild(ctx, m, b, nil)
-					w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q: %w", t.Run.Path, t.Run.Args, err))
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command %q with args %q: %w", t.Run.Path, t.Run.Args, err))
 					goto END
 				}
 				b.Task = append(b.Task, build.Step{
@@ -174,7 +175,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				if err != nil {
 					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err)
 					w.failBuild(ctx, m, b, ferr)
-					w.logger.Log("error", ferr)
+					level.Error(w.logger).Log("msg", ferr)
 					continue
 				}
 				for _, nj := range pp.Jobs {
@@ -190,7 +191,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							if err != nil {
 								ferr := fmt.Errorf("failed to run marshal body: %w", err)
 								w.failBuild(ctx, m, b, ferr)
-								w.logger.Log("error", ferr)
+								level.Error(w.logger).Log("msg", ferr)
 								goto END
 							}
 							w.topic.Send(ctx, &pubsub.Message{
@@ -203,7 +204,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			b.Status = build.Succeeded
 			err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 			if err != nil {
-				w.logger.Log("error", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err))
+				level.Error(w.logger).Log("msg", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err))
 				continue
 			}
 		} else if m.PipelineName != "" && m.ResourceCanonical != "" {
@@ -220,7 +221,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
 						if err != nil {
 							ferr := fmt.Errorf("failed to list resource versions: %w", err)
-							w.logger.Log("error", ferr)
+							level.Error(w.logger).Log("msg", ferr)
 							goto END
 						}
 						if len(vers) != 0 {
@@ -236,16 +237,16 @@ func (w *Worker) Run(ctx context.Context) error {
 							r.Logs = string(stdouterr) + "\n" + err.Error()
 							nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
 							if nerr != nil {
-								w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, nerr))
+								level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, nerr))
 							}
-							w.logger.Log("error", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
+							level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
 							goto END
 						}
 						if r.Logs != "" {
 							r.Logs = ""
 							err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
 							if err != nil {
-								w.logger.Log("error", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
+								level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
 								goto END
 							}
 						}
@@ -259,7 +260,7 @@ func (w *Worker) Run(ctx context.Context) error {
 								Hash: h,
 							})
 							if err != nil {
-								w.logger.Log("error", fmt.Errorf("failed to create Resource Version body: %w", err))
+								level.Error(w.logger).Log("msg", fmt.Errorf("failed to create Resource Version body: %w", err))
 								goto END
 							}
 							for _, j := range pp.Jobs {
@@ -275,7 +276,7 @@ func (w *Worker) Run(ctx context.Context) error {
 										}
 										mb, err := json.Marshal(b)
 										if err != nil {
-											w.logger.Log("error", fmt.Errorf("failed to run marshal body: %w", err))
+											level.Error(w.logger).Log("msg", fmt.Errorf("failed to run marshal body: %w", err))
 											goto END
 										}
 										w.topic.Send(ctx, &pubsub.Message{
@@ -305,6 +306,6 @@ func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err
 	}
 	err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 	if err != nil {
-		w.logger.Log("error", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
+		level.Error(w.logger).Log("msg", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 	}
 }

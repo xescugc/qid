@@ -19,6 +19,7 @@ import (
 	"gocloud.dev/pubsub"
 
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 type Service interface {
@@ -78,7 +79,7 @@ func (q *Qid) resourceCheck(ctx context.Context) {
 	for {
 		select {
 		case <-t.C:
-			q.logger.Log("msg", "Checking for resources ....")
+			level.Info(q.logger).Log("msg", "Checking for resources ....")
 			pps, _ := q.Pipelines.Filter(ctx)
 			for _, pp := range pps {
 				resources, err := q.Resources.Filter(ctx, pp.Name)
@@ -98,7 +99,7 @@ func (q *Qid) resourceCheck(ctx context.Context) {
 					}
 					d, err := time.ParseDuration(ci)
 					if err != nil {
-						q.logger.Log("msg", "failed to parse CheckInterval", "CheckInterval", ci, "error", err.Error())
+						level.Error(q.logger).Log("msg", "failed to parse CheckInterval", "CheckInterval", ci, "error", err.Error())
 						continue
 					}
 

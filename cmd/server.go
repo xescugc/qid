@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli/v3"
 	"github.com/xescugc/qid/qid"
@@ -53,6 +54,8 @@ var (
 			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
 
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
+
+			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -95,6 +98,8 @@ var (
 			var cfg config.Config
 			k.Unmarshal("qid.server", &cfg)
 
+			logger = level.NewFilter(logger, level.Allow(level.ParseDefault(cfg.LogLevel, level.InfoValue())))
+
 			if cfg.DBSystem != mysql.Mem && cfg.DBSystem != mysql.MySQL && cfg.DBSystem != mysql.SQLite {
 				return fmt.Errorf("invalid DBSystem %q, should be one of: %s, %s or %s", cfg.DBSystem, mysql.Mem, mysql.MySQL, mysql.SQLite)
 			}
@@ -108,7 +113,7 @@ var (
 			if err != nil {
 				return fmt.Errorf("failed to create dbFile: %v", err)
 			}
-			logger.Log("msg", "DB connection starting ...", "db-system", cfg.DBSystem)
+			level.Info(logger).Log("msg", "DB connection starting ...", "db-system", cfg.DBSystem)
 			db, err := mysql.New(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, mysql.Options{
 				DBName:          cfg.DBName,
 				MultiStatements: true,
@@ -119,16 +124,16 @@ var (
 			if err != nil {
 				panic(err)
 			}
-			logger.Log("msg", "DB connection started", "db-system", cfg.DBSystem)
+			level.Info(logger).Log("msg", "DB connection started", "db-system", cfg.DBSystem)
 
 			if cmd.Bool("run-migrations") {
-				logger.Log("msg", "Running migrations")
+				level.Info(logger).Log("msg", "Running migrations")
 				isSQLite := (cfg.DBSystem == mysql.Mem) || (cfg.DBSystem == mysql.SQLite)
 				err := migrate.Migrate(db, isSQLite)
 				if err != nil {
 					panic(err)
 				}
-				logger.Log("msg", "Migrations ran")
+				level.Info(logger).Log("msg", "Migrations ran")
 			}
 
 			ppr := mysql.NewPipelineRepository(db)
@@ -137,13 +142,13 @@ var (
 			rt := mysql.NewResourceTypeRepository(db)
 			br := mysql.NewBuildRepository(db)
 
-			logger.Log("message", "initializing service")
+			level.Info(logger).Log("message", "initializing service")
 			var svc = qid.New(ctx, topic, ppr, jr, rr, rt, br, logger)
-			logger.Log("message", "initialized service")
+			level.Info(logger).Log("message", "initialized service")
 
-			logger.Log("message", "initializing http handlers")
+			level.Info(logger).Log("message", "initializing http handlers")
 			var handler = tshttp.Handler(svc, log.With(logger, "component", "HTTP"))
-			logger.Log("message", "initialized http handlers")
+			level.Info(logger).Log("message", "initialized http handlers")
 
 			mux := http.NewServeMux()
 			mux.Handle("/", handler)
@@ -162,19 +167,19 @@ var (
 			}()
 
 			go func() {
-				logger.Log("transport", "HTTP", "port", cfg.Port)
+				level.Info(logger).Log("transport", "HTTP", "port", cfg.Port)
 				errs <- svr.ListenAndServe()
 			}()
 
 			if cfg.RunWorker {
-				logger.Log("message", "Starting Worker ...")
+				level.Info(logger).Log("message", "Starting Worker ...")
 				go func() {
-					err := runWorker(ctx, cfg.PubSubSystem, topic, svc, cfg.Concurrency)
+					err := runWorker(ctx, cfg.PubSubSystem, topic, svc, cfg.Concurrency, cfg.LogLevel)
 					errs <- fmt.Errorf("worker failed to start: %w", err)
 				}()
 			}
 
-			logger.Log("exit", <-errs)
+			level.Error(logger).Log("exit", <-errs)
 
 			return nil
 		},
