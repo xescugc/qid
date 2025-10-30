@@ -9,7 +9,7 @@ require (
 	github.com/cycloidio/sqlr v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-kit/kit v0.13.0
-	github.com/go-kit/log v0.2.0
+	github.com/go-kit/log v0.2.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2

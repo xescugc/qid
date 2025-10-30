@@ -5,4 +5,6 @@ type Config struct {
 
 	Concurrency  int    `koanf:"concurrency"`
 	PubSubSystem string `koanf:"pubsub-system"`
+
+	LogLevel string `koanf:"log-level"`
 }
