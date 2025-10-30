@@ -37,6 +37,7 @@ type Service interface {
 
 	CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error)
 	UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error
+	DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error
 	ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error)
 
 	GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error)
@@ -656,6 +657,21 @@ func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b b
 	err := q.Builds.Update(ctx, pn, jn, bID, b)
 	if err != nil {
 		return fmt.Errorf("failed to Update Build: %w", err)
+	}
+
+	return nil
+}
+
+func (q *Qid) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return fmt.Errorf("invalid Job Name format %q", pn)
+	}
+
+	err := q.Builds.Delete(ctx, pn, jn, bID)
+	if err != nil {
+		return fmt.Errorf("failed to Delete Build: %w", err)
 	}
 
 	return nil

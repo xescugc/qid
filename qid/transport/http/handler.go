@@ -114,6 +114,13 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 		options...,
 	))
 
+	api.Methods(http.MethodDelete).Path("/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}").Handler(kithttp.NewServer(
+		e.DeleteJobBuild,
+		decodeDeleteJobBuildRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
 	api.Methods(http.MethodPost).Path("/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Handler(kithttp.NewServer(
 		e.CreateResourceVersion,
 		decodeCreateResourceVersionRequest,
@@ -258,6 +265,18 @@ func decodeUpdateJobBuildRequest(_ context.Context, r *http.Request) (interface{
 	err := json.NewDecoder(r.Body).Decode(&req.Build)
 
 	return req, err
+}
+
+func decodeDeleteJobBuildRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	bid, _ := strconv.Atoi(vars["build_id"])
+	req := transport.DeleteJobBuildRequest{
+		PipelineName: vars["pipeline_name"],
+		JobName:      vars["job_name"],
+		BuildID:      uint32(bid),
+	}
+
+	return req, nil
 }
 
 func decodeCreateResourceVersionRequest(_ context.Context, r *http.Request) (interface{}, error) {

@@ -9,4 +9,5 @@ type Repository interface {
 	Find(ctx context.Context, pn, jn string, bID uint32) (*Build, error)
 	Filter(ctx context.Context, pn, jn string) ([]*Build, error)
 	Update(ctx context.Context, pn, jn string, bID uint32, b Build) error
+	Delete(ctx context.Context, pn, jn string, bID uint32) error
 }

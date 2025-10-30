@@ -28,6 +28,7 @@ type Endpoints struct {
 
 	CreateJobBuild endpoint.Endpoint
 	UpdateJobBuild endpoint.Endpoint
+	DeleteJobBuild endpoint.Endpoint
 	ListJobBuilds  endpoint.Endpoint
 
 	UpdatePipelineResource  endpoint.Endpoint
@@ -55,6 +56,7 @@ func MakeServerEndpoints(s qid.Service) Endpoints {
 
 		CreateJobBuild: MakeCreateJobBuildEndpoint(s),
 		UpdateJobBuild: MakeUpdateJobBuildEndpoint(s),
+		DeleteJobBuild: MakeDeleteJobBuildEndpoint(s),
 		ListJobBuilds:  MakeListJobBuildsEndpoint(s),
 
 		UpdatePipelineResource:  MakeUpdatePipelineResourceEndpoint(s),
@@ -267,6 +269,29 @@ func MakeUpdateJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 			errs = err.Error()
 		}
 		return UpdateJobBuildResponse{Err: errs}, nil
+	}
+}
+
+type DeleteJobBuildRequest struct {
+	PipelineName string `json:"pipeline_name"`
+	JobName      string `json:"job_name"`
+	BuildID      uint32 `json:"build_id"`
+}
+type DeleteJobBuildResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r DeleteJobBuildResponse) Error() string { return r.Err }
+
+func MakeDeleteJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(DeleteJobBuildRequest)
+		err := s.DeleteJobBuild(ctx, req.PipelineName, req.JobName, req.BuildID)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return DeleteJobBuildResponse{Err: errs}, nil
 	}
 }
 
