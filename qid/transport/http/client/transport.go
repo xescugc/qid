@@ -225,6 +225,25 @@ func decodeUpdateJobBuildResponse(_ context.Context, r *http.Response) (interfac
 	return response, nil
 }
 
+func encodeDeleteJobBuildRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.DeleteJobBuildRequest)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{build_id}", strconv.Itoa(int(req.BuildID)), 1)
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeDeleteJobBuildResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.DeleteJobBuildResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func encodeListJobBuildsRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.ListJobBuildsRequest)
 	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1)

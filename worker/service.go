@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
@@ -94,6 +95,46 @@ func (w *Worker) Run(ctx context.Context) error {
 				w.failBuild(ctx, m, b, ferr)
 				level.Error(w.logger).Log("msg", ferr)
 				continue
+			}
+
+			// First we need to check that all the 'Get'
+			// are Succeeded
+			passed := true
+			// NOTE: As this could happen concurrently that a resource changes
+			// an improvemnt could be to store the version that was validated
+			// of the resource_type
+			for _, g := range j.Get {
+				if !passed {
+					break
+				}
+				for _, p := range g.Passed {
+					if !passed {
+						break
+					}
+					builds, err := w.qid.ListJobBuilds(ctx, m.PipelineName, p)
+					if err != nil {
+						ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+						w.failBuild(ctx, m, b, ferr)
+						level.Error(w.logger).Log("msg", ferr)
+						goto END
+					}
+					if len(builds) > 0 {
+						if builds[0].Status != build.Succeeded {
+							passed = false
+							level.Info(w.logger).Log("msg", fmt.Sprintf("The Job %q from Pipeline %q will not run as the Job %q that is 'passed' is not 'Succeeded'", m.JobName, m.PipelineName, p))
+							w.deleteBuild(ctx, m, b)
+							break
+						}
+					} else {
+						passed = false
+						level.Info(w.logger).Log("msg", fmt.Sprintf("The Job %q from Pipeline %q will not run as the Job %q that is 'passed' has no builds", m.JobName, m.PipelineName, p))
+						w.deleteBuild(ctx, m, b)
+						break
+					}
+				}
+			}
+			if !passed {
+				goto END
 			}
 
 			for _, g := range j.Get {
@@ -251,11 +292,15 @@ func (w *Worker) Run(ctx context.Context) error {
 							}
 						}
 						hashs := strings.Split(string(stdouterr), "\n")
+						spew.Dump(hashs)
 						if len(hashs) == 0 || string(stdouterr) == "" {
 							// Nothing new so we can skip
 							goto END
 						}
 						for _, h := range hashs {
+							if h == "" {
+								continue
+							}
 							err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
 								Hash: h,
 							})
@@ -307,5 +352,11 @@ func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err
 	err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 	if err != nil {
 		level.Error(w.logger).Log("msg", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
+	}
+}
+func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
+	err := w.qid.DeleteJobBuild(ctx, m.PipelineName, m.JobName, b.ID)
+	if err != nil {
+		level.Error(w.logger).Log("msg", fmt.Errorf("failed delete Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 	}
 }

@@ -29,6 +29,7 @@ type Client struct {
 
 	createJobBuild endpoint.Endpoint
 	updateJobBuild endpoint.Endpoint
+	deleteJobBuild endpoint.Endpoint
 	listJobBuilds  endpoint.Endpoint
 
 	getPipelineResource     endpoint.Endpoint
@@ -67,6 +68,7 @@ func New(host string) (*Client, error) {
 		listJobBuilds:  makeListJobBuildsEndpoint(*u),
 		createJobBuild: makeCreateJobBuildEndpoint(*u),
 		updateJobBuild: makeUpdateJobBuildEndpoint(*u),
+		deleteJobBuild: makeDeleteJobBuildEndpoint(*u),
 
 		getPipelineResource:     makeGetPipelineResourceEndpoint(*u),
 		updatePipelineResource:  makeUpdatePipelineResourceEndpoint(*u),
@@ -226,6 +228,20 @@ func (cl *Client) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32,
 	}
 
 	resp := response.(transport.UpdateJobBuildResponse)
+	if resp.Err != "" {
+		return errors.New(resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error {
+	response, err := cl.deleteJobBuild(ctx, transport.DeleteJobBuildRequest{PipelineName: pn, JobName: jn, BuildID: bID})
+	if err != nil {
+		return err
+	}
+
+	resp := response.(transport.DeleteJobBuildResponse)
 	if resp.Err != "" {
 		return errors.New(resp.Err)
 	}

@@ -147,6 +147,32 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 	return nil
 }
 
+func (r *BuildRepository) Delete(ctx context.Context, pn, jn string, bID uint32) error {
+	res, err := r.querier.ExecContext(ctx, `
+		DELETE
+		FROM builds
+		WHERE id IN (
+			SELECT b.id
+			FROM builds AS b
+			JOIN jobs AS j
+				ON b.job_id = j.id
+			JOIN pipelines AS p
+				ON j.pipeline_id = p.id
+			WHERE p.name = ? AND j.name = ? AND b.id
+		)
+	`, pn, jn, bID)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to delete the Job: %w", err)
+	}
+
+	return nil
+}
+
 func scanBuild(s sqlr.Scanner) (*build.Build, error) {
 	var b dbBuild
 
