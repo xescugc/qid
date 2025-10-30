@@ -33,12 +33,15 @@ it's done on a unique `$XDG_CACHE_HOME/qid/{UUID}/` folder so it never collision
 * `run-worker`: Specifies if you want to run the workers on the same server or not
 * `concurrency`: How many parallel instances has the worker
 * `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
+* `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
+
 
 ## Worker Configuration
 
 * `qid-url`: Used to make all the interactions with the DB through it
 * `concurrency`: How many parallel instances has the worker
 * `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
+* `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
 
 ## Pipeline
 
