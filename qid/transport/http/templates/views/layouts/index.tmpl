@@ -247,6 +247,7 @@
     <script type = "text/javascript">
       'use strict';
       var app = {};
+      var fetchInterval = 2000
 
       //--------------
       // Models
@@ -524,7 +525,7 @@
           var that = this
           this.intervalID = window.setInterval(function() {
             that.image.fetch({isInterval: true})
-          }, 1000);
+          }, fetchInterval);
         },
         events: {
           'click': 'clickPipeline',
@@ -676,7 +677,7 @@
           var that = this
           this.intervalID = window.setInterval(function() {
             that.collection.fetch({isInterval: true})
-          }, 1000);
+          }, fetchInterval);
         },
         events: {
           'click #trigger-job': 'clickTriggerJob',
@@ -793,7 +794,7 @@
           this.intervalID = window.setInterval(function() {
             that.model.fetch({isInterval: true})
             that.collection.fetch({isInterval: true})
-          }, 1000);
+          }, fetchInterval);
         },
         render: function () {
           this.$el.html(this.template({
