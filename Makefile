@@ -57,7 +57,7 @@ os = $(word 1, $(temp))
 arch = $(word 2, $(temp))
 
 .PHONY: release $(PLATFORMS)
-release: $(PLATFORMS)
+release: $(PLATFORMS) ## Creates the bin on the ./builds/
 
 $(PLATFORMS):
 	GOOS=$(os) GOARCH=$(arch) go build -o ./builds/'$(os)-$(arch)' .
