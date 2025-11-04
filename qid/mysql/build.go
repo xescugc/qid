@@ -24,6 +24,7 @@ type dbBuild struct {
 	ID     sql.NullInt64
 	Get    sql.NullString
 	Task   sql.NullString
+	Job    sql.NullString
 	Status sql.NullString
 	Error  sql.NullString
 }
@@ -31,9 +32,11 @@ type dbBuild struct {
 func newDBBuild(b build.Build) dbBuild {
 	g, _ := json.Marshal(b.Get)
 	t, _ := json.Marshal(b.Task)
+	j, _ := json.Marshal(b.Job)
 	return dbBuild{
 		Get:    toNullString(string(g)),
 		Task:   toNullString(string(t)),
+		Job:    toNullString(string(j)),
 		Status: toNullString(b.Status.String()),
 		Error:  toNullString(b.Error),
 	}
@@ -49,6 +52,7 @@ func (dbb *dbBuild) toDomainEntity() *build.Build {
 
 	_ = json.Unmarshal([]byte(dbb.Get.String), &b.Get)
 	_ = json.Unmarshal([]byte(dbb.Task.String), &b.Task)
+	_ = json.Unmarshal([]byte(dbb.Job.String), &b.Job)
 
 	return b
 }
@@ -56,8 +60,8 @@ func (dbb *dbBuild) toDomainEntity() *build.Build {
 func (r *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Build) (uint32, error) {
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO builds( get, task, status, error, job_id)
-		VALUES (?, ?, ?, ?,
+		INSERT INTO builds( get, task, job, status, error, job_id)
+		VALUES (?, ?, ?, ?, ?,
 			-- job_id
 			(
 				SELECT j.id
@@ -65,7 +69,7 @@ func (r *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Bui
 				JOIN pipelines AS p
 					ON j.pipeline_id = p.id
 				WHERE p.name = ? AND j.name = ?
-			))`, dbb.Get, dbb.Task, dbb.Status, dbb.Error, pn, jn)
+			))`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, pn, jn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -80,7 +84,7 @@ func (r *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Bui
 
 func (r *BuildRepository) Find(ctx context.Context, pn, jn string, bID uint32) (*build.Build, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT b.id, b.get, b.task, b.status, b.error
+		SELECT b.id, b.get, b.task, b.job, b.status, b.error
 		FROM builds AS b
 		JOIN jobs AS j
 			ON b.job_id = j.id
@@ -99,7 +103,7 @@ func (r *BuildRepository) Find(ctx context.Context, pn, jn string, bID uint32) (
 
 func (r *BuildRepository) Filter(ctx context.Context, pn, jn string) ([]*build.Build, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT b.id, b.get, b.task, b.status, b.error
+		SELECT b.id, b.get, b.task, b.job, b.status, b.error
 		FROM builds AS b
 		JOIN jobs AS j
 			ON b.job_id = j.id
@@ -123,7 +127,7 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE builds AS b
-		SET get = ?, task = ?, status = ?, error = ?
+		SET get = ?, task = ?, job = ?, status = ?, error = ?
 		FROM (
 			SELECT b.id
 			FROM builds AS b
@@ -134,7 +138,7 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 			WHERE p.name = ? AND j.name = ? AND b.id = ?
 		) AS bb
 		WHERE bb.id = b.id
-	`, dbb.Get, dbb.Task, dbb.Status, dbb.Error, pn, jn, bID, bID)
+	`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, pn, jn, bID, bID)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -180,6 +184,7 @@ func scanBuild(s sqlr.Scanner) (*build.Build, error) {
 		&b.ID,
 		&b.Get,
 		&b.Task,
+		&b.Job,
 		&b.Status,
 		&b.Error,
 	)

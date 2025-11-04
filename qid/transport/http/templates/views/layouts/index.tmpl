@@ -201,6 +201,22 @@
                 </div>
               </div>
           <% }) %>
+          <% _.each(job, function(j, i) { %>
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#j-<%- i %>" aria-controls="collapseOne">
+                    job: <%- j.name %>
+                  </button>
+                </h2>
+                <div id="j-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
+                  <div class="accordion-body">
+<pre>
+<%- j.logs %>
+</pre>
+                  </div>
+                </div>
+              </div>
+          <% }) %>
         </div>
       </div>
     </script>

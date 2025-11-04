@@ -1,6 +1,6 @@
 package migrations
 
-// V0Initial is the first migration
+// V1ResourceCheckInterval adds the check_interval and last_check to resources
 var V1ResourceCheckInterval = Migration{
 	Name: "Initial",
 	SQL: `

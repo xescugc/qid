@@ -50,6 +50,24 @@ resource "git" "qid" {
 job "gen" {
   get "git" "qid" {
     trigger = true
+    on_success {
+      path = "echo"
+      args = [ 
+        "get-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "get-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "get-e",
+      ]
+    }
   }
   task "gen" {
     run {
@@ -60,12 +78,66 @@ job "gen" {
         "gen"
       ]
     }
+    on_success {
+      path = "echo"
+      args = [ 
+        "task-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "task-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "task-e",
+      ]
+    }
+  }
+  on_success {
+    path = "echo"
+    args = [ 
+      "job-s",
+    ]
+  }
+  on_failure {
+    path = "echo"
+    args = [ 
+      "job-f",
+    ]
+  }
+  ensure {
+    path = "echo"
+    args = [ 
+      "job-e",
+    ]
   }
 }
 
 job "notify_slack" {
   get "git" "qid" {
     trigger = true
+    on_success {
+      path = "echo"
+      args = [ 
+        "get-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "get-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "get-e",
+      ]
+    }
   }
   task "notify" {
     run {
@@ -74,6 +146,42 @@ job "notify_slack" {
         "slack",
       ]
     }
+    on_success {
+      path = "echo"
+      args = [ 
+        "task-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "task-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "task-e",
+      ]
+    }
+  }
+  on_success {
+    path = "echo"
+    args = [ 
+      "job-s",
+    ]
+  }
+  on_failure {
+    path = "echo"
+    args = [ 
+      "job-f",
+    ]
+  }
+  ensure {
+    path = "echo"
+    args = [ 
+      "job-e",
+    ]
   }
 }
 
@@ -81,6 +189,24 @@ job "test" {
   get "git" "qid" {
     passed  = ["gen"]
     trigger = true
+    on_success {
+      path = "echo"
+      args = [ 
+        "get-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "get-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "get-e",
+      ]
+    }
   }
   task "test" {
     run {
@@ -91,6 +217,42 @@ job "test" {
         "test"
       ]
     }
+    on_success {
+      path = "echo"
+      args = [ 
+        "task-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "task-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "task-e",
+      ]
+    }
+  }
+  on_success {
+    path = "echo"
+    args = [ 
+      "job-s",
+    ]
+  }
+  on_failure {
+    path = "echo"
+    args = [ 
+      "job-f",
+    ]
+  }
+  ensure {
+    path = "echo"
+    args = [ 
+      "job-e",
+    ]
   }
 }
 
@@ -98,6 +260,24 @@ job "build" {
   get "git" "qid" {
     passed  = ["test"]
     trigger = true
+    on_success {
+      path = "echo"
+      args = [ 
+        "get-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "get-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "get-e",
+      ]
+    }
   }
   task "build" {
     run {
@@ -108,7 +288,43 @@ job "build" {
         "release"
       ]
     }
+    on_success {
+      path = "echo"
+      args = [ 
+        "task-s",
+      ]
+    }
+    on_failure {
+      path = "echo"
+      args = [ 
+        "task-f",
+      ]
+    }
+    ensure {
+      path = "echo"
+      args = [ 
+        "task-e",
+      ]
+    }
   }
+  on_success {
+    path = "echo"
+    args = [ 
+      "job-s",
+    ]
+  }
+  on_failure {
+    path = "echo"
+    args = [ 
+      "job-f",
+    ]
+  }
+  ensure {
+    path = "echo"
+    args = [ 
+      "job-e",
+    ]
+  } 
 }
 
 variable "repo_url" {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/awalterschulze/gographviz"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
@@ -145,6 +146,7 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 	if err != nil {
 		return fmt.Errorf("failed to read Pipeline config: %w", err)
 	}
+	spew.Dump(pp.Jobs)
 
 	pp.Name = pn
 	pp.Raw = rpp

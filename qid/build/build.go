@@ -17,6 +17,8 @@ type Build struct {
 	Task   []Step `json:"task"`
 	Status Status `json:"status"`
 	Error  string `json:"error"`
+	// Job are the general logs printed at the end
+	Job []Step `json:"job"`
 }
 
 type Step struct {
