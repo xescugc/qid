@@ -7,6 +7,10 @@ type Job struct {
 	Name string     `json:"name" hcl:"name,label"`
 	Get  []GetStep  `json:"gets" hcl:"get,block"`
 	Task []TaskStep `json:"tasks" hcl:"task,block"`
+
+	OnSuccess []RunCommand `json:"on_success" hcl:"on_success,block"`
+	OnFailure []RunCommand `json:"on_failure" hcl:"on_failure,block"`
+	Ensure    []RunCommand `json:"ensure" hcl:"ensure,block"`
 }
 
 type GetStep struct {
@@ -14,6 +18,10 @@ type GetStep struct {
 	Name    string   `json:"name" hcl:"name,label"`
 	Passed  []string `json:"passed" hcl:"passed,optional"`
 	Trigger bool     `json:"trigger" hcl:"trigger,optional"`
+
+	OnSuccess []RunCommand `json:"on_success" hcl:"on_success,block"`
+	OnFailure []RunCommand `json:"on_failure" hcl:"on_failure,block"`
+	Ensure    []RunCommand `json:"ensure" hcl:"ensure,block"`
 }
 
 func (g *GetStep) ResourceCanonical() string {
@@ -23,6 +31,10 @@ func (g *GetStep) ResourceCanonical() string {
 type TaskStep struct {
 	Name string     `json:"name" hcl:"name,label"`
 	Run  RunCommand `json:"run" hcl:"run,block"`
+
+	OnSuccess []RunCommand `json:"on_success" hcl:"on_success,block"`
+	OnFailure []RunCommand `json:"on_failure" hcl:"on_failure,block"`
+	Ensure    []RunCommand `json:"ensure" hcl:"ensure,block"`
 }
 
 type RunCommand struct {

@@ -246,6 +246,42 @@ Boolean marking if changes on that resource will automatically trigger the Job
 Array of job names that the Job depends on. Meaning that if that job finishes and has also
 the resource and trigger it'll be automatically executed on success
 
+##### `on_success`
+
+Runs when the Job succeeds
+
+###### `path`
+
+The name of or path to the executable to run.
+
+###### `args`
+
+Arguments to pass to the command.
+
+##### `on_failure`
+
+Runs when the Job fails
+
+###### `path`
+
+The name of or path to the executable to run.
+
+###### `args`
+
+Arguments to pass to the command.
+
+##### `ensure`
+
+Runs always
+
+###### `path`
+
+The name of or path to the executable to run.
+
+###### `args`
+
+Arguments to pass to the command.
+
 #### `task`
 
 Tasks are the ones that run the logic of the Job
@@ -259,6 +295,76 @@ The name of or path to the executable to run.
 ###### `args`
 
 Arguments to pass to the command.
+
+##### `on_success`
+
+Runs when the Job succeeds
+
+###### `path`
+
+The name of or path to the executable to run.
+
+###### `args`
+
+Arguments to pass to the command.
+
+##### `on_failure`
+
+Runs when the Job fails
+
+###### `path`
+
+The name of or path to the executable to run.
+
+###### `args`
+
+Arguments to pass to the command.
+
+##### `ensure`
+
+Runs always
+
+###### `path`
+
+The name of or path to the executable to run.
+
+###### `args`
+
+Arguments to pass to the command.
+
+#### `on_success`
+
+Runs when the Job succeeds
+
+##### `path`
+
+The name of or path to the executable to run.
+
+##### `args`
+
+Arguments to pass to the command.
+
+#### `on_failure`
+
+Runs when the Job fails
+
+##### `path`
+
+The name of or path to the executable to run.
+
+##### `args`
+
+Arguments to pass to the command.
+
+#### `ensure`
+
+Runs always
+
+##### `path`
+
+The name of or path to the executable to run.
+
+##### `args`
 
 #### Example
 
@@ -278,6 +384,9 @@ job "gen" {
         "gen"
       ]
     }
+    on_success {
+      path = "ls"
+    }
   }
 }
 
@@ -291,6 +400,9 @@ job "notify_slack" {
       args = [ 
         "slack",
       ]
+    }
+    on_failure {
+      path = "ls"
     }
   }
 }
@@ -309,6 +421,9 @@ job "test" {
         "test"
       ]
     }
+  }
+  ensure {
+    path = "ls"
   }
 }
 ```

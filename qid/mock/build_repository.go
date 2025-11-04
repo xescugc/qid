@@ -56,6 +56,20 @@ func (mr *BuildRepositoryMockRecorder) Create(ctx, pn, jn, b any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*BuildRepository)(nil).Create), ctx, pn, jn, b)
 }
 
+// Delete mocks base method.
+func (m *BuildRepository) Delete(ctx context.Context, pn, jn string, bID uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, pn, jn, bID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *BuildRepositoryMockRecorder) Delete(ctx, pn, jn, bID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*BuildRepository)(nil).Delete), ctx, pn, jn, bID)
+}
+
 // Filter mocks base method.
 func (m *BuildRepository) Filter(ctx context.Context, pn, jn string) ([]*build.Build, error) {
 	m.ctrl.T.Helper()

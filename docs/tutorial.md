@@ -31,7 +31,7 @@ job "echo" {
 ```
 
 <p align="center">
-    <img src="new_pipeline_echo.png" width=50% height=50%>
+    <img src="images/new_pipeline_echo.png" width=50% height=50%>
 </p>
 
 Name it `echo` to keep it more redundant (haha). Now if you click outside of the configuration, on the right side you'll see the Pipeline which only
@@ -44,7 +44,7 @@ Click create and go to the next step.
 After the Create you'll be redirected to the Pipeline view (yes it's big haha) with our Pipeline `echo` and our Job `echo`.
 
 <p align="center">
-    <img src="pipeline_echo.png" width=50% height=50%>
+    <img src="images/pipeline_echo.png" width=50% height=50%>
 </p>
 
 As there is no resource linked to it it'll never be triggered automatically, but we can do that manually.
@@ -55,7 +55,7 @@ has had, which now is empty. To run one manually let's click on `Trigge Job`.
 You'll see the Build appear and if you click on it you'll see the output of the `task: echo` which is the `Hello QID`.
 
 <p align="center">
-    <img src="pipeline_echo_job_builds.png" width=50% height=50%>
+    <img src="images/pipeline_echo_job_builds.png" width=50% height=50%>
 </p>
 
 Builds have 3 status: `started`(yellow), `succeeded`(green) and `failed`(red). We only see the `succeeded` as it's too simple of a job.
@@ -168,7 +168,7 @@ To set them paste this JSON onto the `Vars`:
 ```
 
 <p align="center">
-    <img src="new_pipeline_git_reference.png" width=50% height=50%>
+    <img src="images/new_pipeline_git_reference.png" width=50% height=50%>
 </p>
 
 To be able to test things on your side fork the `repo_url` and use that new URL for your pipeline
@@ -178,10 +178,10 @@ This example pulls form the `repo_url` and listen for changes on it, once someth
 So now we click `Create` and we'll see the firs build that runs as there is nothing on the DB so the first check is a success.
 
 <p align="center">
-    <img src="pipeline_git_reference.png" width=50% height=50%>
+    <img src="images/pipeline_git_reference.png" width=50% height=50%>
 </p>
 <p align="center">
-    <img src="pipeline_git_reference_job_builds.png" width=50% height=50%>
+    <img src="images/pipeline_git_reference_job_builds.png" width=50% height=50%>
 </p>
 
 And this would be all for the small Tutorial in how to use QID
