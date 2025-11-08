@@ -141,9 +141,10 @@ var (
 			rr := mysql.NewResourceRepository(db)
 			rt := mysql.NewResourceTypeRepository(db)
 			br := mysql.NewBuildRepository(db)
+			rur := mysql.NewRunnerRepository(db)
 
 			level.Info(logger).Log("message", "initializing service")
-			var svc = qid.New(ctx, topic, ppr, jr, rr, rt, br, logger)
+			var svc = qid.New(ctx, topic, ppr, jr, rr, rt, br, rur, logger)
 			level.Info(logger).Log("message", "initialized service")
 
 			level.Info(logger).Log("message", "initializing http handlers")

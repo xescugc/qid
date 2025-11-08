@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/awalterschulze/gographviz"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/queue"
 	"github.com/xescugc/qid/qid/resource"
 	"github.com/xescugc/qid/qid/restype"
+	"github.com/xescugc/qid/qid/runner"
 	"github.com/xescugc/qid/qid/utils"
 	"gocloud.dev/pubsub"
 
@@ -55,11 +55,12 @@ type Qid struct {
 	Resources     resource.Repository
 	ResourceTypes restype.Repository
 	Builds        build.Repository
+	Runners       runner.Repository
 
 	logger log.Logger
 }
 
-func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, l log.Logger) *Qid {
+func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, l log.Logger) *Qid {
 	q := &Qid{
 		Topic:         t,
 		Pipelines:     pr,
@@ -67,6 +68,7 @@ func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repo
 		Resources:     rr,
 		ResourceTypes: rt,
 		Builds:        br,
+		Runners:       rur,
 		logger:        l,
 	}
 
@@ -146,7 +148,6 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 	if err != nil {
 		return fmt.Errorf("failed to read Pipeline config: %w", err)
 	}
-	spew.Dump(pp.Jobs)
 
 	pp.Name = pn
 	pp.Raw = rpp
@@ -183,6 +184,16 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 		_, err = q.Resources.Create(ctx, pn, r)
 		if err != nil {
 			return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
+		}
+	}
+
+	for _, ru := range pp.Runners {
+		if !utils.ValidateCanonical(ru.Name) {
+			return fmt.Errorf("invalid Runner Name format %q", ru.Name)
+		}
+		_, err = q.Runners.Create(ctx, pn, ru)
+		if err != nil {
+			return fmt.Errorf("failed to create Runner %q: %w", ru.Name, err)
 		}
 	}
 	return nil
@@ -291,6 +302,34 @@ func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 			return fmt.Errorf("failed to delete Resource %q: %w", rn, err)
 		}
 	}
+
+	dbru := make(map[string]struct{})
+	for _, ru := range dbpp.Runners {
+		dbru[ru.Name] = struct{}{}
+	}
+	for _, ru := range pp.Runners {
+		if !utils.ValidateCanonical(ru.Name) {
+			return fmt.Errorf("invalid Resource Name format %q", ru.Name)
+		}
+		if _, ok := dbru[ru.Name]; ok {
+			delete(dbru, ru.Name)
+			err = q.Runners.Update(ctx, pn, ru.Name, ru)
+			if err != nil {
+				return fmt.Errorf("failed to update Runner %q: %w", ru.Name, err)
+			}
+		} else {
+			_, err = q.Runners.Create(ctx, pn, ru)
+			if err != nil {
+				return fmt.Errorf("failed to create Runner %q: %w", ru.Name, err)
+			}
+		}
+	}
+	for run := range dbru {
+		err = q.Runners.Delete(ctx, pn, run)
+		if err != nil {
+			return fmt.Errorf("failed to delete Runner %q: %w", run, err)
+		}
+	}
 	return nil
 }
 
@@ -316,6 +355,11 @@ func (q *Qid) ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error) {
 			return nil, fmt.Errorf("failed to get Resource Types from Pipeline %q: %w", pp.Name, err)
 		}
 
+		runners, err := q.Runners.Filter(ctx, pp.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Runners from Pipeline %q: %w", pp.Name, err)
+		}
+
 		for _, j := range jobs {
 			pp.Jobs = append(pp.Jobs, *j)
 		}
@@ -326,6 +370,10 @@ func (q *Qid) ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error) {
 
 		for _, rt := range restypes {
 			pp.ResourceTypes = append(pp.ResourceTypes, *rt)
+		}
+
+		for _, ru := range runners {
+			pp.Runners = append(pp.Runners, *ru)
 		}
 	}
 
@@ -357,6 +405,11 @@ func (q *Qid) GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, e
 		return nil, fmt.Errorf("failed to get Resource Types from Pipeline %q: %w", pn, err)
 	}
 
+	runners, err := q.Runners.Filter(ctx, pn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Runners from Pipeline %q: %w", pn, err)
+	}
+
 	for _, j := range jobs {
 		pp.Jobs = append(pp.Jobs, *j)
 	}
@@ -367,6 +420,10 @@ func (q *Qid) GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, e
 
 	for _, rt := range restypes {
 		pp.ResourceTypes = append(pp.ResourceTypes, *rt)
+	}
+
+	for _, ru := range runners {
+		pp.Runners = append(pp.Runners, *ru)
 	}
 
 	return pp, nil

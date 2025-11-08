@@ -11,12 +11,13 @@ run the Jobs tasks and interact with the QID server to make any operations.
 
 ## How it works
 
-The QID server checks periodically (every Xs) the Pipelines Resources to see if there is a new version to trigger a new Build for a
+The QID server checks periodically (every 1m) the Pipelines Resources to see if there is a new version to trigger a new Build for a
 Job that depends on that Resource that changed. If there is then a new job/s will be queued for a Worker to do.
 Then when it finishes it checks if another job depends on it and queues for that job/s to be triggered.
 
-Workers execute everything on the host machine for now (either on the server if local or on the worker host), each time something is executed
-it's done on a unique `$XDG_CACHE_HOME/qid/{UUID}/` folder so it never collisions with a previous run, will potentially [change](https://github.com/xescugc/qid/issues/57) on the future
+When a job/resource is executed in a worker it creates a `$WORKDIR` `$XDG_CACHE_HOME/qid/{UUID}/` in which everything is executed.
+
+The execution of any action is done on a [`runner`](#runner)
 
 ## Server Configuration
 
@@ -75,9 +76,7 @@ A block is defined for a key and N labels and then `{}`
 my_block "label1" "label2" {}
 ```
 
-In case of QID if it has a label it means it can be defined multiple times in the context.
-For example the Job Task can be defined multiple times to have multiple tasks.
-
+Blocks can sometimes be defined multiple times, lie the root ones: `job`, `resource`, `variable` ... etc.
 
 ### Variables
 
@@ -112,6 +111,94 @@ variable "repo_name" {
 }
 ```
 
+### Runner
+
+Runners are the execution part of anything of the actions (job, resource etc). With that you can define which is the context in which to execute the task.
+There is a default one defined, `exec` that allows to execute everything on the host machine of the workers.
+
+To define which `runner` to use, the blocks that have that will declare it, for example a job like:
+
+```hcl
+job "build" {
+  get "git" "qid" {
+    passed  = ["test"]
+    trigger = true
+  }
+  task "build" {
+    run "exec" {
+      path = "make"
+      args = "-C ${var.repo_name} release"
+    }
+  }
+}
+```
+
+Will use `exec` when running the task `build`, and all the content of the `run`  will be passed to the `runner` as env variables,
+in this case `$path` and `$args` will be available to be used on the `runner`.
+
+The runner `exec` will be always available to be used (no need to define it) and it looks like:
+
+```hcl
+runner "exec" {
+  run {
+    path = "$path"
+    args = ["$args"]
+  }
+}
+```
+
+So to use it you need to pass to the block a `path` and an `args`. If you want to pass  multyline or separate the arguments here is an example:
+
+```hcl
+job "build" {
+  get "git" "qid" {
+    passed  = ["test"]
+    trigger = true
+  }
+  task "build" {
+    run "exec" {
+      path = "make"
+      args = <<-EOT
+          '-C'
+          '${var.repo_name}'
+          'release'
+        EOT
+    }
+  }
+}
+```
+
+The logic for separating the `args` (as this is just a 1 string with `\n`) is implemented using the [go-shellquote#Split](https://github.com/kballard/go-shellquote) for reference, so using in this case `'arg1' 'arg2'`
+
+#### `run`
+
+It defines in which context the task is going to run.
+
+##### `path`
+
+The name of or path to the executable to run.
+
+##### `args`
+
+Arguments to pass to the command.
+
+#### Example
+
+```hcl
+runner "docker" {
+  run {
+    path = "docker"
+    args = [
+      "run", "--rm",
+      "-v","$WORKDIR:/workdir",
+      "-w","/workdir",
+      "$image",
+      "$cmd"
+    ]
+  }
+}
+```
+
 ### Resource Type
 
 Resource Type are the core of QID CI/CD as they are the ones that automate all the Jobs by listening to external resources changes.
@@ -124,29 +211,17 @@ List of keys that are required for a `resource` in order to implement this `reso
 
 #### `check`
 
-Is called periodically (every 1' on the future you'll be able to [change](https://github.com/xescugc/qid/issues/49) it) to see if there are new versions.
+The `label` is the [`runner`](#runner)
+
+Is called periodically (every 1m on the future you'll be able to [change](https://github.com/xescugc/qid/issues/49) it) to see if there are new versions.
 The output separated by `\n` is what it's considered the new versions (may [change](https://github.com/xescugc/qid/issues/9) on the future). It will have a special env
 variable named `$LAST_VERSION_HASH` so the returned versions have to be NEW ones.
 
-##### `path`
-
-The name of or path to the executable to run.
-
-##### `args`
-
-Arguments to pass to the command.
-
 #### `pull`
 
+The `label` is the [`runner`](#runner)
+
 When a Job has a `get` to a resource, when the Job is executed the `resource.pull` is ran beforehand and the `job.task` is ran on the same context so you can pull from GIT and the `job.task` will have access to the pulled repository locally. It will have a special env variable named `$VERSION_HASH` which is the version to pull (same one returned on the `check`)
-
-##### `path`
-
-The name of or path to the executable to run.
-
-##### `args`
-
-Arguments to pass to the command.
 
 #### `push`
 
@@ -162,7 +237,7 @@ resource_type "git" {
     "url",
     "name",
   ]
-  check {
+  check "exec" {
     path = "/bin/bash"
     args = [
       "-ec",
@@ -177,7 +252,7 @@ resource_type "git" {
       EOT
     ]
   }
-  pull {
+  pull "exec" {
     path = "/bin/sh"
     args = [
       "-ec",
@@ -188,7 +263,7 @@ resource_type "git" {
       EOT
     ]
   }
-  push {
+  push "exec" {
     path = "/bin/sh"
     args = [
       <<-EOT
@@ -248,39 +323,21 @@ the resource and trigger it'll be automatically executed on success
 
 ##### `on_success`
 
+The `label` is the [`runner`](#runner)
+
 Runs when the Job succeeds
-
-###### `path`
-
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
 
 ##### `on_failure`
 
+The `label` is the [`runner`](#runner)
+
 Runs when the Job fails
-
-###### `path`
-
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
 
 ##### `ensure`
 
+The `label` is the [`runner`](#runner)
+
 Runs always
-
-###### `path`
-
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
 
 #### `task`
 
@@ -288,83 +345,45 @@ Tasks are the ones that run the logic of the Job
 
 ##### `run`
 
-###### `path`
+The `label` is the [`runner`](#runner)
 
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
+The actual logic for the Job to run
 
 ##### `on_success`
 
+The `label` is the [`runner`](#runner)
+
 Runs when the Job succeeds
-
-###### `path`
-
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
 
 ##### `on_failure`
 
+The `label` is the [`runner`](#runner)
+
 Runs when the Job fails
-
-###### `path`
-
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
 
 ##### `ensure`
 
+The `label` is the [`runner`](#runner)
+
 Runs always
-
-###### `path`
-
-The name of or path to the executable to run.
-
-###### `args`
-
-Arguments to pass to the command.
 
 #### `on_success`
 
+The `label` is the [`runner`](#runner)
+
 Runs when the Job succeeds
-
-##### `path`
-
-The name of or path to the executable to run.
-
-##### `args`
-
-Arguments to pass to the command.
 
 #### `on_failure`
 
+The `label` is the [`runner`](#runner)
+
 Runs when the Job fails
-
-##### `path`
-
-The name of or path to the executable to run.
-
-##### `args`
-
-Arguments to pass to the command.
 
 #### `ensure`
 
+The `label` is the [`runner`](#runner)
+
 Runs always
-
-##### `path`
-
-The name of or path to the executable to run.
-
-##### `args`
 
 #### Example
 
@@ -376,32 +395,15 @@ job "gen" {
     trigger = true
   }
   task "gen" {
-    run {
+    run "exec" {
       path = "make"
-      args = [ 
-        "-C",
-        "/qid",
-        "gen"
-      ]
+      args = <<-EOT
+          '-C'
+          '${var.repo_name}'
+          'gen'
+        EOT
     }
-    on_success {
-      path = "ls"
-    }
-  }
-}
-
-job "notify_slack" {
-  get "git" "my_repo" {
-    trigger = true
-  }
-  task "notify" {
-    run {
-      path = "potato"
-      args = [ 
-        "slack",
-      ]
-    }
-    on_failure {
+    on_success "exec" {
       path = "ls"
     }
   }
@@ -413,16 +415,16 @@ job "test" {
     trigger = true
   }
   task "test" {
-    run {
+    run "exec" {
       path = "make"
-      args = [ 
-        "-C",
-        "/qid",
-        "test"
-      ]
+      args = <<-EOT
+          '-C'
+          '${var.repo_name}'
+          'test'
+        EOT
     }
   }
-  ensure {
+  ensure "exec" {
     path = "ls"
   }
 }
