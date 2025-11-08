@@ -2,7 +2,7 @@ package migrations
 
 // V2JobsAndBuilds adds the hooks for job and builds
 var V2JobsAndBuilds = Migration{
-	Name: "Initial",
+	Name: "JobsAndBuilds",
 	SQL: `
 		ALTER TABLE builds
 			ADD job TEXT;

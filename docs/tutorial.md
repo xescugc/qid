@@ -22,7 +22,7 @@ We'll start simple with a Job that can echo, paste this into the `Pipeline`
 ```hcl
 job "echo" {
   task "echo" {
-    run {
+    run "exec" {
       path = "echo"
       args = ["Hello QID"]
     }
@@ -74,33 +74,29 @@ resource_type "git" {
     "url",
     "name",
   ]
-  check {
-    path = "/bin/bash"
-    args = [
-      "-ec",
-      <<-EOT
-        git clone --quiet $URL $NAME
-        cd $NAME
+  check "exec" {
+    path = "/bin/sh"
+    args = <<-EOT
+        '-ec'
+        'git clone --quiet $url $name
+        cd $name
         if [[ -n $LAST_VERSION_HASH ]]; then
           git log $LAST_VERSION_HASH..HEAD --pretty=format:"%H"
         else
           git log -1 --pretty=format:"%H"
-        fi
+        fi'
       EOT
-    ]
   }
-  pull {
+  pull "exec" {
     path = "/bin/sh"
-    args = [
-      "-ec",
-      <<-EOT
-        git clone $URL $NAME
-        cd $NAME
-        git checkout $VERSION_HASH
+    args = <<-EOT
+        '-ec'
+        'git clone $url $name
+        cd $name
+        git checkout $VERSION_HASH'
       EOT
-    ]
   }
-  push {}
+  push "exec" { }
 }
 
 resource "git" "repo" {
@@ -115,13 +111,12 @@ job "test" {
     trigger = true
   }
   task "test" {
-    run {
+    run "exec" {
       path = "/bin/bash"
-      args = [
-        "-ec",
-        <<-EOT
-          cd qid_test
-          go test
+      args = <<-EOT
+          '-ec'
+          'cd qid_test
+          go test'
         EOT
       ]
     }
@@ -134,13 +129,12 @@ job "build" {
     trigger = true
   }
   task "build" {
-    run {
+    run "exec" {
       path = "/bin/bash"
-      args = [
-        "-ec",
-        <<-EOT
-          cd qid_test
-          go build
+      args = <<-EOT
+          '-ec'
+          'cd qid_test
+          go build'
         EOT
       ]
     }

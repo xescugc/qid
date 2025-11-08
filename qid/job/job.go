@@ -8,9 +8,9 @@ type Job struct {
 	Get  []GetStep  `json:"gets" hcl:"get,block"`
 	Task []TaskStep `json:"tasks" hcl:"task,block"`
 
-	OnSuccess []RunCommand `json:"on_success" hcl:"on_success,block"`
-	OnFailure []RunCommand `json:"on_failure" hcl:"on_failure,block"`
-	Ensure    []RunCommand `json:"ensure" hcl:"ensure,block"`
+	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
+	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
+	Ensure    []utils.RunnerCommand `json:"ensure" hcl:"ensure,block"`
 }
 
 type GetStep struct {
@@ -19,9 +19,9 @@ type GetStep struct {
 	Passed  []string `json:"passed" hcl:"passed,optional"`
 	Trigger bool     `json:"trigger" hcl:"trigger,optional"`
 
-	OnSuccess []RunCommand `json:"on_success" hcl:"on_success,block"`
-	OnFailure []RunCommand `json:"on_failure" hcl:"on_failure,block"`
-	Ensure    []RunCommand `json:"ensure" hcl:"ensure,block"`
+	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
+	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
+	Ensure    []utils.RunnerCommand `json:"ensure" hcl:"ensure,block"`
 }
 
 func (g *GetStep) ResourceCanonical() string {
@@ -29,15 +29,10 @@ func (g *GetStep) ResourceCanonical() string {
 }
 
 type TaskStep struct {
-	Name string     `json:"name" hcl:"name,label"`
-	Run  RunCommand `json:"run" hcl:"run,block"`
+	Name string              `json:"name" hcl:"name,label"`
+	Run  utils.RunnerCommand `json:"run" hcl:"run,block"`
 
-	OnSuccess []RunCommand `json:"on_success" hcl:"on_success,block"`
-	OnFailure []RunCommand `json:"on_failure" hcl:"on_failure,block"`
-	Ensure    []RunCommand `json:"ensure" hcl:"ensure,block"`
-}
-
-type RunCommand struct {
-	Path string   `json:"path" hcl:"path"`
-	Args []string `json:"args" hcl:"args,optional"`
+	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
+	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
+	Ensure    []utils.RunnerCommand `json:"ensure" hcl:"ensure,block"`
 }

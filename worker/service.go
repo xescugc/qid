@@ -11,15 +11,20 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/queue"
 	"github.com/xescugc/qid/qid/resource"
+	"github.com/xescugc/qid/qid/runner"
+	"github.com/xescugc/qid/qid/utils"
 	"gocloud.dev/pubsub"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+
+	"github.com/kballard/go-shellquote"
 )
 
 type Service interface {
@@ -139,191 +144,186 @@ func (w *Worker) Run(ctx context.Context) error {
 			// tacks if the job failed
 			var failed bool
 			for _, g := range j.Get {
-				for _, r := range pp.Resources {
-					for _, rt := range pp.ResourceTypes {
-						if rt.Name == r.Type {
-							cmd := exec.CommandContext(ctx, rt.Pull.Path, rt.Pull.Args...)
-							cmd.Dir = cwd
-							// Set the VERSION_HASH either from the Job or from the last
-							// Version of the resource
-							if g.Name == r.Name && g.Type == r.Type && m.VersionHash != "" {
-								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", m.VersionHash))
-							} else {
-								rCan := strings.Join([]string{g.Type, g.Name}, ".")
-								vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, rCan)
-								if err != nil {
-									ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
-									w.failBuild(ctx, m, b, ferr)
-									level.Error(w.logger).Log("msg", ferr)
-									goto END
-								}
-								if len(vers) == 0 {
-									ferr := fmt.Errorf("failed Job %q from Pipeline %q no versions for the resource %q", m.PipelineName, m.JobName, r.Canonical)
-									w.failBuild(ctx, m, b, ferr)
-									level.Error(w.logger).Log("msg", ferr)
-									goto END
-								}
-								slices.Reverse(vers)
-								cmd.Env = append(cmd.Environ(), fmt.Sprintf("VERSION_HASH=%s", vers[0].Hash))
-							}
+				r, ok := pp.Resource(utils.ResourceCanonical(g.Type, g.Name))
+				if !ok {
+					continue
+				}
+				rt, ok := pp.ResourceType(g.Type)
+				if !ok {
+					continue
+				}
+				params := rt.Pull.Params
+				// Set the VERSION_HASH either from the Job or from the last
+				// Version of the resource
+				if m.VersionHash != "" {
+					params["VERSION_HASH"] = m.VersionHash
+				} else {
+					vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+					if err != nil {
+						ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+						w.failBuild(ctx, m, b, ferr)
+						level.Error(w.logger).Log("msg", ferr)
+						goto END
+					}
+					if len(vers) == 0 {
+						ferr := fmt.Errorf("failed Job %q from Pipeline %q no versions for the resource %q", m.PipelineName, m.JobName, r.Canonical)
+						w.failBuild(ctx, m, b, ferr)
+						level.Error(w.logger).Log("msg", ferr)
+						goto END
+					}
+					slices.Reverse(vers)
+					params["VERSION_HASH"] = vers[0].Hash
+				}
 
-							// Set the inputs as Env
-							for k, v := range r.Inputs.Inputs {
-								if slices.Contains(rt.Inputs, k) {
-									cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
-								}
-							}
-							stdouterr, err := cmd.CombinedOutput()
-							if err != nil {
-								b.Get = append(b.Get, build.Step{
-									Name: g.Name,
-									Logs: string(stdouterr) + "\n" + err.Error(),
-								})
-								b.Status = build.Failed
-								w.failBuild(ctx, m, b, nil)
-								level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Pull.Path, rt.Pull.Args, stdouterr, err))
-								for i, f := range g.OnFailure {
-									cmd := exec.CommandContext(ctx, f.Path, f.Args...)
-									cmd.Dir = cwd
-									stdouterr, err := cmd.CombinedOutput()
-									errs := ""
-									if err != nil {
-										errs = "\n" + err.Error()
-									}
-									name := fmt.Sprintf("%s:on_failure", g.Name)
-									if len(g.OnFailure) > 1 {
-										name = fmt.Sprintf("%s:%d:on_failure", g.Name, i)
-									}
-									b.Get = append(b.Get, build.Step{
-										Name: name,
-										Logs: string(stdouterr) + errs,
-									})
-									err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
-									if err != nil {
-										ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
-										w.failBuild(ctx, m, b, ferr)
-										level.Error(w.logger).Log("msg", ferr)
-										continue
-									}
-								}
-								for i, e := range g.Ensure {
-									cmd := exec.CommandContext(ctx, e.Path, e.Args...)
-									cmd.Dir = cwd
-									stdouterr, err := cmd.CombinedOutput()
-									errs := ""
-									if err != nil {
-										errs = "\n" + err.Error()
-									}
-									name := fmt.Sprintf("%s:ensure", g.Name)
-									if len(g.Ensure) > 1 {
-										name = fmt.Sprintf("%s:%d:ensure", g.Name, i)
-									}
-									b.Get = append(b.Get, build.Step{
-										Name: name,
-										Logs: string(stdouterr) + errs,
-									})
-									err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
-									if err != nil {
-										ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
-										w.failBuild(ctx, m, b, ferr)
-										level.Error(w.logger).Log("msg", ferr)
-										continue
-									}
-								}
-								failed = true
-								goto FAILED_JOB
-							}
-							b.Get = append(b.Get, build.Step{
-								Name:        g.Name,
-								VersionHash: m.VersionHash,
-								Logs:        string(stdouterr),
-							})
-							err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
-							if err != nil {
-								ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
-								w.failBuild(ctx, m, b, ferr)
-								level.Error(w.logger).Log("msg", ferr)
-								continue
-							}
-							for i, s := range g.OnSuccess {
-								cmd := exec.CommandContext(ctx, s.Path, s.Args...)
-								cmd.Dir = cwd
-								stdouterr, err := cmd.CombinedOutput()
-								errs := ""
-								if err != nil {
-									errs = "\n" + err.Error()
-								}
-								name := fmt.Sprintf("%s:on_success", g.Name)
-								if len(g.OnSuccess) > 1 {
-									name = fmt.Sprintf("%s:%d:on_success", g.Name, i)
-								}
-								b.Get = append(b.Get, build.Step{
-									Name: name,
-									Logs: string(stdouterr) + errs,
-								})
-								err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
-								if err != nil {
-									ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
-									w.failBuild(ctx, m, b, ferr)
-									level.Error(w.logger).Log("msg", ferr)
-									continue
-								}
-							}
-							for i, e := range g.Ensure {
-								cmd := exec.CommandContext(ctx, e.Path, e.Args...)
-								cmd.Dir = cwd
-								stdouterr, err := cmd.CombinedOutput()
-								errs := ""
-								if err != nil {
-									errs = "\n" + err.Error()
-								}
-								name := fmt.Sprintf("%s:ensure", g.Name)
-								if len(g.Ensure) > 1 {
-									name = fmt.Sprintf("%s:%d:ensure", g.Name, i)
-								}
-								b.Get = append(b.Get, build.Step{
-									Name: name,
-									Logs: string(stdouterr) + errs,
-								})
-								err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
-								if err != nil {
-									ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
-									w.failBuild(ctx, m, b, ferr)
-									level.Error(w.logger).Log("msg", ferr)
-									continue
-								}
-							}
+				// Set the inputs as Env
+				for k, v := range r.Inputs.Inputs {
+					if slices.Contains(rt.Inputs, k) {
+						params[k] = v
+					}
+				}
+				ru, ok := pp.Runner(rt.Pull.Runner)
+				if !ok {
+					continue
+				}
+				out, err := w.runRunner(ctx, ru, cwd, params)
+				if err != nil {
+					b.Get = append(b.Get, build.Step{
+						Name: g.Name,
+						Logs: out,
+					})
+					b.Status = build.Failed
+					w.failBuild(ctx, m, b, nil)
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
+					for i, f := range g.OnFailure {
+						ru, ok := pp.Runner(f.Runner)
+						if !ok {
+							continue
 						}
+						out, _ := w.runRunner(ctx, ru, cwd, f.Params)
+						name := fmt.Sprintf("%s:on_failure", g.Name)
+						if len(g.OnFailure) > 1 {
+							name = fmt.Sprintf("%s:%d:on_failure", g.Name, i)
+						}
+						b.Get = append(b.Get, build.Step{
+							Name: name,
+							Logs: out,
+						})
+						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+						if err != nil {
+							ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+							w.failBuild(ctx, m, b, ferr)
+							level.Error(w.logger).Log("msg", ferr)
+							continue
+						}
+					}
+					for i, e := range g.Ensure {
+						ru, ok := pp.Runner(e.Runner)
+						if !ok {
+							continue
+						}
+						out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+						name := fmt.Sprintf("%s:ensure", g.Name)
+						if len(g.Ensure) > 1 {
+							name = fmt.Sprintf("%s:%d:ensure", g.Name, i)
+						}
+						b.Get = append(b.Get, build.Step{
+							Name: name,
+							Logs: out,
+						})
+						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+						if err != nil {
+							ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+							w.failBuild(ctx, m, b, ferr)
+							level.Error(w.logger).Log("msg", ferr)
+							continue
+						}
+					}
+					failed = true
+					goto FAILED_JOB
+				}
+				b.Get = append(b.Get, build.Step{
+					Name:        g.Name,
+					VersionHash: m.VersionHash,
+					Logs:        out,
+				})
+				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+				if err != nil {
+					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+					w.failBuild(ctx, m, b, ferr)
+					level.Error(w.logger).Log("msg", ferr)
+					continue
+				}
+				for i, s := range g.OnSuccess {
+					ru, ok := pp.Runner(s.Runner)
+					if !ok {
+						continue
+					}
+					out, _ := w.runRunner(ctx, ru, cwd, s.Params)
+					name := fmt.Sprintf("%s:on_success", g.Name)
+					if len(g.OnSuccess) > 1 {
+						name = fmt.Sprintf("%s:%d:on_success", g.Name, i)
+					}
+					b.Get = append(b.Get, build.Step{
+						Name: name,
+						Logs: out,
+					})
+					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					if err != nil {
+						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+						w.failBuild(ctx, m, b, ferr)
+						level.Error(w.logger).Log("msg", ferr)
+						continue
+					}
+				}
+				for i, e := range g.Ensure {
+					ru, ok := pp.Runner(e.Runner)
+					if !ok {
+						continue
+					}
+					out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+					name := fmt.Sprintf("%s:ensure", g.Name)
+					if len(g.Ensure) > 1 {
+						name = fmt.Sprintf("%s:%d:ensure", g.Name, i)
+					}
+					b.Get = append(b.Get, build.Step{
+						Name: name,
+						Logs: out,
+					})
+					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					if err != nil {
+						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+						w.failBuild(ctx, m, b, ferr)
+						level.Error(w.logger).Log("msg", ferr)
+						continue
 					}
 				}
 			}
 			for _, t := range j.Task {
-				cmd := exec.CommandContext(ctx, t.Run.Path, t.Run.Args...)
-				cmd.Dir = cwd
-				stdouterr, err := cmd.CombinedOutput()
+				ru, ok := pp.Runner(t.Run.Runner)
+				if !ok {
+					continue
+				}
+				out, err := w.runRunner(ctx, ru, cwd, t.Run.Params)
 				if err != nil {
 					b.Task = append(b.Task, build.Step{
 						Name: t.Name,
-						Logs: string(stdouterr) + "\n" + err.Error(),
+						Logs: out,
 					})
 					b.Status = build.Failed
 					w.failBuild(ctx, m, b, nil)
-					level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command %q with args %q: %w", t.Run.Path, t.Run.Args, err))
 					for i, f := range t.OnFailure {
-						cmd := exec.CommandContext(ctx, f.Path, f.Args...)
-						cmd.Dir = cwd
-						stdouterr, err := cmd.CombinedOutput()
-						errs := ""
-						if err != nil {
-							errs = "\n" + err.Error()
+						ru, ok := pp.Runner(f.Runner)
+						if !ok {
+							continue
 						}
+						out, _ := w.runRunner(ctx, ru, cwd, f.Params)
 						name := fmt.Sprintf("%s:on_failure", t.Name)
 						if len(t.OnFailure) > 1 {
 							name = fmt.Sprintf("%s:%d:on_failure", t.Name, i)
 						}
 						b.Task = append(b.Task, build.Step{
 							Name: name,
-							Logs: string(stdouterr) + errs,
+							Logs: out,
 						})
 						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
@@ -334,20 +334,18 @@ func (w *Worker) Run(ctx context.Context) error {
 						}
 					}
 					for i, e := range t.Ensure {
-						cmd := exec.CommandContext(ctx, e.Path, e.Args...)
-						cmd.Dir = cwd
-						stdouterr, err := cmd.CombinedOutput()
-						errs := ""
-						if err != nil {
-							errs = "\n" + err.Error()
+						ru, ok := pp.Runner(e.Runner)
+						if !ok {
+							continue
 						}
+						out, _ := w.runRunner(ctx, ru, cwd, e.Params)
 						name := fmt.Sprintf("%s:ensure", t.Name)
 						if len(t.Ensure) > 1 {
 							name = fmt.Sprintf("%s:%d:ensure", t.Name, i)
 						}
 						b.Task = append(b.Task, build.Step{
 							Name: name,
-							Logs: string(stdouterr) + errs,
+							Logs: out,
 						})
 						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
@@ -362,7 +360,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 				b.Task = append(b.Task, build.Step{
 					Name: t.Name,
-					Logs: string(stdouterr),
+					Logs: out,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -372,20 +370,18 @@ func (w *Worker) Run(ctx context.Context) error {
 					continue
 				}
 				for i, s := range t.OnSuccess {
-					cmd := exec.CommandContext(ctx, s.Path, s.Args...)
-					cmd.Dir = cwd
-					stdouterr, err := cmd.CombinedOutput()
-					errs := ""
-					if err != nil {
-						errs = "\n" + err.Error()
+					ru, ok := pp.Runner(s.Runner)
+					if !ok {
+						continue
 					}
+					out, _ := w.runRunner(ctx, ru, cwd, s.Params)
 					name := fmt.Sprintf("%s:on_success", t.Name)
 					if len(t.OnSuccess) > 1 {
 						name = fmt.Sprintf("%s:%d:on_success", t.Name, i)
 					}
 					b.Task = append(b.Task, build.Step{
 						Name: name,
-						Logs: string(stdouterr) + errs,
+						Logs: out,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -396,20 +392,18 @@ func (w *Worker) Run(ctx context.Context) error {
 					}
 				}
 				for i, e := range t.Ensure {
-					cmd := exec.CommandContext(ctx, e.Path, e.Args...)
-					cmd.Dir = cwd
-					stdouterr, err := cmd.CombinedOutput()
-					errs := ""
-					if err != nil {
-						errs = "\n" + err.Error()
+					ru, ok := pp.Runner(e.Runner)
+					if !ok {
+						continue
 					}
+					out, _ := w.runRunner(ctx, ru, cwd, e.Params)
 					name := fmt.Sprintf("%s:ensure", t.Name)
 					if len(t.Ensure) > 1 {
 						name = fmt.Sprintf("%s:%d:ensure", t.Name, i)
 					}
 					b.Task = append(b.Task, build.Step{
 						Name: name,
-						Logs: string(stdouterr) + errs,
+						Logs: out,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -449,20 +443,18 @@ func (w *Worker) Run(ctx context.Context) error {
 				continue
 			}
 			for i, s := range j.OnSuccess {
-				cmd := exec.CommandContext(ctx, s.Path, s.Args...)
-				cmd.Dir = cwd
-				stdouterr, err := cmd.CombinedOutput()
-				errs := ""
-				if err != nil {
-					errs = "\n" + err.Error()
+				ru, ok := pp.Runner(s.Runner)
+				if !ok {
+					continue
 				}
+				out, _ := w.runRunner(ctx, ru, cwd, s.Params)
 				name := fmt.Sprintf("on_success")
 				if len(j.OnSuccess) > 1 {
 					name = fmt.Sprintf("%d:on_success", i)
 				}
 				b.Job = append(b.Job, build.Step{
 					Name: name,
-					Logs: string(stdouterr) + errs,
+					Logs: out,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -477,20 +469,18 @@ func (w *Worker) Run(ctx context.Context) error {
 		FAILED_JOB:
 			if failed {
 				for i, f := range j.OnFailure {
-					cmd := exec.CommandContext(ctx, f.Path, f.Args...)
-					cmd.Dir = cwd
-					stdouterr, err := cmd.CombinedOutput()
-					errs := ""
-					if err != nil {
-						errs = "\n" + err.Error()
+					ru, ok := pp.Runner(f.Runner)
+					if !ok {
+						continue
 					}
+					out, _ := w.runRunner(ctx, ru, cwd, f.Params)
 					name := fmt.Sprintf("on_failure")
 					if len(j.OnFailure) > 1 {
 						name = fmt.Sprintf("%d:on_failure", i)
 					}
 					b.Job = append(b.Job, build.Step{
 						Name: name,
-						Logs: string(stdouterr) + errs,
+						Logs: out,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -502,20 +492,18 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 			}
 			for i, e := range j.Ensure {
-				cmd := exec.CommandContext(ctx, e.Path, e.Args...)
-				cmd.Dir = cwd
-				stdouterr, err := cmd.CombinedOutput()
-				errs := ""
-				if err != nil {
-					errs = "\n" + err.Error()
+				ru, ok := pp.Runner(e.Runner)
+				if !ok {
+					continue
 				}
+				out, _ := w.runRunner(ctx, ru, cwd, e.Params)
 				name := fmt.Sprintf("ensure")
 				if len(j.Ensure) > 1 {
 					name = fmt.Sprintf("%d:ensure", i)
 				}
 				b.Job = append(b.Job, build.Step{
 					Name: name,
-					Logs: string(stdouterr) + errs,
+					Logs: out,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -530,85 +518,88 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		} else if m.PipelineName != "" && m.ResourceCanonical != "" {
 			// This is for the periodic resource checks
-			for _, r := range pp.Resources {
-				if r.Canonical != m.ResourceCanonical {
+			r, ok := pp.Resource(m.ResourceCanonical)
+			if !ok {
+				continue
+			}
+			rt, ok := pp.ResourceType(r.Type)
+			if !ok {
+				continue
+			}
+
+			params := rt.Check.Params
+
+			vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+			if err != nil {
+				ferr := fmt.Errorf("failed to list resource versions: %w", err)
+				level.Error(w.logger).Log("msg", ferr)
+				goto END
+			}
+			if len(vers) != 0 {
+				params["LAST_VERSION_HASH"] = vers[0].Hash
+			}
+			for k, v := range r.Inputs.Inputs {
+				if slices.Contains(rt.Inputs, k) {
+					params[k] = v
+				}
+			}
+			ru, ok := pp.Runner(rt.Check.Runner)
+			if !ok {
+				continue
+			}
+			out, err := w.runRunner(ctx, ru, cwd, params)
+			if err != nil {
+				r.Logs = out
+				nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+				if nerr != nil {
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
+				}
+				level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
+				goto END
+			}
+			if r.Logs != "" {
+				r.Logs = ""
+				err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+				if err != nil {
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q from Pipeline %q: %w", r.Canonical, m.PipelineName, err))
+					goto END
+				}
+			}
+			hashs := strings.Split(out, "\n")
+			if len(hashs) == 0 || out == "" {
+				// Nothing new so we can skip
+				goto END
+			}
+			for _, h := range hashs {
+				if h == "" {
 					continue
 				}
-				for _, rt := range pp.ResourceTypes {
-					if rt.Name == r.Type {
-						cmd := exec.CommandContext(ctx, rt.Check.Path, rt.Check.Args...)
-						cmd.Dir = cwd
-
-						vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
-						if err != nil {
-							ferr := fmt.Errorf("failed to list resource versions: %w", err)
-							level.Error(w.logger).Log("msg", ferr)
-							goto END
-						}
-						if len(vers) != 0 {
-							cmd.Env = append(cmd.Environ(), fmt.Sprintf("LAST_VERSION_HASH=%s", vers[0].Hash))
-						}
-						for k, v := range r.Inputs.Inputs {
-							if slices.Contains(rt.Inputs, k) {
-								cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
+				err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
+					Hash: h,
+				})
+				if err != nil {
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed to create Resource Version body: %w", err))
+					goto END
+				}
+				for _, j := range pp.Jobs {
+					for _, g := range j.Get {
+						// If Passed is not 0 it means is waiting for another job
+						// and this trigger is only for resources
+						if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
+							b := queue.Body{
+								PipelineName:      pp.Name,
+								JobName:           j.Name,
+								ResourceCanonical: r.Canonical,
+								VersionHash:       h,
 							}
-						}
-						stdouterr, err := cmd.CombinedOutput()
-						if err != nil {
-							r.Logs = string(stdouterr) + "\n" + err.Error()
-							nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
-							if nerr != nil {
-								level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, nerr))
-							}
-							level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command %q with args %q (%s): %w", rt.Check.Path, rt.Check.Args, stdouterr, err))
-							goto END
-						}
-						if r.Logs != "" {
-							r.Logs = ""
-							err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+							mb, err := json.Marshal(b)
 							if err != nil {
-								level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Type, r.Name, m.PipelineName, err))
+								level.Error(w.logger).Log("msg", fmt.Errorf("failed to run marshal body: %w", err))
 								goto END
 							}
-						}
-						hashs := strings.Split(string(stdouterr), "\n")
-						if len(hashs) == 0 || string(stdouterr) == "" {
-							// Nothing new so we can skip
-							goto END
-						}
-						for _, h := range hashs {
-							if h == "" {
-								continue
-							}
-							err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
-								Hash: h,
+							w.topic.Send(ctx, &pubsub.Message{
+								Body: mb,
 							})
-							if err != nil {
-								level.Error(w.logger).Log("msg", fmt.Errorf("failed to create Resource Version body: %w", err))
-								goto END
-							}
-							for _, j := range pp.Jobs {
-								for _, g := range j.Get {
-									// If Passed is not 0 it means is waiting for another job
-									// and this trigger is only for resources
-									if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
-										b := queue.Body{
-											PipelineName:      pp.Name,
-											JobName:           j.Name,
-											ResourceCanonical: r.Canonical,
-											VersionHash:       h,
-										}
-										mb, err := json.Marshal(b)
-										if err != nil {
-											level.Error(w.logger).Log("msg", fmt.Errorf("failed to run marshal body: %w", err))
-											goto END
-										}
-										w.topic.Send(ctx, &pubsub.Message{
-											Body: mb,
-										})
-									}
-								}
-							}
 						}
 					}
 				}
@@ -621,6 +612,56 @@ func (w *Worker) Run(ctx context.Context) error {
 		os.RemoveAll(cwd)
 	}
 	return nil
+}
+
+// runRunner runs the Runner and retuns the aggregated output and the error (already included on the aggregated output)
+// func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, params map[string]string) (string, error) {
+func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, params map[string]string) (string, error) {
+	var (
+		cmd *exec.Cmd
+		out string
+	)
+	envs := map[string]string{
+		"WORKDIR": cwd,
+	}
+	for k, v := range params {
+		envs[k] = v
+	}
+	envFn := func(p string) string {
+		if v, ok := envs[p]; ok {
+			return v
+		}
+		return os.Getenv(p)
+	}
+
+	args := make([]string, 0, 0)
+	for _, a := range ru.Run.Args {
+		ea := os.Expand(a, envFn)
+		if ea == "" {
+			continue
+		}
+		//ea = os.Expand(ea, envFn)
+		sea, err := shellquote.Split(ea)
+		if err != nil {
+			out += "\n" + err.Error()
+			return out, err
+		}
+		args = append(args, sea...)
+	}
+	cmd = exec.CommandContext(ctx, os.Expand(ru.Run.Path, envFn), args...)
+	cmd.Dir = cwd
+	for k, v := range envs {
+		cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", k, v))
+	}
+
+	spew.Dump(cmd.String())
+	stdouterr, err := cmd.CombinedOutput()
+	out += string(stdouterr)
+	if err != nil {
+		out += "\n" + err.Error()
+	}
+
+	return out, err
 }
 
 func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err error) {
