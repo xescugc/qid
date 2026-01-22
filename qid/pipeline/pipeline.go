@@ -36,6 +36,19 @@ func (pp *Pipeline) ResourceType(rtn string) (restype.ResourceType, bool) {
 			return rt, true
 		}
 	}
+
+	if rtn == "cron" {
+		return restype.ResourceType{
+			Name: "cron",
+			Check: utils.RunnerCommand{
+				Runner: "exec",
+				Params: map[string]string{
+					"path": "date",
+				},
+			},
+		}, true
+	}
+
 	return restype.ResourceType{}, false
 }
 
@@ -45,6 +58,7 @@ func (pp *Pipeline) Resource(rCan string) (resource.Resource, bool) {
 			return r, true
 		}
 	}
+
 	return resource.Resource{}, false
 }
 

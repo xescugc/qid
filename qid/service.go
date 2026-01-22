@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/awalterschulze/gographviz"
+	cron "github.com/netresearch/go-cron"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
@@ -56,7 +57,9 @@ type Qid struct {
 	ResourceTypes restype.Repository
 	Builds        build.Repository
 	Runners       runner.Repository
+	Ctx           context.Context
 
+	cron   *cron.Cron
 	logger log.Logger
 }
 
@@ -69,73 +72,43 @@ func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repo
 		ResourceTypes: rt,
 		Builds:        br,
 		Runners:       rur,
+		Ctx:           ctx,
 		logger:        l,
+		cron:          cron.New(cron.WithContext(ctx)),
 	}
 
-	go q.resourceCheck(ctx)
+	//q.cron.AddFunc("@every 1s", q.resourceCheck)
+	q.cron.Start()
 
 	return q
 }
 
-func (q *Qid) resourceCheck(ctx context.Context) {
-	t := time.NewTicker(1 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			level.Info(q.logger).Log("msg", "Checking for resources ....")
-			pps, _ := q.Pipelines.Filter(ctx)
-			for _, pp := range pps {
-				resources, err := q.Resources.Filter(ctx, pp.Name)
-				if err != nil {
-					//return nil, fmt.Errorf("failed to get Resources from Pipeline %q: %w", pn, err)
-				}
-
-				restypes, err := q.ResourceTypes.Filter(ctx, pp.Name)
-				if err != nil {
-					//return nil, fmt.Errorf("failed to get Resource Types from Pipeline %q: %w", pn, err)
-				}
-				for _, r := range resources {
-					// Default interval is 1m so if it's not set we'll check that
-					ci := "1m"
-					if r.CheckInterval != "" {
-						ci = r.CheckInterval
-					}
-					d, err := time.ParseDuration(ci)
-					if err != nil {
-						level.Error(q.logger).Log("msg", "failed to parse CheckInterval", "CheckInterval", ci, "error", err.Error())
-						continue
-					}
-
-					if time.Now().Sub(r.LastCheck) < d {
-						// Not yet on the interval to check
-						continue
-					}
-					for _, rt := range restypes {
-						if r.Type == rt.Name {
-							m := queue.Body{
-								PipelineName:      pp.Name,
-								ResourceCanonical: r.Canonical,
-							}
-							mb, err := json.Marshal(m)
-							if err != nil {
-								//return fmt.Errorf("failed to marshal Message Body: %w", err)
-							}
-							err = q.Topic.Send(ctx, &pubsub.Message{
-								Body: mb,
-							})
-							if err != nil {
-								//return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
-							}
-							r.LastCheck = time.Now()
-							_ = q.UpdatePipelineResource(ctx, pp.Name, r.Canonical, *r)
-						}
-					}
-				}
-			}
-		case <-ctx.Done():
+func (q *Qid) newCronResourceFunc(ppName, resCan string) func() {
+	return func() {
+		level.Info(q.logger).Log("msg", "Checking resource ...", "Pipeline", ppName, "Resource", resCan)
+		r, err := q.Resources.Find(q.Ctx, ppName, resCan)
+		if err != nil {
+			level.Error(q.logger).Log("msg", "failed to find Resource", "error", err.Error())
 			return
 		}
+		m := queue.Body{
+			PipelineName:      ppName,
+			ResourceCanonical: resCan,
+		}
+		mb, err := json.Marshal(m)
+		if err != nil {
+			level.Error(q.logger).Log("msg", "failed to marshal Message Body", "error", err.Error())
+			return
+		}
+		err = q.Topic.Send(q.Ctx, &pubsub.Message{
+			Body: mb,
+		})
+		if err != nil {
+			level.Error(q.logger).Log("msg", "failed to send Topic", "error", err.Error())
+			return
+		}
+		r.LastCheck = time.Now()
+		_ = q.UpdatePipelineResource(q.Ctx, ppName, resCan, *r)
 	}
 }
 
@@ -181,8 +154,18 @@ func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 		if !utils.ValidateCanonical(r.Name) {
 			return fmt.Errorf("invalid Resource Name format %q", r.Name)
 		}
+		spec := r.CheckInterval
+		if spec == "" {
+			spec = "@every 1m"
+		}
+		eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(pp.Name, r.Canonical))
+		if err != nil {
+			return fmt.Errorf("failed to add Cron Func %q: %w", r.Name, err)
+		}
+		r.CronID = uint64(eid)
 		_, err = q.Resources.Create(ctx, pn, r)
 		if err != nil {
+			q.cron.Remove(eid)
 			return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
 		}
 	}
@@ -275,24 +258,46 @@ func (q *Qid) UpdatePipeline(ctx context.Context, pn string, rpp []byte, vars ma
 		}
 	}
 
-	dbrs := make(map[string]struct{})
+	dbrs := make(map[string]resource.Resource)
 	for _, r := range dbpp.Resources {
-		dbrs[r.Name] = struct{}{}
+		dbrs[r.Name] = r
 	}
 	for _, r := range pp.Resources {
 		if !utils.ValidateCanonical(r.Name) {
 			return fmt.Errorf("invalid Resource Name format %q", r.Name)
 		}
-		if _, ok := dbrs[r.Name]; ok {
+		if dbr, ok := dbrs[r.Name]; ok {
 			delete(dbrs, r.Name)
+			if dbr.CheckInterval != r.CheckInterval {
+				q.cron.Remove(cron.EntryID(dbr.CronID))
+				spec := r.CheckInterval
+				if spec == "" {
+					spec = "@every 1m"
+				}
+				eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(pp.Name, r.Canonical))
+				if err != nil {
+					return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
+				}
+				r.CronID = uint64(eid)
+			}
 			err = q.Resources.Update(ctx, pn, r.Canonical, r)
 			if err != nil {
-				return fmt.Errorf("failed to update Resource %q: %w", r.Name, err)
+				return fmt.Errorf("failed to update Resource %q: %w", r.Canonical, err)
 			}
 		} else {
+			q.cron.Remove(cron.EntryID(dbr.CronID))
+			spec := r.CheckInterval
+			if spec == "" {
+				spec = "@every 1m"
+			}
+			eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(pp.Name, r.Canonical))
+			if err != nil {
+				return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
+			}
+			r.CronID = uint64(eid)
 			_, err = q.Resources.Create(ctx, pn, r)
 			if err != nil {
-				return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
+				return fmt.Errorf("failed to create Resource %q: %w", r.Canonical, err)
 			}
 		}
 	}
@@ -633,8 +638,17 @@ func (q *Qid) DeletePipeline(ctx context.Context, pn string) error {
 	if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	}
+	resources, err := q.Resources.Filter(ctx, pn)
+	if err != nil {
+		return fmt.Errorf("failed to get Resources from Pipeline %q: %w", pn, err)
+	}
 
-	err := q.Pipelines.Delete(ctx, pn)
+	// Removes all the Cron Resources
+	for _, res := range resources {
+		q.cron.Remove(cron.EntryID(res.CronID))
+	}
+
+	err = q.Pipelines.Delete(ctx, pn)
 	if err != nil {
 		return fmt.Errorf("failed to delete Pipeline %q: %w", pn, err)
 	}

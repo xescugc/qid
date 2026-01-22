@@ -24,6 +24,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/lopezator/migrator v0.3.1
 	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/netresearch/go-cron v0.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.4.1
 	github.com/zclconf/go-cty v1.16.3
