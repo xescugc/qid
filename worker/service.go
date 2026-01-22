@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
@@ -153,6 +152,9 @@ func (w *Worker) Run(ctx context.Context) error {
 					continue
 				}
 				params := rt.Pull.Params
+				if params == nil {
+					params = make(map[string]string)
+				}
 				// Set the VERSION_HASH either from the Job or from the last
 				// Version of the resource
 				if m.VersionHash != "" {
@@ -654,12 +656,13 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, pa
 		cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", k, v))
 	}
 
-	spew.Dump(cmd.String())
+	level.Debug(w.logger).Log("msg", "running command", cmd.String())
 	stdouterr, err := cmd.CombinedOutput()
 	out += string(stdouterr)
 	if err != nil {
 		out += "\n" + err.Error()
 	}
+	level.Debug(w.logger).Log("msg", "finished running command", "out", out)
 
 	return out, err
 }

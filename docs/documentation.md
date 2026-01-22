@@ -11,7 +11,7 @@ run the Jobs tasks and interact with the QID server to make any operations.
 
 ## How it works
 
-The QID server checks periodically (every 1m) the Pipelines Resources to see if there is a new version to trigger a new Build for a
+Pipelines Resources are check with the [`check_interval`](#check_interval) to see if there is a new version to trigger a new Build for a
 Job that depends on that Resource that changed. If there is then a new job/s will be queued for a Worker to do.
 Then when it finishes it checks if another job depends on it and queues for that job/s to be triggered.
 
@@ -205,6 +205,38 @@ Resource Type are the core of QID CI/CD as they are the ones that automate all t
 
 For now you always have to defined the `resource_type` but ideally they are really reusable in between different pipelines so in the future this will [change](https://github.com/xescugc/qid/issues/11) so you can reuse it
 
+#### Internals
+
+This is the list of internal Resource Types:
+
+##### `cron`
+
+It'll always return a new value (internally does `date` so for now only available if `date` is present). When used in a [`resource`](#resource) with
+[`check_interval`](#check_interval) you effectively created a way to execute a Job periodically.
+
+###### Example
+
+Every `5s` it'll run the Job `my_job` as it's registered with `get "cron" "my_cron"`
+
+```hcl
+resource "cron" "my_cron" {
+  check_interval = "@every 5s"
+  inputs {}
+}
+
+job "my_job" {
+  get "cron" "my_cron" {
+    trigger = true
+  }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = "'IN'"
+    }
+  }
+}
+```
+
 #### `inputs`
 
 List of keys that are required for a `resource` in order to implement this `resource_type` and will be passed to `check`, `pull` and `push` in ENV.
@@ -277,7 +309,7 @@ resource_type "git" {
 
 ### Resource
 
-Resources are the implementation of the Resource Type by initializing it with the inputs defined on the `resource_type.inputs`.
+Resources are the implementation of the [Resource Type](#resource-type) by initializing it with the inputs defined on the [`resource_type.inputs`](#inputs).
 
 When defined a `resource` the first label is the `resource_type` and the 2nd is the name of the resource.
 
@@ -287,9 +319,7 @@ Is a block that contains all the `resource_type.inputs` defined that will be pas
 
 #### `check_interval`
 
-Interval in which to check the resource. By default the value is `1m` and the syntax is the [time.Duration](https://pkg.go.dev/time#example-Duration) string syntax
-
-The value cannot be lower than `1s` as this is the interval in which QID checks for resources to check
+Interval in which to check the resource. By default the value is `@every 1m` and the syntax is the [CRON](https://github.com/netresearch/go-cron)
 
 #### Example
 

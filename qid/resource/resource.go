@@ -10,6 +10,7 @@ type Resource struct {
 	Inputs        Inputs `json:"inputs" hcl:"inputs,block"`
 	CheckInterval string `json:"check_interval" hcl:"check_interval,optional"`
 
+	CronID    uint64    `json:"cron_id"`
 	Canonical string    `json:"canonical"`
 	Logs      string    `json:"logs"`
 	LastCheck time.Time `json:"last_check"`
