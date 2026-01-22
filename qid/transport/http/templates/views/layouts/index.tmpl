@@ -232,8 +232,8 @@
       </div>
       <div class="row">
         <div class="col">
-          <p class="float-end">Last checked at: <%- new Date(resource.last_check).toLocaleString() %>
           <button type="button" id="trigger-resource" class="btn btn-warning float-end">Trigger Resource</button>
+          <p class="float-end">Last checked (<%- resource.check_interval||"@every 1m" %>) at: <%- new Date(resource.last_check).toLocaleString() %></p>
         </div>
       </div>
       <div class="row" id="resource-versions">
