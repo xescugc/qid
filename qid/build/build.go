@@ -1,5 +1,7 @@
 package build
 
+import "time"
+
 //go:generate go tool enumer -type=Status -transform=snake -output=status_string.go -json
 
 type Status int
@@ -19,10 +21,14 @@ type Build struct {
 	Error  string `json:"error"`
 	// Job are the general logs printed at the end
 	Job []Step `json:"job"`
+
+	StartedAt time.Time     `json:"started_at"`
+	Duration  time.Duration `json:"duration"`
 }
 
 type Step struct {
-	Name        string `json:"name"`
-	VersionHash string `json:"version_hash"`
-	Logs        string `json:"logs"`
+	Name        string        `json:"name"`
+	VersionHash string        `json:"version_hash"`
+	Logs        string        `json:"logs"`
+	Duration    time.Duration `json:"duration"`
 }

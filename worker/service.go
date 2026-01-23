@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/google/uuid"
@@ -81,9 +82,10 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		if m.PipelineName != "" && m.JobName != "" {
 			b := build.Build{
-				Status: build.Started,
-				Get:    make([]build.Step, 0, 0),
-				Task:   make([]build.Step, 0, 0),
+				Status:    build.Started,
+				Get:       make([]build.Step, 0, 0),
+				Task:      make([]build.Step, 0, 0),
+				StartedAt: time.Now(),
 			}
 			nb, err := w.qid.CreateJobBuild(ctx, m.PipelineName, m.JobName, b)
 			if err != nil {
@@ -104,7 +106,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			// are Succeeded
 			passed := true
 			// NOTE: As this could happen concurrently that a resource changes
-			// an improvemnt could be to store the version that was validated
+			// an improvement could be to store the version that was validated
 			// of the resource_type
 			for _, g := range j.Get {
 				if !passed {
@@ -187,11 +189,12 @@ func (w *Worker) Run(ctx context.Context) error {
 				if !ok {
 					continue
 				}
-				out, err := w.runRunner(ctx, ru, cwd, params)
+				out, d, err := w.runRunner(ctx, ru, cwd, params)
 				if err != nil {
 					b.Get = append(b.Get, build.Step{
-						Name: g.Name,
-						Logs: out,
+						Name:     g.Name,
+						Logs:     out,
+						Duration: d,
 					})
 					b.Status = build.Failed
 					w.failBuild(ctx, m, b, nil)
@@ -201,14 +204,15 @@ func (w *Worker) Run(ctx context.Context) error {
 						if !ok {
 							continue
 						}
-						out, _ := w.runRunner(ctx, ru, cwd, f.Params)
+						out, d, _ := w.runRunner(ctx, ru, cwd, f.Params)
 						name := fmt.Sprintf("%s:on_failure", g.Name)
 						if len(g.OnFailure) > 1 {
 							name = fmt.Sprintf("%s:%d:on_failure", g.Name, i)
 						}
 						b.Get = append(b.Get, build.Step{
-							Name: name,
-							Logs: out,
+							Name:     name,
+							Logs:     out,
+							Duration: d,
 						})
 						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
@@ -223,14 +227,15 @@ func (w *Worker) Run(ctx context.Context) error {
 						if !ok {
 							continue
 						}
-						out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+						out, d, _ := w.runRunner(ctx, ru, cwd, e.Params)
 						name := fmt.Sprintf("%s:ensure", g.Name)
 						if len(g.Ensure) > 1 {
 							name = fmt.Sprintf("%s:%d:ensure", g.Name, i)
 						}
 						b.Get = append(b.Get, build.Step{
-							Name: name,
-							Logs: out,
+							Name:     name,
+							Logs:     out,
+							Duration: d,
 						})
 						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
@@ -247,6 +252,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					Name:        g.Name,
 					VersionHash: m.VersionHash,
 					Logs:        out,
+					Duration:    d,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -260,14 +266,15 @@ func (w *Worker) Run(ctx context.Context) error {
 					if !ok {
 						continue
 					}
-					out, _ := w.runRunner(ctx, ru, cwd, s.Params)
+					out, d, _ := w.runRunner(ctx, ru, cwd, s.Params)
 					name := fmt.Sprintf("%s:on_success", g.Name)
 					if len(g.OnSuccess) > 1 {
 						name = fmt.Sprintf("%s:%d:on_success", g.Name, i)
 					}
 					b.Get = append(b.Get, build.Step{
-						Name: name,
-						Logs: out,
+						Name:     name,
+						Logs:     out,
+						Duration: d,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -282,14 +289,15 @@ func (w *Worker) Run(ctx context.Context) error {
 					if !ok {
 						continue
 					}
-					out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+					out, d, _ := w.runRunner(ctx, ru, cwd, e.Params)
 					name := fmt.Sprintf("%s:ensure", g.Name)
 					if len(g.Ensure) > 1 {
 						name = fmt.Sprintf("%s:%d:ensure", g.Name, i)
 					}
 					b.Get = append(b.Get, build.Step{
-						Name: name,
-						Logs: out,
+						Name:     name,
+						Logs:     out,
+						Duration: d,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -305,11 +313,12 @@ func (w *Worker) Run(ctx context.Context) error {
 				if !ok {
 					continue
 				}
-				out, err := w.runRunner(ctx, ru, cwd, t.Run.Params)
+				out, d, err := w.runRunner(ctx, ru, cwd, t.Run.Params)
 				if err != nil {
 					b.Task = append(b.Task, build.Step{
-						Name: t.Name,
-						Logs: out,
+						Name:     t.Name,
+						Logs:     out,
+						Duration: d,
 					})
 					b.Status = build.Failed
 					w.failBuild(ctx, m, b, nil)
@@ -318,14 +327,15 @@ func (w *Worker) Run(ctx context.Context) error {
 						if !ok {
 							continue
 						}
-						out, _ := w.runRunner(ctx, ru, cwd, f.Params)
+						out, d, _ := w.runRunner(ctx, ru, cwd, f.Params)
 						name := fmt.Sprintf("%s:on_failure", t.Name)
 						if len(t.OnFailure) > 1 {
 							name = fmt.Sprintf("%s:%d:on_failure", t.Name, i)
 						}
 						b.Task = append(b.Task, build.Step{
-							Name: name,
-							Logs: out,
+							Name:     name,
+							Logs:     out,
+							Duration: d,
 						})
 						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
@@ -340,14 +350,15 @@ func (w *Worker) Run(ctx context.Context) error {
 						if !ok {
 							continue
 						}
-						out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+						out, d, _ := w.runRunner(ctx, ru, cwd, e.Params)
 						name := fmt.Sprintf("%s:ensure", t.Name)
 						if len(t.Ensure) > 1 {
 							name = fmt.Sprintf("%s:%d:ensure", t.Name, i)
 						}
 						b.Task = append(b.Task, build.Step{
-							Name: name,
-							Logs: out,
+							Name:     name,
+							Logs:     out,
+							Duration: d,
 						})
 						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
@@ -361,8 +372,9 @@ func (w *Worker) Run(ctx context.Context) error {
 					goto FAILED_JOB
 				}
 				b.Task = append(b.Task, build.Step{
-					Name: t.Name,
-					Logs: out,
+					Name:     t.Name,
+					Logs:     out,
+					Duration: d,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -376,14 +388,15 @@ func (w *Worker) Run(ctx context.Context) error {
 					if !ok {
 						continue
 					}
-					out, _ := w.runRunner(ctx, ru, cwd, s.Params)
+					out, d, _ := w.runRunner(ctx, ru, cwd, s.Params)
 					name := fmt.Sprintf("%s:on_success", t.Name)
 					if len(t.OnSuccess) > 1 {
 						name = fmt.Sprintf("%s:%d:on_success", t.Name, i)
 					}
 					b.Task = append(b.Task, build.Step{
-						Name: name,
-						Logs: out,
+						Name:     name,
+						Logs:     out,
+						Duration: d,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -398,14 +411,15 @@ func (w *Worker) Run(ctx context.Context) error {
 					if !ok {
 						continue
 					}
-					out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+					out, d, _ := w.runRunner(ctx, ru, cwd, e.Params)
 					name := fmt.Sprintf("%s:ensure", t.Name)
 					if len(t.Ensure) > 1 {
 						name = fmt.Sprintf("%s:%d:ensure", t.Name, i)
 					}
 					b.Task = append(b.Task, build.Step{
-						Name: name,
-						Logs: out,
+						Name:     name,
+						Logs:     out,
+						Duration: d,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -449,14 +463,15 @@ func (w *Worker) Run(ctx context.Context) error {
 				if !ok {
 					continue
 				}
-				out, _ := w.runRunner(ctx, ru, cwd, s.Params)
+				out, d, _ := w.runRunner(ctx, ru, cwd, s.Params)
 				name := fmt.Sprintf("on_success")
 				if len(j.OnSuccess) > 1 {
 					name = fmt.Sprintf("%d:on_success", i)
 				}
 				b.Job = append(b.Job, build.Step{
-					Name: name,
-					Logs: out,
+					Name:     name,
+					Logs:     out,
+					Duration: d,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -475,14 +490,15 @@ func (w *Worker) Run(ctx context.Context) error {
 					if !ok {
 						continue
 					}
-					out, _ := w.runRunner(ctx, ru, cwd, f.Params)
+					out, d, _ := w.runRunner(ctx, ru, cwd, f.Params)
 					name := fmt.Sprintf("on_failure")
 					if len(j.OnFailure) > 1 {
 						name = fmt.Sprintf("%d:on_failure", i)
 					}
 					b.Job = append(b.Job, build.Step{
-						Name: name,
-						Logs: out,
+						Name:     name,
+						Logs:     out,
+						Duration: d,
 					})
 					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
@@ -498,14 +514,15 @@ func (w *Worker) Run(ctx context.Context) error {
 				if !ok {
 					continue
 				}
-				out, _ := w.runRunner(ctx, ru, cwd, e.Params)
+				out, d, _ := w.runRunner(ctx, ru, cwd, e.Params)
 				name := fmt.Sprintf("ensure")
 				if len(j.Ensure) > 1 {
 					name = fmt.Sprintf("%d:ensure", i)
 				}
 				b.Job = append(b.Job, build.Step{
-					Name: name,
-					Logs: out,
+					Name:     name,
+					Logs:     out,
+					Duration: d,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -549,7 +566,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			if !ok {
 				continue
 			}
-			out, err := w.runRunner(ctx, ru, cwd, params)
+			out, _, err := w.runRunner(ctx, ru, cwd, params)
 			if err != nil {
 				r.Logs = out
 				nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
@@ -618,7 +635,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 // runRunner runs the Runner and retuns the aggregated output and the error (already included on the aggregated output)
 // func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, params map[string]string) (string, error) {
-func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, params map[string]string) (string, error) {
+func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, params map[string]string) (string, time.Duration, error) {
 	var (
 		cmd *exec.Cmd
 		out string
@@ -646,7 +663,7 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, pa
 		sea, err := shellquote.Split(ea)
 		if err != nil {
 			out += "\n" + err.Error()
-			return out, err
+			return out, time.Duration(1), err
 		}
 		args = append(args, sea...)
 	}
@@ -657,14 +674,16 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, pa
 	}
 
 	level.Debug(w.logger).Log("msg", "running command", cmd.String())
+	b := time.Now()
 	stdouterr, err := cmd.CombinedOutput()
+	duration := time.Now().Sub(b)
 	out += string(stdouterr)
 	if err != nil {
 		out += "\n" + err.Error()
 	}
 	level.Debug(w.logger).Log("msg", "finished running command", "out", out)
 
-	return out, err
+	return out, duration, err
 }
 
 func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err error) {

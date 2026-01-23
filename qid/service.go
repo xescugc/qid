@@ -727,6 +727,10 @@ func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b b
 		return fmt.Errorf("invalid Job Name format %q", pn)
 	}
 
+	if b.Status != build.Started && b.Duration == 0 {
+		b.Duration = time.Now().Sub(b.StartedAt)
+	}
+
 	err := q.Builds.Update(ctx, pn, jn, bID, b)
 	if err != nil {
 		return fmt.Errorf("failed to Update Build: %w", err)
