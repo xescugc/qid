@@ -169,11 +169,17 @@
               <%- error %>
             </div>
           <% } %>
+          <div>
+            <p>Started At: <%- new Date(started_at).toLocaleString() %></p>
+            <% if (duration !== 0 ) { %>
+              <p>Duration: <%- duration %></p>
+            <% } %>
+          </div>
           <% _.each(get, function(g, i) { %>
             <div class="accordion-item">
               <h2 class="accordion-header">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#g-<%- i %>" aria-controls="collapseOne">
-                  get: <%- g.name %>
+                  get: <%- g.name %> (<%- g.duration %>)
                 </button>
               </h2>
               <div id="g-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
@@ -189,7 +195,8 @@
               <div class="accordion-item">
                 <h2 class="accordion-header">
                   <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#t-<%- i %>" aria-controls="collapseOne">
-                    task: <%- t.name %>
+                    task: <%- t.name %> 
+                    (<%- t.duration %>)
                   </button>
                 </h2>
                 <div id="t-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
@@ -205,7 +212,7 @@
               <div class="accordion-item">
                 <h2 class="accordion-header">
                   <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#j-<%- i %>" aria-controls="collapseOne">
-                    job: <%- j.name %>
+                    job: <%- j.name %> (<%- j.duration %>)
                   </button>
                 </h2>
                 <div id="j-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
@@ -264,6 +271,35 @@
       'use strict';
       var app = {};
       var fetchInterval = 2000
+
+      var durationToString = function(duration) {
+        if (duration === 0) {
+          return "00:00:00"
+        }
+        var secConst = 1000*1000*1000
+        var minConst = secConst*60
+        var hourConst = minConst*60
+
+        var hours = Math.floor(duration / hourConst)
+        var minutes = Math.floor((duration-(hours*hourConst))/minConst)
+        var seconds = Math.floor((duration-(minutes*minConst))/secConst)
+        hours = hours || "00"
+        minutes = minutes || "00"
+        seconds = seconds || "00"
+        hours +=""
+        minutes +=""
+        seconds +=""
+        if (hours.length === 1) {
+          hours = "0"+hours
+        }
+        if (minutes.length === 1) {
+          minutes = "0"+minutes
+        }
+        if (seconds.length === 1) {
+          seconds = "0"+seconds
+        }
+        return hours+ ":" + minutes + ":" + seconds
+      }
 
       //--------------
       // Models
@@ -783,8 +819,20 @@
           this.listenTo(this.model, "change", this.render)
         },
         render: function () {
-          var data =this.model.toJSON()
+          var data = this.model.toJSON()
           data.active = this.model.get("active")
+          if (data.duration  !== 0) {
+            data.duration = durationToString(data.duration)
+          }
+          _.each(data.get, function(g, i) {
+            data.get[i].duration = durationToString(g.duration)
+          })
+          _.each(data.task, function(t, i) {
+            data.task[i].duration = durationToString(t.duration)
+          })
+          _.each(data.job, function(j, i) {
+            data.job[i].duration = durationToString(j.duration)
+          })
           this.$el.html(this.template(data));
           return this; // enable chained calls
         },
