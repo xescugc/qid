@@ -324,7 +324,8 @@ type CreateResourceVersionRequest struct {
 	Version           resource.Version `json:"version"`
 }
 type CreateResourceVersionResponse struct {
-	Err string `json:"error,omitempty"`
+	Err     string            `json:"error,omitempty"`
+	Version *resource.Version `json:"version,omitempty"`
 }
 
 func (r CreateResourceVersionResponse) Error() string { return r.Err }
@@ -332,12 +333,12 @@ func (r CreateResourceVersionResponse) Error() string { return r.Err }
 func MakeCreateResourceVersionEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreateResourceVersionRequest)
-		err := s.CreateResourceVersion(ctx, req.PipelineName, req.ResourceCanonical, req.Version)
+		ver, err := s.CreateResourceVersion(ctx, req.PipelineName, req.ResourceCanonical, req.Version)
 		var errs string
 		if err != nil {
 			errs = err.Error()
 		}
-		return CreateResourceVersionResponse{Err: errs}, nil
+		return CreateResourceVersionResponse{Version: ver, Err: errs}, nil
 	}
 }
 

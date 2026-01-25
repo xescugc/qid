@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -159,30 +160,47 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 				// Set the VERSION_HASH either from the Job or from the last
 				// Version of the resource
-				if m.VersionHash != "" {
-					params["VERSION_HASH"] = m.VersionHash
-				} else {
-					vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
-					if err != nil {
-						ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+				dbvers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+				if err != nil {
+					ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
+					w.failBuild(ctx, m, b, ferr)
+					level.Error(w.logger).Log("msg", ferr)
+					goto END
+				}
+				if m.VersionID != 0 {
+					var found bool
+					for _, ver := range dbvers {
+						if ver.ID == m.VersionID {
+							for k, v := range ver.Version {
+								found = true
+								params["version_"+k] = fmt.Sprintf("%s", v)
+							}
+							break
+						}
+					}
+					if !found {
+						ferr := fmt.Errorf("failed Job %q from Pipeline %q no version found for resource %q", m.PipelineName, m.JobName, r.Canonical)
 						w.failBuild(ctx, m, b, ferr)
 						level.Error(w.logger).Log("msg", ferr)
 						goto END
 					}
-					if len(vers) == 0 {
+				} else {
+					if len(dbvers) == 0 {
 						ferr := fmt.Errorf("failed Job %q from Pipeline %q no versions for the resource %q", m.PipelineName, m.JobName, r.Canonical)
 						w.failBuild(ctx, m, b, ferr)
 						level.Error(w.logger).Log("msg", ferr)
 						goto END
 					}
-					slices.Reverse(vers)
-					params["VERSION_HASH"] = vers[0].Hash
+					slices.Reverse(dbvers)
+					for k, v := range dbvers[0].Version {
+						params["version_"+k] = fmt.Sprintf("%s", v)
+					}
 				}
 
 				// Set the inputs as Env
 				for k, v := range r.Inputs.Inputs {
 					if slices.Contains(rt.Inputs, k) {
-						params[k] = v
+						params["input_"+k] = v
 					}
 				}
 				ru, ok := pp.Runner(rt.Pull.Runner)
@@ -249,10 +267,10 @@ func (w *Worker) Run(ctx context.Context) error {
 					goto FAILED_JOB
 				}
 				b.Get = append(b.Get, build.Step{
-					Name:        g.Name,
-					VersionHash: m.VersionHash,
-					Logs:        out,
-					Duration:    d,
+					Name:      g.Name,
+					VersionID: m.VersionID,
+					Logs:      out,
+					Duration:  d,
 				})
 				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
@@ -436,7 +454,7 @@ func (w *Worker) Run(ctx context.Context) error {
 								PipelineName:      pp.Name,
 								JobName:           nj.Name,
 								ResourceCanonical: g.ResourceCanonical(),
-								VersionHash:       m.VersionHash,
+								VersionID:         m.VersionID,
 							}
 							mb, err := json.Marshal(qb)
 							if err != nil {
@@ -548,18 +566,21 @@ func (w *Worker) Run(ctx context.Context) error {
 
 			params := rt.Check.Params
 
-			vers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+			dbvers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
 			if err != nil {
 				ferr := fmt.Errorf("failed to list resource versions: %w", err)
 				level.Error(w.logger).Log("msg", ferr)
 				goto END
 			}
-			if len(vers) != 0 {
-				params["LAST_VERSION_HASH"] = vers[0].Hash
+			if len(dbvers) != 0 {
+				// This version is already stored flatten and prefixed with version_
+				for k, v := range dbvers[0].Version {
+					params["version_"+k] = fmt.Sprintf("%s", v)
+				}
 			}
 			for k, v := range r.Inputs.Inputs {
 				if slices.Contains(rt.Inputs, k) {
-					params[k] = v
+					params["input_"+k] = v
 				}
 			}
 			ru, ok := pp.Runner(rt.Check.Runner)
@@ -584,17 +605,28 @@ func (w *Worker) Run(ctx context.Context) error {
 					goto END
 				}
 			}
-			hashs := strings.Split(out, "\n")
-			if len(hashs) == 0 || out == "" {
+			sout := strings.Split(strings.Trim(out, "\n"), "\n")
+			rawVers := sout[len(sout)-1]
+			if rawVers == "" {
 				// Nothing new so we can skip
 				goto END
 			}
-			for _, h := range hashs {
-				if h == "" {
-					continue
+			vers := make([]map[string]interface{}, 0)
+			err = json.Unmarshal([]byte(rawVers), &vers)
+			if err != nil {
+				ferr := fmt.Errorf("failed to Unmarshal versions(%s): %w", rawVers, err)
+				level.Error(w.logger).Log("msg", ferr)
+				r.Logs = ferr.Error()
+				nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+				if nerr != nil {
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
 				}
-				err = w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
-					Hash: h,
+				level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
+				goto END
+			}
+			for _, v := range vers {
+				cv, err := w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
+					Version: v,
 				})
 				if err != nil {
 					level.Error(w.logger).Log("msg", fmt.Errorf("failed to create Resource Version body: %w", err))
@@ -609,7 +641,7 @@ func (w *Worker) Run(ctx context.Context) error {
 								PipelineName:      pp.Name,
 								JobName:           j.Name,
 								ResourceCanonical: r.Canonical,
-								VersionHash:       h,
+								VersionID:         cv.ID,
 							}
 							mb, err := json.Marshal(b)
 							if err != nil {
@@ -673,7 +705,7 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, pa
 		cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", k, v))
 	}
 
-	level.Debug(w.logger).Log("msg", "running command", cmd.String())
+	level.Debug(w.logger).Log("msg", "running command", cmd.String(), "envs", createKeyValuePairs(envs))
 	b := time.Now()
 	stdouterr, err := cmd.CombinedOutput()
 	duration := time.Now().Sub(b)
@@ -702,4 +734,12 @@ func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
 	if err != nil {
 		level.Error(w.logger).Log("msg", fmt.Errorf("failed delete Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 	}
+}
+
+func createKeyValuePairs(m map[string]string) string {
+	b := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(b, "%s=%s ", key, value)
+	}
+	return b.String()
 }

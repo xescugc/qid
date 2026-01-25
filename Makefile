@@ -32,7 +32,7 @@ dserve: ## Serves the server
 
 .PHONY: serve
 serve: ## Serves the server
-	@go run . server -p 4000
+	@go run . server -p 4000 -log-level=debug
 
 .PHONY: worker
 worker: ## Starts a worker

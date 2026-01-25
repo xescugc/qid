@@ -16,6 +16,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gosimple/slug v1.15.0
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/jeremywohl/flatten v1.0.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/knadh/koanf/parsers/json v1.0.0
 	github.com/knadh/koanf/providers/cliflagv3 v1.1.0

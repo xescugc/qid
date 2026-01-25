@@ -64,7 +64,7 @@ Perfect we created our first Pipeline and ran our first Job! Next is gonna be a 
 
 ## Git resource
 
-:warning: As the workers run locally, for this example to work you need `go` and be on a linux OS because the repo I'm using is a simple go one but you can still follow it :warning:
+:warning: As the workers run locally, for this example to work you need `go` and be on a Linux OS because the repo I'm using is a simple go one but you can still follow it :warning:
 
 Now we are gonna create a new Pipeline, click on the top left, you'll see the previous Pipeline `echo` on the list. Click on `New` and paste the following configuration.
 
@@ -78,12 +78,12 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone --quiet $url $name
-        cd $name
-        if [[ -n $LAST_VERSION_HASH ]]; then
-          git log $LAST_VERSION_HASH..HEAD --pretty=format:"%H"
+        'git clone --quiet $input_url $input_name
+        cd $input_name
+        if [[ -n $version_ref ]]; then
+          git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
         else
-          git log -1 --pretty=format:"%H"
+          git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
         fi'
       EOT
   }
@@ -91,9 +91,9 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone $url $name
-        cd $name
-        git checkout $VERSION_HASH'
+        'git clone $input_url $input_name
+        cd $input_name
+        git checkout $version_ref'
       EOT
   }
   push "exec" { }

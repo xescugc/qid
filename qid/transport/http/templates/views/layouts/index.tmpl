@@ -253,13 +253,17 @@
           <div class="accordion-item">
             <h2 class="accordion-header">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#v-<%- id %>" aria-controls="collapseOne">
-                Hash: <%- hash %>
+                <% _.mapObject(version, function(v, k) { %>
+                  <%- k %>: <%- v %>
+                <% }) %>
               </button>
             </h2>
             <div id="v-<%- id %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
               <div class="accordion-body">
                 <p>ID: <%- id %></p>
-                <p>Hash: <%- hash %></p>
+                <% _.mapObject(version, function(v, k) { %>
+                  <%- k %>: <%- v %>
+                <% }) %>
               </div>
             </div>
           </div>

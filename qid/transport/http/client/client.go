@@ -263,18 +263,18 @@ func (cl *Client) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Bu
 	return resp.Builds, nil
 }
 
-func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rCan string, rv resource.Version) error {
+func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rCan string, rv resource.Version) (*resource.Version, error) {
 	response, err := cl.updateJobBuild(ctx, transport.CreateResourceVersionRequest{PipelineName: pn, ResourceCanonical: rCan, Version: rv})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp := response.(transport.CreateResourceVersionResponse)
 	if resp.Err != "" {
-		return errors.New(resp.Err)
+		return nil, errors.New(resp.Err)
 	}
 
-	return nil
+	return resp.Version, nil
 }
 
 func (cl *Client) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {

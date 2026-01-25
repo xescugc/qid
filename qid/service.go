@@ -45,7 +45,7 @@ type Service interface {
 	GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error)
 	UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error
 	TriggerPipelineResource(ctx context.Context, pn, rCan string) error
-	CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) error
+	CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) (*resource.Version, error)
 	ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error)
 }
 
@@ -754,19 +754,21 @@ func (q *Qid) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) err
 	return nil
 }
 
-func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) error {
+func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) (*resource.Version, error) {
 	if !utils.ValidateCanonical(pn) {
-		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateResourceCanonical(rCan) {
-		return fmt.Errorf("invalid Resource Canonical format %q", rCan)
+		return nil, fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	_, err := q.Resources.CreateVersion(ctx, pn, rCan, v)
+	id, err := q.Resources.CreateVersion(ctx, pn, rCan, v)
 	if err != nil {
-		return fmt.Errorf("failed to Create Resource Version: %w", err)
+		return nil, fmt.Errorf("failed to Create Resource Version: %w", err)
 	}
 
-	return nil
+	v.ID = id
+
+	return &v, nil
 }
 
 func (q *Qid) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {

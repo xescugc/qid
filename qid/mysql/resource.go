@@ -33,8 +33,8 @@ type dbResource struct {
 }
 
 type dbResourceVersion struct {
-	ID   sql.NullInt64
-	Hash sql.NullString
+	ID      sql.NullInt64
+	Version sql.NullString
 }
 
 func newDBResource(r resource.Resource) dbResource {
@@ -69,16 +69,17 @@ func (dbr *dbResource) toDomainEntity() *resource.Resource {
 }
 
 func newDBResourceVersion(v resource.Version) dbResourceVersion {
+	vv, _ := json.Marshal(v.Version)
 	return dbResourceVersion{
-		Hash: toNullString(v.Hash),
+		Version: toNullString(string(vv)),
 	}
 }
 
 func (dbrv *dbResourceVersion) toDomainEntity() *resource.Version {
 	v := &resource.Version{
-		ID:   uint32(dbrv.ID.Int64),
-		Hash: dbrv.Hash.String,
+		ID: uint32(dbrv.ID.Int64),
 	}
+	_ = json.Unmarshal([]byte(dbrv.Version.String), &v.Version)
 
 	return v
 }
@@ -172,7 +173,7 @@ func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource
 func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string, rv resource.Version) (uint32, error) {
 	dbrv := newDBResourceVersion(rv)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO resource_versions(hash, resource_id)
+		INSERT INTO resource_versions(version, resource_id)
 		VALUES (?, 
 			-- resource_id
 			(
@@ -181,7 +182,7 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string,
 				JOIN pipelines AS p
 					ON r.pipeline_id = p.id
 				WHERE p.name = ? AND r.canonical = ?
-			))`, dbrv.Hash, pn, rCan)
+			))`, dbrv.Version, pn, rCan)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -196,7 +197,7 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string,
 
 func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT rv.id, rv.hash
+		SELECT rv.id, rv.version
 		FROM resource_versions AS rv
 		JOIN resources AS r
 			ON rv.resource_id = r.id
@@ -286,7 +287,7 @@ func scanResourceVersion(s sqlr.Scanner) (*resource.Version, error) {
 
 	err := s.Scan(
 		&rv.ID,
-		&rv.Hash,
+		&rv.Version,
 	)
 
 	if err != nil {

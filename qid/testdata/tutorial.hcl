@@ -3,33 +3,29 @@ resource_type "git" {
     "url",
     "name",
   ]
-  check {
-    path = "/bin/bash"
-    args = [
-      "-ec",
-      <<-EOT
-        git clone --quiet $URL $NAME
-        cd $NAME
-        if [[ -n $LAST_VERSION_HASH ]]; then
-          git log $LAST_VERSION_HASH..HEAD --pretty=format:"%H"
-        else
-          git log -1 --pretty=format:"%H"
-        fi
-      EOT
-    ]
-  }
-  pull {
+  check "exec" {
     path = "/bin/sh"
-    args = [
-      "-ec",
-      <<-EOT
-        git clone $URL $NAME
-        cd $NAME
-        git checkout $VERSION_HASH
+    args = <<-EOT
+        '-ec'
+        'git clone --quiet $input_url $input_name
+        cd $input_name
+        if [[ -n $version_ref ]]; then
+          git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
+        else
+          git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
+        fi'
       EOT
-    ]
   }
-  push {}
+  pull "exec" {
+    path = "/bin/sh"
+    args = <<-EOT
+        '-ec'
+        'git clone $input_url $input_name
+        cd $input_name
+        git checkout $version_ref'
+      EOT
+  }
+  push "exec" { }
 }
 
 resource "git" "repo" {

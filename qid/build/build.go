@@ -27,8 +27,8 @@ type Build struct {
 }
 
 type Step struct {
-	Name        string        `json:"name"`
-	VersionHash string        `json:"version_hash"`
-	Logs        string        `json:"logs"`
-	Duration    time.Duration `json:"duration"`
+	Name      string        `json:"name"`
+	VersionID uint32        `json:"version_id"`
+	Logs      string        `json:"logs"`
+	Duration  time.Duration `json:"duration"`
 }
