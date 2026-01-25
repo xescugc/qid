@@ -18,4 +18,8 @@ type Config struct {
 	PubSubSystem string `koanf:"pubsub-system"`
 
 	LogLevel string `koanf:"log-level"`
+
+	PipelineName   string `koanf:"pipeline-name"`
+	PipelineConfig string `koanf:"pipeline-config"`
+	PipelineVars   string `koanf:"pipeline-vars"`
 }

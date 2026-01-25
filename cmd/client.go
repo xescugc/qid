@@ -80,43 +80,7 @@ var (
 							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
-
-							f, err := os.Open(cmd.String("config"))
-							if err != nil {
-								return fmt.Errorf("failed to open config file at %q: %w", cmd.String("config"), err)
-							}
-							defer f.Close()
-
-							b, err := io.ReadAll(f)
-							if err != nil {
-								return fmt.Errorf("failed to read config file at %q: %w", cmd.String("config"), err)
-							}
-
-							var vars map[string]interface{}
-
-							if cmd.String("vars") != "" {
-								vf, err := os.Open(cmd.String("vars"))
-								if err != nil {
-									return fmt.Errorf("failed to open vars file at %q: %w", cmd.String("vars"), err)
-								}
-								defer vf.Close()
-
-								err = json.NewDecoder(vf).Decode(&vars)
-								if err != nil {
-									return fmt.Errorf("failed to read decode vars file at %q: %w", cmd.String("vars"), err)
-								}
-							}
-
-							err = c.UpdatePipeline(ctx, cmd.String("name"), b, vars)
-							if err != nil {
-								return fmt.Errorf("failed to update Pipeline %q: %w", cmd.String("name"), err)
-							}
-
-							return nil
+							return createPipeline(ctx, cmd.String("url"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
 						},
 					},
 					{
@@ -236,3 +200,42 @@ var (
 		},
 	}
 )
+
+func createPipeline(ctx context.Context, url, name, config, vars string) error {
+	c, err := client.New(url)
+	if err != nil {
+		return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+	}
+
+	f, err := os.Open(config)
+	if err != nil {
+		return fmt.Errorf("failed to open config file at %q: %w", config, err)
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return fmt.Errorf("failed to read config file at %q: %w", config, err)
+	}
+
+	var vrs map[string]interface{}
+	if vars != "" {
+		vf, err := os.Open(vars)
+		if err != nil {
+			return fmt.Errorf("failed to open vars file at %q: %w", vars, err)
+		}
+		defer vf.Close()
+
+		err = json.NewDecoder(vf).Decode(&vrs)
+		if err != nil {
+			return fmt.Errorf("failed to read decode vars file at %q: %w", vars, err)
+		}
+	}
+
+	err = c.CreatePipeline(ctx, name, b, vrs)
+	if err != nil {
+		return fmt.Errorf("failed to create Pipeline %q: %w", name, err)
+	}
+
+	return nil
+}
