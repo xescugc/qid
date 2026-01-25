@@ -2,7 +2,7 @@
     <img src="aseprite/logo.png" width=25% height=25%>
 </p>
 
-![](docs/qid.gif)
+![](docs/images/qid.gif)
 
 # QID (Queue CI/CD)
 
