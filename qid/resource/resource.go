@@ -21,6 +21,6 @@ type Inputs struct {
 }
 
 type Version struct {
-	ID   uint32 `json:"id"`
-	Hash string `json:"hash"`
+	ID      uint32                 `json:"id"`
+	Version map[string]interface{} `json:"version"`
 }

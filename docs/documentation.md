@@ -239,21 +239,41 @@ job "my_job" {
 
 #### `inputs`
 
-List of keys that are required for a `resource` in order to implement this `resource_type` and will be passed to `check`, `pull` and `push` in ENV.
+List of keys that are required for a `resource` in order to implement this `resource_type` and will be passed to `check`, `pull` and `push` in ENV as `$input_`+(input name). So if you have something like:
+
+```hcl
+resource_type "git" {
+    inputs = [ "url", "name" ]
+    // more things ...
+}
+```
+
+It'll be passed to the `check`, `pull` and `push` as `$input_url` and `$input_name`
 
 #### `check`
 
 The `label` is the [`runner`](#runner)
 
-Is called periodically (every 1m on the future you'll be able to [change](https://github.com/xescugc/qid/issues/49) it) to see if there are new versions.
-The output separated by `\n` is what it's considered the new versions (may [change](https://github.com/xescugc/qid/issues/9) on the future). It will have a special env
-variable named `$LAST_VERSION_HASH` so the returned versions have to be NEW ones.
+Is called periodically (`@every 1m` but can be changed on the [`resource.check_interval`](#check_interval)) to see if there are new versions.
+The **LAST LINE** (so do not pretty print JSON) of the output has to be a JSON containing an array of all the new versions. This new versions will the be available via ENV to the `pull` and `push` by flattening(nested values will be flatten with `_`) the JSON and prefixing it with `$version_`(JSON key).
+
+For example on `git` you could do `git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"` which will then return 
+
+```json
+[{"ref":"7101df99a068495ccf23ec656db8d93d18fe30a2"}]
+```
+
+Then on the `pull` you'll have a `$version_ref` available, if there where more attributes those would also be available.
+
+On the check you have also access to the **PREVIOUS** version that was detected so on the script you should check if there is anything new, if not
+then just return `[]`, any element on the `[]` will be considered a new version (there is no uniqueness detection) so check to not return
+the same version again (if that's not what's needed ofc).
 
 #### `pull`
 
 The `label` is the [`runner`](#runner)
 
-When a Job has a `get` to a resource, when the Job is executed the `resource.pull` is ran beforehand and the `job.task` is ran on the same context so you can pull from GIT and the `job.task` will have access to the pulled repository locally. It will have a special env variable named `$VERSION_HASH` which is the version to pull (same one returned on the `check`)
+When a Job has a `get` to a resource, when the Job is executed the `resource.pull` is ran beforehand and the `job.task` is ran on the same context so you can pull from GIT(if git is the resource) and the `job.task` will have access to the pulled repository locally. It will have version (with `$version_*`) which is the version to pull (same one returned on the `check`)
 
 #### `push`
 
@@ -270,40 +290,28 @@ resource_type "git" {
     "name",
   ]
   check "exec" {
-    path = "/bin/bash"
-    args = [
-      "-ec",
-      <<-EOT
-        git clone --quiet $URL $NAME
-        cd $NAME
-        if [[ -n $LAST_VERSION_HASH ]]; then
-          git log $LAST_VERSION_HASH..HEAD --pretty=format:"%H"
+    path = "/bin/sh"
+    args = <<-EOT
+        '-ec'
+        'git clone --quiet $input_url $input_name
+        cd $input_name
+        if [[ -n $version_ref ]]; then
+          git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
         else
-          git log -1 --pretty=format:"%H"
-        fi
+          git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
+        fi'
       EOT
-    ]
   }
   pull "exec" {
     path = "/bin/sh"
-    args = [
-      "-ec",
-      <<-EOT
-        git clone $URL $NAME
-        cd $NAME
-        git checkout $VERSION_HASH
+    args = <<-EOT
+        '-ec'
+        'git clone $input_url $input_name
+        cd $input_name
+        git checkout $version_ref'
       EOT
-    ]
   }
-  push "exec" {
-    path = "/bin/sh"
-    args = [
-      <<-EOT
-        cd $NAME
-        git push
-      EOT
-    ]
-  }
+  push "exec" { }
 }
 ```
 
@@ -329,7 +337,7 @@ resource "git" "my_repo" {
     url = "https://github.com/xescugc/qid.git"
     name = "qid"
   }
-  check_interval = "3s"
+  check_interval = "@every 3s"
 }
 ```
 
