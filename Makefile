@@ -32,7 +32,7 @@ dserve: ## Serves the server
 
 .PHONY: serve
 serve: ## Serves the server
-	@go run . server -p 4000 -log-level=debug
+	@go run . server -p 4000 -log-level=debug -pipeline-name=test -pipeline-config=./qid/testdata/cron.hcl
 
 .PHONY: worker
 worker: ## Starts a worker

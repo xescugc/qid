@@ -35,6 +35,9 @@ The execution of any action is done on a [`runner`](#runner)
 * `concurrency`: How many parallel instances has the worker
 * `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
 * `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
+* `pipeline-name`: If defined it'll create a pipeline on the service start
+* `pipeline-config`: Path to the Pipeline configuration
+* `pipeline-vars`: Path to the Pipeline vars
 
 
 ## Worker Configuration

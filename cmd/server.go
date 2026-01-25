@@ -56,6 +56,10 @@ var (
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
 
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
+
+			&cli.StringFlag{Name: "pipeline-config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true},
+			&cli.StringFlag{Name: "pipeline-vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
+			&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -178,6 +182,13 @@ var (
 					err := runWorker(ctx, cfg.PubSubSystem, topic, svc, cfg.Concurrency, cfg.LogLevel)
 					errs <- fmt.Errorf("worker failed to start: %w", err)
 				}()
+			}
+
+			if cmd.String("pipeline-name") != "" {
+				err = createPipeline(ctx, fmt.Sprintf("localhost:%d", cfg.Port), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
+				if err != nil {
+					return err
+				}
 			}
 
 			level.Error(logger).Log("exit", <-errs)
