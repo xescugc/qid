@@ -70,7 +70,7 @@ Now we are gonna create a new Pipeline, click on the top left, you'll see the pr
 
 ```hcl
 resource_type "git" {
-  inputs = [
+  params = [
     "url",
     "name",
   ]
@@ -78,8 +78,8 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone --quiet $input_url $input_name
-        cd $input_name
+        'git clone --quiet $param_url $param_name
+        cd $param_name
         if [[ -n $version_ref ]]; then
           git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
         else
@@ -91,8 +91,8 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone $input_url $input_name
-        cd $input_name
+        'git clone $param_url $param_name
+        cd $param_name
         git checkout $version_ref'
       EOT
   }
@@ -100,7 +100,7 @@ resource_type "git" {
 }
 
 resource "git" "repo" {
-  inputs {
+  params {
     url = var.repo_url 
     name = var.repo_name 
   }

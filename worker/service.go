@@ -197,10 +197,10 @@ func (w *Worker) Run(ctx context.Context) error {
 					}
 				}
 
-				// Set the inputs as Env
-				for k, v := range r.Inputs.Inputs {
-					if slices.Contains(rt.Inputs, k) {
-						params["input_"+k] = v
+				// Set the params as Env
+				for k, v := range r.Params.Params {
+					if slices.Contains(rt.Params, k) {
+						params["param_"+k] = v
 					}
 				}
 				ru, ok := pp.Runner(rt.Pull.Runner)
@@ -578,9 +578,9 @@ func (w *Worker) Run(ctx context.Context) error {
 					params["version_"+k] = fmt.Sprintf("%s", v)
 				}
 			}
-			for k, v := range r.Inputs.Inputs {
-				if slices.Contains(rt.Inputs, k) {
-					params["input_"+k] = v
+			for k, v := range r.Params.Params {
+				if slices.Contains(rt.Params, k) {
+					params["param_"+k] = v
 				}
 			}
 			ru, ok := pp.Runner(rt.Check.Runner)

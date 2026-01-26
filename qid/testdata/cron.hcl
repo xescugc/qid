@@ -1,6 +1,6 @@
 resource "cron" "my_cron" {
   check_interval = "@every 5s"
-  inputs {}
+  params {}
 }
 
 job "gen" {

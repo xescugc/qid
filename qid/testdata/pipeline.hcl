@@ -1,5 +1,5 @@
 resource_type "git" {
-  inputs = [
+  params = [
     "url",
     "name",
   ]
@@ -7,8 +7,8 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone --quiet $input_url $input_name
-        cd $input_name
+        'git clone --quiet $param_url $param_name
+        cd $param_name
         if [[ -n $version_ref ]]; then
           git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
         else
@@ -20,8 +20,8 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone $input_url $input_name
-        cd $input_name
+        'git clone $param_url $param_name
+        cd $param_name
         git checkout $version_ref'
       EOT
   }
@@ -42,7 +42,7 @@ runner "docker" {
 }
 
 resource "git" "qid" {
-  inputs {
+  params {
     url = var.repo_url 
     name = "${var.repo_name}"
   }
