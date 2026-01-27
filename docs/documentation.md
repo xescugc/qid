@@ -224,7 +224,7 @@ Every `5s` it'll run the Job `my_job` as it's registered with `get "cron" "my_cr
 ```hcl
 resource "cron" "my_cron" {
   check_interval = "@every 5s"
-  inputs {}
+  params {}
 }
 
 job "my_job" {
@@ -240,18 +240,18 @@ job "my_job" {
 }
 ```
 
-#### `inputs`
+#### `params`
 
-List of keys that are required for a `resource` in order to implement this `resource_type` and will be passed to `check`, `pull` and `push` in ENV as `$input_`+(input name). So if you have something like:
+List of keys that are required for a `resource` in order to implement this `resource_type` and will be passed to `check`, `pull` and `push` in ENV as `$param_`+(param name). So if you have something like:
 
 ```hcl
 resource_type "git" {
-    inputs = [ "url", "name" ]
+    params = [ "url", "name" ]
     // more things ...
 }
 ```
 
-It'll be passed to the `check`, `pull` and `push` as `$input_url` and `$input_name`
+It'll be passed to the `check`, `pull` and `push` as `$param_url` and `$param_name`
 
 #### `check`
 
@@ -288,7 +288,7 @@ This pulls the git repo and checks for the new Versions (commits in this case)
 
 ```hcl
 resource_type "git" {
-  inputs = [
+  params = [
     "url",
     "name",
   ]
@@ -296,8 +296,8 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone --quiet $input_url $input_name
-        cd $input_name
+        'git clone --quiet $param_url $param_name
+        cd $param_name
         if [[ -n $version_ref ]]; then
           git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
         else
@@ -309,8 +309,8 @@ resource_type "git" {
     path = "/bin/sh"
     args = <<-EOT
         '-ec'
-        'git clone $input_url $input_name
-        cd $input_name
+        'git clone $param_url $param_name
+        cd $param_name
         git checkout $version_ref'
       EOT
   }
@@ -320,13 +320,13 @@ resource_type "git" {
 
 ### Resource
 
-Resources are the implementation of the [Resource Type](#resource-type) by initializing it with the inputs defined on the [`resource_type.inputs`](#inputs).
+Resources are the implementation of the [Resource Type](#resource-type) by initializing it with the params defined on the [`resource_type.params`](#params).
 
 When defined a `resource` the first label is the `resource_type` and the 2nd is the name of the resource.
 
-#### `inputs`
+#### `params`
 
-Is a block that contains all the `resource_type.inputs` defined that will be passed to it
+Is a block that contains all the `resource_type.params` defined that will be passed to it
 
 #### `check_interval`
 
@@ -336,7 +336,7 @@ Interval in which to check the resource. By default the value is `@every 1m` and
 
 ```hcl
 resource "git" "my_repo" {
-  inputs {
+  params {
     url = "https://github.com/xescugc/qid.git"
     name = "qid"
   }

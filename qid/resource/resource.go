@@ -7,7 +7,7 @@ type Resource struct {
 	Type string `json:"type" hcl:"type,label"`
 	Name string `json:"name" hcl:"name,label"`
 
-	Inputs        Inputs `json:"inputs" hcl:"inputs,block"`
+	Params        Params `json:"params" hcl:"params,block"`
 	CheckInterval string `json:"check_interval" hcl:"check_interval,optional"`
 
 	CronID    uint64    `json:"cron_id"`
@@ -16,8 +16,8 @@ type Resource struct {
 	LastCheck time.Time `json:"last_check"`
 }
 
-type Inputs struct {
-	Inputs map[string]string `json:"inputs" hcl:",remain"`
+type Params struct {
+	Params map[string]string `json:"params" hcl:",remain"`
 }
 
 type Version struct {

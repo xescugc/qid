@@ -5,7 +5,7 @@ import "github.com/xescugc/qid/qid/utils"
 type ResourceType struct {
 	ID     uint32   `json:"id"`
 	Name   string   `json:"name" hcl:"name,label"`
-	Inputs []string `json:"inputs" hcl:"inputs"`
+	Params []string `json:"params" hcl:"params"`
 
 	Check utils.RunnerCommand `json:"check" hcl:"check,block"`
 	Pull  utils.RunnerCommand `json:"pull" hcl:"pull,block"`

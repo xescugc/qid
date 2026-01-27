@@ -25,7 +25,7 @@ type dbResource struct {
 	Name          sql.NullString
 	Type          sql.NullString
 	Canonical     sql.NullString
-	Inputs        sql.NullString
+	Params        sql.NullString
 	Logs          sql.NullString
 	CheckInterval sql.NullString
 	CronID        sql.NullInt64
@@ -38,12 +38,12 @@ type dbResourceVersion struct {
 }
 
 func newDBResource(r resource.Resource) dbResource {
-	i, _ := json.Marshal(r.Inputs)
+	i, _ := json.Marshal(r.Params)
 	return dbResource{
 		Name:          toNullString(r.Name),
 		Type:          toNullString(r.Type),
 		Canonical:     toNullString(r.Canonical),
-		Inputs:        toNullString(string(i)),
+		Params:        toNullString(string(i)),
 		Logs:          toNullString(r.Logs),
 		CheckInterval: toNullString(r.CheckInterval),
 		CronID:        toNullInt64(int(r.CronID)),
@@ -63,7 +63,7 @@ func (dbr *dbResource) toDomainEntity() *resource.Resource {
 		LastCheck:     dbr.LastCheck.Time,
 	}
 
-	_ = json.Unmarshal([]byte(dbr.Inputs.String), &r.Inputs)
+	_ = json.Unmarshal([]byte(dbr.Params.String), &r.Params)
 
 	return r
 }
@@ -87,14 +87,14 @@ func (dbrv *dbResourceVersion) toDomainEntity() *resource.Version {
 func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.Resource) (uint32, error) {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO resources(name, `+"`type`"+`, canonical, inputs, check_interval, cron_id, last_check, pipeline_id)
+		INSERT INTO resources(name, `+"`type`"+`, canonical, params, check_interval, cron_id, last_check, pipeline_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
 				FROM pipelines AS p
 				WHERE p.name = ?
-			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, dbrs.CheckInterval, dbrs.CronID, dbrs.LastCheck, pn)
+			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.LastCheck, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -111,7 +111,7 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resources AS r
-		SET name = ?, type = ?, canonical = ?, inputs = ?, check_interval = ?, cron_id = ?, logs = ?, last_check = ?
+		SET name = ?, type = ?, canonical = ?, params = ?, check_interval = ?, cron_id = ?, logs = ?, last_check = ?
 		FROM (
 			SELECT r.id
 			FROM resources AS r
@@ -120,7 +120,7 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 			WHERE p.name = ? AND r.canonical = ?
 		) AS rr
 		WHERE rr.id = r.id
-	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Inputs, dbrs.CheckInterval, dbrs.CronID, dbrs.Logs, dbrs.LastCheck, pn, rCan)
+	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.Logs, dbrs.LastCheck, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -135,7 +135,7 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 
 func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.check_interval, r.cron_id, r.logs, r.last_check
+		SELECT r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
@@ -152,7 +152,7 @@ func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resour
 
 func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource.Resource, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT r.id, r.name, r.type, r.canonical, r.inputs, r.check_interval, r.cron_id, r.logs, r.last_check
+		SELECT r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
@@ -249,7 +249,7 @@ func scanResource(s sqlr.Scanner) (*resource.Resource, error) {
 		&r.Name,
 		&r.Type,
 		&r.Canonical,
-		&r.Inputs,
+		&r.Params,
 		&r.CheckInterval,
 		&r.CronID,
 		&r.Logs,
