@@ -1,5 +1,5 @@
 resource "cron" "my_cron" {
-  check_interval = "@every 5s"
+  check_interval = "@every 10s"
   params {}
 }
 

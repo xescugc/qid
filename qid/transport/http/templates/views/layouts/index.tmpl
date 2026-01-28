@@ -420,15 +420,34 @@
           this.job = opts.job
         },
         parse: function(response) {
-          return response.data;
+          var builds = response.data;
+          _.each(builds, function(data) {
+            if (data.duration  !== 0) {
+              data.duration = durationToString(data.duration)
+            }
+            _.each(data.get, function(g, i) {
+              data.get[i].duration = durationToString(g.duration)
+            })
+            _.each(data.task, function(t, i) {
+              data.task[i].duration = durationToString(t.duration)
+            })
+            _.each(data.job, function(j, i) {
+              data.job[i].duration = durationToString(j.duration)
+            })
+          })
+          return builds
         },
         setActive: function(id) {
+          // We make the id an int in case it comes
+          // from the URL which it's a string
+          id = id*1
           if (!id && this.first()) {
             id = this.first().get("id")
           }
           this.each(function(m){
             m.set("active", m.get("id") == id)
           })
+          return id
         },
       });
       app.ResourceVersions = Backbone.Collection.extend({
@@ -720,14 +739,22 @@
       })
       app.JobBuildsView = Backbone.View.extend({
         template: _.template($('#job-builds-view').html()),
-        initialize: function() {
+        initialize: function(opts) {
           this.listenTo(this.collection, "reset", this.addBuilds)
           this.listenTo(this.collection, "add", this.addBuild)
+
+          this.job = opts.job
+          this.pipeline = opts.pipeline
 
           var that = this
           this.collection.fetch({
             reset: true,
-            success: function(){ that.collection.setActive() },
+            success: function(){
+              var bid = that.collection.setActive(opts.currentBuildID)
+              that.currentBuildID = bid
+              var url = new URL(location.origin+"/pipelines/"+that.pipeline.get("name")+"/jobs/"+that.job.get("name")+"/builds/"+bid)
+              app.router.navigate(url.pathname, { trigger: false });
+            },
           })
 
           var that = this
@@ -774,7 +801,11 @@
         },
         clickOnTab: function(event) {
           event.preventDefault();
-          this.collection.setActive(event.target.id.split("-")[1])
+          var bid = event.target.id.split("-")[1]
+          this.collection.setActive(bid)
+          this.currentBuildID = bid
+          var url = new URL(location.origin+"/pipelines/"+this.pipeline.get("name")+"/jobs/"+this.job.get("name")+"/builds/"+bid)
+          app.router.navigate(url.pathname, { trigger: false });
         }
       })
       app.JobBuildsTabView = Backbone.View.extend({
@@ -786,7 +817,7 @@
             id: "t-"+this.model.get("id"),
           }
         },
-        initialize: function() {
+        initialize: function(opts) {
           this.listenTo(this.model, "change", this.render)
         },
         template: _.template($('#job-builds-tab-view').html()),
@@ -825,28 +856,12 @@
         render: function () {
           var data = this.model.toJSON()
           data.active = this.model.get("active")
-          if (data.duration  !== 0) {
-            data.duration = durationToString(data.duration)
-          }
-          _.each(data.get, function(g, i) {
-            data.get[i].duration = durationToString(g.duration)
-          })
-          _.each(data.task, function(t, i) {
-            data.task[i].duration = durationToString(t.duration)
-          })
-          _.each(data.job, function(j, i) {
-            data.job[i].duration = durationToString(j.duration)
-          })
           this.$el.html(this.template(data));
           return this; // enable chained calls
         },
       })
       app.ResourceVersionsView = Backbone.View.extend({
-        template: _.template($('#resource-versions-view').html(),{
-          imports: {
-            formatDate(d, f) {},
-          },
-        }),
+        template: _.template($('#resource-versions-view').html()),
         events: {
           'click #trigger-resource': 'clickTriggerResource',
         },
@@ -902,13 +917,14 @@
       //--------------
       app.Router = Backbone.Router.extend({
         routes: {
-          '' :              'pipelinesIndex',
-          'pipelines' :     'pipelinesIndex',
-          'pipelines/new' : 'pipelinesNew',
-          'pipelines/:pn':  'pipelinesShow',
-          'pipelines/:pn/edit' : 'pipelinesEdit',
+          '' :                    'pipelinesIndex',
+          'pipelines' :           'pipelinesIndex',
+          'pipelines/new' :       'pipelinesNew',
+          'pipelines/:pn':        'pipelinesShow',
+          'pipelines/:pn/edit' :  'pipelinesEdit',
 
-          'pipelines/:pn/jobs/:jn/builds':  'jobBuilds',
+          'pipelines/:pn/jobs/:jn/builds':        'jobBuilds',
+          'pipelines/:pn/jobs/:jn/builds/:bid':   'jobBuilds',
 
           'pipelines/:pn/resources/:rCan/versions': 'resourceVersions',
           '*notFound': 'notFound',
@@ -961,7 +977,7 @@
             }).render().el)
           })
         },
-        jobBuilds: function(pn, jn) {
+        jobBuilds: function(pn, jn, bid) {
           this.setup();
           var promises = []
           var pp = app.pipelines.get(pn)
@@ -978,6 +994,9 @@
           $.when.apply($, complete).done(function() {
             that.contentView = new app.JobBuildsView({
               collection: builds,
+              currentBuildID: bid,
+              job: jb,
+              pipeline: pp,
             });
             $('#main').html(that.contentView.render().el)
             $('#breadcrumb').html(new app.BreadcrumbView({
