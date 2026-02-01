@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/transport"
@@ -19,12 +20,49 @@ import (
 	"github.com/go-kit/log"
 )
 
-func Handler(s qid.Service, l log.Logger) http.Handler {
+const (
+	UsernameContextKey string = "username_context_key"
+)
+
+func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 	r := mux.NewRouter()
-	e := transport.MakeServerEndpoints(s)
+	e := transport.MakeServerEndpoints(s, ts)
 
 	options := []kithttp.ServerOption{
 		kithttp.ServerErrorHandler(kittransport.NewLogErrorHandler(l)),
+	}
+
+	auth := func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, rr *http.Request) {
+			reqToken := rr.Header.Get("Authorization")
+			splitToken := strings.Split(reqToken, " ")
+			if len(splitToken) != 2 {
+				encodeError(rr.Context(), "Authentication required", rw)
+				return
+			}
+			tokenString := splitToken[1]
+			if reqToken == "" {
+				encodeError(rr.Context(), "Authentication required", rw)
+				return
+			}
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+				return ts, nil
+			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+			if err != nil {
+				l.Log(err)
+				encodeError(rr.Context(), "Authentication required", rw)
+				return
+			}
+
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, claims["user"].(map[string]interface{})["username"]))
+			} else {
+				l.Log(err)
+				encodeError(rr.Context(), "Authentication required", rw)
+				return
+			}
+			h.ServeHTTP(rw, rr)
+		})
 	}
 
 	// If the URL ends in `.json` it'll match a URL with `Content-Type=application/json`
@@ -42,7 +80,88 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 
 	r.Use(jsm)
 
-	api := r.Headers("Content-Type", "application/json").Subrouter()
+	jsonr := r.Headers("Content-Type", "application/json").Subrouter()
+
+	jsonr.Methods(http.MethodPost).Path("/login").Handler(kithttp.NewServer(
+		e.UserLogin,
+		decodeUserLoginRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api := jsonr.PathPrefix("/").Subrouter()
+
+	api.Use(auth)
+
+	api.Methods(http.MethodGet).Path("/users").Handler(kithttp.NewServer(
+		e.ListUsers,
+		decodeListUsersRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodPost).Path("/users").Handler(kithttp.NewServer(
+		e.CreateUser,
+		decodeCreateUserRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodPost).Path("/teams").Handler(kithttp.NewServer(
+		e.CreateTeam,
+		decodeCreateTeamRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodGet).Path("/teams").Handler(kithttp.NewServer(
+		e.ListTeams,
+		decodeListTeamsRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodGet).Path("/teams/{team_canonical}").Handler(kithttp.NewServer(
+		e.GetTeam,
+		decodeGetTeamRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodPut).Path("/teams/{team_canonical}").Handler(kithttp.NewServer(
+		e.UpdateTeam,
+		decodeUpdateTeamRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}").Handler(kithttp.NewServer(
+		e.DeleteTeam,
+		decodeDeleteTeamRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/members").Handler(kithttp.NewServer(
+		e.CreateTeamMember,
+		decodeCreateTeamMemberRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodPut).Path("/teams/{team_canonical}/members/{member_username}").Handler(kithttp.NewServer(
+		e.UpdateTeamMember,
+		decodeUpdateTeamMemberRequest,
+		encodeJSONResponse,
+		options...,
+	))
+
+	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}/members/{member_username}").Handler(kithttp.NewServer(
+		e.DeleteTeamMember,
+		decodeDeleteTeamMemberRequest,
+		encodeJSONResponse,
+		options...,
+	))
 
 	api.Methods(http.MethodPost).Path("/pipelines").Handler(kithttp.NewServer(
 		e.CreatePipeline,
@@ -181,6 +300,102 @@ func Handler(s qid.Service, l log.Logger) http.Handler {
 	})
 
 	return r
+}
+
+func decodeUserLoginRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.UserLoginRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	return req, err
+}
+
+func decodeListUsersRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.ListUsersRequest
+
+	return req, nil
+}
+
+func decodeCreateUserRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.CreateUserRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	//req.Username = r.Context().Value(UsernameContextKey).(string)
+
+	return req, err
+}
+
+func decodeCreateTeamRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.CreateTeamRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+
+	return req, err
+}
+
+func decodeListTeamsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req transport.ListTeamsRequest
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+
+	return req, nil
+}
+
+func decodeGetTeamRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.GetTeamRequest
+	vars := mux.Vars(r)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+	req.TeamCanonical = vars["team_canonical"]
+
+	return req, nil
+}
+
+func decodeUpdateTeamRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.UpdateTeamRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	vars := mux.Vars(r)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+	req.TeamCanonical = vars["team_canonical"]
+
+	return req, err
+}
+
+func decodeDeleteTeamRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.DeleteTeamRequest
+	vars := mux.Vars(r)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+	req.TeamCanonical = vars["team_canonical"]
+
+	return req, nil
+}
+
+func decodeCreateTeamMemberRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.CreateTeamMemberRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	vars := mux.Vars(r)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+	req.TeamCanonical = vars["team_canonical"]
+	//req.MemberUsername = vars["member_username"]
+
+	return req, err
+}
+
+func decodeUpdateTeamMemberRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.UpdateTeamMemberRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	vars := mux.Vars(r)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+	req.TeamCanonical = vars["team_canonical"]
+	req.MemberUsername = vars["member_username"]
+
+	return req, err
+}
+
+func decodeDeleteTeamMemberRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req transport.DeleteTeamMemberRequest
+	vars := mux.Vars(r)
+	req.Username = r.Context().Value(UsernameContextKey).(string)
+	req.TeamCanonical = vars["team_canonical"]
+	req.MemberUsername = vars["member_username"]
+
+	return req, nil
 }
 
 func decodeCreatePipelineRequest(_ context.Context, r *http.Request) (interface{}, error) {

@@ -6,6 +6,8 @@ import (
 	"github.com/gosimple/slug"
 )
 
+func Canonicalize(n string) string { return slug.Make(n) }
+
 func ValidateCanonical(c string) bool {
 	return slug.IsSlug(c) && len(c) <= 255
 }

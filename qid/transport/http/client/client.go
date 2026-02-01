@@ -12,10 +12,25 @@ import (
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/resource"
+	"github.com/xescugc/qid/qid/team"
 	"github.com/xescugc/qid/qid/transport"
+	"github.com/xescugc/qid/qid/user"
 )
 
 type Client struct {
+	userLogin endpoint.Endpoint
+
+	createUser endpoint.Endpoint
+
+	createTeam endpoint.Endpoint
+	updateTeam endpoint.Endpoint
+	getTeam    endpoint.Endpoint
+	listTeams  endpoint.Endpoint
+	deleteTeam endpoint.Endpoint
+
+	createTeamMember endpoint.Endpoint
+	deleteTeamMember endpoint.Endpoint
+
 	createPipeline      endpoint.Endpoint
 	updatePipeline      endpoint.Endpoint
 	getPipeline         endpoint.Endpoint
@@ -54,6 +69,17 @@ func New(host string) (*Client, error) {
 	}
 
 	cl := &Client{
+		userLogin: makeUserLoginEndpoint(*u),
+
+		//createUser: makeCreateUserEndpoint(*u),
+		//createTeam: makeCreateTeamEndpoint(*u),
+		//updateTeam: makeUpdateTeamEndpoint(*u),
+		//getTeam:    makeGetTeamEndpoint(*u),
+		//listTeams:  makeListTeamsEndpoint(*u),
+		//deleteTeam: makeDeleteTeamEndpoint(*u),
+		//createTeamMember
+		//deleteTeamMebmer
+
 		createPipeline:      makeCreatePipelineEndpoint(*u),
 		updatePipeline:      makeUpdatePipelineEndpoint(*u),
 		getPipeline:         makeGetPipelineEndpoint(*u),
@@ -79,6 +105,53 @@ func New(host string) (*Client, error) {
 	}
 
 	return cl, nil
+}
+
+func (cl *Client) UserLogin(ctx context.Context, un, pass string) (*user.User, error) {
+	response, err := cl.userLogin(ctx, transport.UserLoginRequest{Username: un, Password: pass})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := response.(transport.UserLoginResponse)
+	if resp.Err != "" {
+		return nil, errors.New(resp.Err)
+	}
+
+	return resp.User, nil
+}
+
+func (cl *Client) CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error) {
+	return nil, nil
+}
+
+// TODO: Implement those client actions
+func (cl *Client) ListUsers(ctx context.Context) ([]*user.User, error) {
+	return nil, nil
+}
+func (cl *Client) CreateTeam(ctx context.Context, un string, t team.Team) (*team.WithMembers, error) {
+	return nil, nil
+}
+func (cl *Client) ListTeams(ctx context.Context, un string) ([]*team.WithMembers, error) {
+	return nil, nil
+}
+func (cl *Client) GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, error) {
+	return nil, nil
+}
+func (cl *Client) UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team.WithMembers, error) {
+	return nil, nil
+}
+func (cl *Client) DeleteTeam(ctx context.Context, un, tc string) error {
+	return nil
+}
+func (cl *Client) CreateTeamMember(ctx context.Context, un, tc string, tm team.Member) (*team.Member, error) {
+	return nil, nil
+}
+func (cl *Client) UpdateTeamMember(ctx context.Context, un, tc, mu string, tm team.Member) (*team.Member, error) {
+	return nil, nil
+}
+func (cl *Client) DeleteTeamMember(ctx context.Context, un, tc, mu string) error {
+	return nil
 }
 
 func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error {

@@ -17,6 +17,8 @@ import (
 	"github.com/xescugc/qid/qid/resource"
 	"github.com/xescugc/qid/qid/restype"
 	"github.com/xescugc/qid/qid/runner"
+	"github.com/xescugc/qid/qid/team"
+	"github.com/xescugc/qid/qid/user"
 	"github.com/xescugc/qid/qid/utils"
 	"gocloud.dev/pubsub"
 
@@ -25,6 +27,21 @@ import (
 )
 
 type Service interface {
+	UserLogin(ctx context.Context, un, pass string) (*user.User, error)
+
+	CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error)
+	ListUsers(ctx context.Context) ([]*user.User, error)
+
+	CreateTeam(ctx context.Context, un string, t team.Team) (*team.WithMembers, error)
+	ListTeams(ctx context.Context, un string) ([]*team.WithMembers, error)
+	GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, error)
+	UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team.WithMembers, error)
+	DeleteTeam(ctx context.Context, un, tc string) error
+
+	CreateTeamMember(ctx context.Context, un, tc string, tm team.Member) (*team.Member, error)
+	UpdateTeamMember(ctx context.Context, un, tc, mc string, tm team.Member) (*team.Member, error)
+	DeleteTeamMember(ctx context.Context, un, tc, mc string) error
+
 	CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
 	UpdatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
 	GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, error)
@@ -51,6 +68,8 @@ type Service interface {
 
 type Qid struct {
 	Topic         queue.Topic
+	Users         user.Repository
+	Teams         team.Repository
 	Pipelines     pipeline.Repository
 	Jobs          job.Repository
 	Resources     resource.Repository
@@ -63,9 +82,11 @@ type Qid struct {
 	logger log.Logger
 }
 
-func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, l log.Logger) *Qid {
+func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, l log.Logger) *Qid {
 	q := &Qid{
 		Topic:         t,
+		Users:         ur,
+		Teams:         tr,
 		Pipelines:     pr,
 		Jobs:          jr,
 		Resources:     rr,
@@ -77,7 +98,6 @@ func New(ctx context.Context, t queue.Topic, pr pipeline.Repository, jr job.Repo
 		cron:          cron.New(cron.WithContext(ctx)),
 	}
 
-	//q.cron.AddFunc("@every 1s", q.resourceCheck)
 	q.cron.Start()
 
 	return q
@@ -110,6 +130,278 @@ func (q *Qid) newCronResourceFunc(ppName, resCan string) func() {
 		r.LastCheck = time.Now()
 		_ = q.UpdatePipelineResource(q.Ctx, ppName, resCan, *r)
 	}
+}
+
+func (q *Qid) UserLogin(ctx context.Context, un, pass string) (*user.User, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	}
+	u, err := q.Users.Find(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Find User: %w", err)
+	}
+
+	ok := utils.CheckPasswordHash(pass, u.Password)
+	if !ok {
+		return nil, fmt.Errorf("Username or Password is wrong")
+	}
+
+	return u, nil
+}
+
+func (q *Qid) CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error) {
+	if !utils.ValidateCanonical(u.Username) {
+		return nil, fmt.Errorf("invalid Username format %q", u.Username)
+	} else if u.Password == "" {
+		return nil, fmt.Errorf("invalid empty Password")
+	}
+
+	if !isHash {
+		hash, err := utils.HashPassword(u.Password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash Passowrd: %w", err)
+		}
+		u.Password = hash
+	}
+
+	id, err := q.Users.Create(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Create User: %w", err)
+	}
+	u.ID = id
+
+	return &u, nil
+}
+
+func (q *Qid) ListUsers(ctx context.Context) ([]*user.User, error) {
+	us, err := q.Users.Filter(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Find User: %w", err)
+	}
+
+	return us, nil
+}
+
+func (q *Qid) CreateTeam(ctx context.Context, un string, t team.Team) (*team.WithMembers, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	} else if t.Name == "" {
+		return nil, fmt.Errorf("Team Name is required")
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin() {
+		return nil, fmt.Errorf("You cannot do this")
+	}
+
+	t.Canonical = utils.Canonicalize(t.Name)
+
+	id, err := q.Teams.Create(ctx, t)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Team: %w", err)
+	}
+	t.ID = id
+
+	err = q.Teams.CreateMember(ctx, t.Canonical, team.Member{
+		Admin: true,
+		User: user.User{
+			Username: un,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Team Member: %w", err)
+	}
+
+	twm, err := q.Teams.Find(ctx, t.Canonical)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Team: %w", err)
+	}
+
+	return twm, nil
+}
+
+func (q *Qid) ListTeams(ctx context.Context, un string) ([]*team.WithMembers, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	}
+
+	teams, err := q.Teams.Filter(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Teams: %w", err)
+	}
+
+	return teams, nil
+}
+
+func (q *Qid) GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	} else if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin(tc) {
+		return nil, fmt.Errorf("You cannot do this")
+	}
+
+	t, err := q.Teams.Find(ctx, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Team: %w", err)
+	}
+
+	return t, nil
+}
+
+func (q *Qid) UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team.WithMembers, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	} else if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin(tc) {
+		return nil, fmt.Errorf("You cannot do this")
+	}
+
+	t.Canonical = utils.Canonicalize(t.Name)
+
+	err = q.Teams.Update(ctx, tc, t)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update Team: %w", err)
+	}
+
+	twm, err := q.Teams.Find(ctx, t.Canonical)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Team: %w", err)
+	}
+
+	return twm, nil
+}
+
+func (q *Qid) DeleteTeam(ctx context.Context, un, tc string) error {
+	if !utils.ValidateCanonical(un) {
+		return fmt.Errorf("invalid Username format %q", un)
+	} else if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin(tc) {
+		return fmt.Errorf("You cannot do this")
+	}
+
+	err = q.Teams.Delete(ctx, tc)
+	if err != nil {
+		return fmt.Errorf("failed to delete Team: %w", err)
+	}
+
+	return nil
+}
+
+func (q *Qid) CreateTeamMember(ctx context.Context, un, tc string, tm team.Member) (*team.Member, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	} else if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(tm.User.Username) {
+		return nil, fmt.Errorf("invalid Team Member Username format %q", tm.User.Username)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin(tc) {
+		return nil, fmt.Errorf("You cannot do this")
+	}
+
+	err = q.Teams.CreateMember(ctx, tc, tm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create member: %w", err)
+	}
+
+	rtm, err := q.Teams.FindMember(ctx, tc, tm.User.Username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find member: %w", err)
+	}
+
+	return rtm, nil
+}
+
+func (q *Qid) UpdateTeamMember(ctx context.Context, un, tc, mu string, tm team.Member) (*team.Member, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	} else if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(mu) {
+		return nil, fmt.Errorf("invalid Team Member Username format %q", mu)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin(tc) {
+		return nil, fmt.Errorf("You cannot do this")
+	}
+
+	err = q.Teams.UpdateMember(ctx, tc, mu, tm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create member: %w", err)
+	}
+
+	rtm, err := q.Teams.FindMember(ctx, tc, mu)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find member: %w", err)
+	}
+
+	return rtm, nil
+}
+
+func (q *Qid) DeleteTeamMember(ctx context.Context, un, tc, mc string) error {
+	if !utils.ValidateCanonical(un) {
+		return fmt.Errorf("invalid Username format %q", un)
+	} else if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(mc) {
+		return fmt.Errorf("invalid Team Member Username format %q", tc)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if !um.IsAdmin(tc) {
+		return fmt.Errorf("You cannot do this")
+	}
+
+	err = q.Teams.DeleteMember(ctx, tc, mc)
+	if err != nil {
+		return fmt.Errorf("failed to create member: %w", err)
+	}
+
+	return nil
 }
 
 func (q *Qid) CreatePipeline(ctx context.Context, pn string, rpp []byte, vars map[string]interface{}) error {

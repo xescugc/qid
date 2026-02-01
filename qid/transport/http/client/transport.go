@@ -12,6 +12,52 @@ import (
 	"github.com/xescugc/qid/qid/transport"
 )
 
+func encodeUserLoginRequest(_ context.Context, r *http.Request, request interface{}) error {
+	cfr := request.(transport.UserLoginRequest)
+	b, err := json.Marshal(cfr)
+	if err != nil {
+		return err
+	}
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeUserLoginResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.CreatePipelineResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func encodeCreateUserRequest(_ context.Context, r *http.Request, request interface{}) error {
+	cfr := request.(transport.CreateUserRequest)
+	b, err := json.Marshal(cfr)
+	if err != nil {
+		return err
+	}
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
+	r.Header.Set("Content-Type", "application/json")
+
+	return nil
+}
+
+func decodeCreateUserResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	var response transport.CreateUserResponse
+	if r.StatusCode == http.StatusCreated {
+		return response, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func encodeCreatePipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
 	cfr := request.(transport.CreatePipelineRequest)
 	b, err := json.Marshal(cfr)

@@ -32,7 +32,8 @@ dserve: ## Serves the server
 
 .PHONY: serve
 serve: ## Serves the server
-	@go run . server -p 4000 -log-level=debug -pipeline-name=test -pipeline-config=./qid/testdata/cron.hcl
+	#@go run . server -p 4000 -log-level=debug -pipeline-name=test -pipeline-config=./qid/testdata/cron.hcl
+	@go run . server -p 4000 -log-level=debug -jwt-secret potato -users "pepito:$2a$14$rwQk8Qvc2rij7qhFO4P1W.OiSF6AkgVU1RCrLaY2wawJcpkPEKwbm,grillo:$2a$14$SvWir17.jlXxiZfe0pJuDedznetc/HWKv43YPsQQNo6MJiuypS2q6"
 
 .PHONY: worker
 worker: ## Starts a worker

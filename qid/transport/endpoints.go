@@ -4,11 +4,14 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/job"
 	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/resource"
+	"github.com/xescugc/qid/qid/team"
+	"github.com/xescugc/qid/qid/user"
 )
 
 type Endpoints struct {
@@ -17,6 +20,20 @@ type Endpoints struct {
 	CreatePipelineImage endpoint.Endpoint
 
 	// API
+	UserLogin endpoint.Endpoint
+
+	ListUsers  endpoint.Endpoint
+	CreateUser endpoint.Endpoint
+
+	CreateTeam       endpoint.Endpoint
+	UpdateTeam       endpoint.Endpoint
+	GetTeam          endpoint.Endpoint
+	ListTeams        endpoint.Endpoint
+	DeleteTeam       endpoint.Endpoint
+	CreateTeamMember endpoint.Endpoint
+	UpdateTeamMember endpoint.Endpoint
+	DeleteTeamMember endpoint.Endpoint
+
 	CreatePipeline endpoint.Endpoint
 	UpdatePipeline endpoint.Endpoint
 	ListPipelines  endpoint.Endpoint
@@ -40,10 +57,25 @@ type Endpoints struct {
 	GetPipelineResource endpoint.Endpoint
 }
 
-func MakeServerEndpoints(s qid.Service) Endpoints {
+func MakeServerEndpoints(s qid.Service, ts []byte) Endpoints {
 	return Endpoints{
 		GetPipelineImage:    MakeGetPipelineImageEndpoint(s),
 		CreatePipelineImage: MakeCreatePipelineImageEndpoint(s),
+
+		UserLogin: MakeUserLoginEndpoint(s, ts),
+
+		ListUsers:  MakeListUsersEndpoint(s),
+		CreateUser: MakeCreateUserEndpoint(s),
+
+		CreateTeam: MakeCreateTeamEndpoint(s),
+		UpdateTeam: MakeUpdateTeamEndpoint(s),
+		GetTeam:    MakeGetTeamEndpoint(s),
+		ListTeams:  MakeListTeamsEndpoint(s),
+		DeleteTeam: MakeDeleteTeamEndpoint(s),
+
+		CreateTeamMember: MakeCreateTeamMemberEndpoint(s),
+		UpdateTeamMember: MakeUpdateTeamMemberEndpoint(s),
+		DeleteTeamMember: MakeDeleteTeamMemberEndpoint(s),
 
 		CreatePipeline: MakeCreatePipelineEndpoint(s),
 		UpdatePipeline: MakeUpdatePipelineEndpoint(s),
@@ -66,6 +98,272 @@ func MakeServerEndpoints(s qid.Service) Endpoints {
 		ListResourceVersions:  MakeListResourceVersionsEndpoint(s),
 
 		GetPipelineResource: MakeGetPipelineResourceEndpoint(s),
+	}
+}
+
+type UserLoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+type UserLoginResponse struct {
+	User *user.User `json:"user,omitempty"`
+	JWT  string     `json:"jwt,omitempty"`
+	Err  string     `json:"error,omitempty"`
+}
+
+func (r UserLoginResponse) Error() string { return r.Err }
+
+func MakeUserLoginEndpoint(s qid.Service, ts []byte) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(UserLoginRequest)
+		u, err := s.UserLogin(ctx, req.Username, req.Password)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"user": u,
+		})
+		tokenString, err := token.SignedString(ts)
+		if err != nil {
+			errs = err.Error()
+		}
+		return UserLoginResponse{User: u, Err: errs, JWT: tokenString}, nil
+	}
+}
+
+type ListUsersRequest struct{}
+type ListUsersResponse struct {
+	Users []*user.User `json:"data,omitempty"`
+	Err   string       `json:"error,omitempty"`
+}
+
+func (r ListUsersResponse) Error() string { return r.Err }
+
+func MakeListUsersEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		_ = request.(ListUsersRequest)
+		us, err := s.ListUsers(ctx)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return ListUsersResponse{Users: us, Err: errs}, nil
+	}
+}
+
+type CreateUserRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	IsHash   bool   `json:"is_hash"`
+}
+type CreateUserResponse struct {
+	User *user.User `json:"data,omitempty"`
+	Err  string     `json:"error,omitempty"`
+}
+
+func (r CreateUserResponse) Error() string { return r.Err }
+
+func MakeCreateUserEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(CreateUserRequest)
+		u, err := s.CreateUser(ctx, user.User{Username: req.Username, Password: req.Password}, req.IsHash)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return CreateUserResponse{User: u, Err: errs}, nil
+	}
+}
+
+type CreateTeamRequest struct {
+	Name     string `json:"name"`
+	Username string `json:"username"`
+}
+type CreateTeamResponse struct {
+	Team *team.WithMembers `json:"data,omitempty"`
+	Err  string            `json:"error,omitempty"`
+}
+
+func (r CreateTeamResponse) Error() string { return r.Err }
+
+func MakeCreateTeamEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(CreateTeamRequest)
+		t, err := s.CreateTeam(ctx, req.Username, team.Team{Name: req.Name})
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return CreateTeamResponse{Team: t, Err: errs}, nil
+	}
+}
+
+type UpdateTeamRequest struct {
+	Name          string `json:"name"`
+	TeamCanonical string `json:"team_canonical"`
+	Username      string `json:"username"`
+}
+type UpdateTeamResponse struct {
+	Team *team.WithMembers `json:"data,omitempty"`
+	Err  string            `json:"error,omitempty"`
+}
+
+func (r UpdateTeamResponse) Error() string { return r.Err }
+
+func MakeUpdateTeamEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(UpdateTeamRequest)
+		t, err := s.UpdateTeam(ctx, req.Username, req.TeamCanonical, team.Team{Name: req.Name})
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return CreateTeamResponse{Team: t, Err: errs}, nil
+	}
+}
+
+type GetTeamRequest struct {
+	TeamCanonical string `json:"team_canonical"`
+	Username      string `json:"username"`
+}
+type GetTeamResponse struct {
+	Team *team.WithMembers `json:"data,omitempty"`
+	Err  string            `json:"error,omitempty"`
+}
+
+func (r GetTeamResponse) Error() string { return r.Err }
+
+func MakeGetTeamEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(GetTeamRequest)
+		t, err := s.GetTeam(ctx, req.Username, req.TeamCanonical)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return GetTeamResponse{Team: t, Err: errs}, nil
+	}
+}
+
+type ListTeamsRequest struct {
+	TeamCanonical string `json:"team_canonical"`
+	Username      string `json:"username"`
+}
+type ListTeamsResponse struct {
+	Teams []*team.WithMembers `json:"data,omitempty"`
+	Err   string              `json:"error,omitempty"`
+}
+
+func (r ListTeamsResponse) Error() string { return r.Err }
+
+func MakeListTeamsEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(ListTeamsRequest)
+		ts, err := s.ListTeams(ctx, req.Username)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return ListTeamsResponse{Teams: ts, Err: errs}, nil
+	}
+}
+
+type DeleteTeamRequest struct {
+	TeamCanonical string `json:"team_canonical"`
+	Username      string `json:"username"`
+}
+type DeleteTeamResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r DeleteTeamResponse) Error() string { return r.Err }
+
+func MakeDeleteTeamEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(DeleteTeamRequest)
+		err := s.DeleteTeam(ctx, req.Username, req.TeamCanonical)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return DeleteTeamResponse{Err: errs}, nil
+	}
+}
+
+type CreateTeamMemberRequest struct {
+	TeamCanonical string `json:"team_canonical"`
+	Username      string `json:"member_username"`
+
+	team.Member
+}
+type CreateTeamMemberResponse struct {
+	Member *team.Member `json:"data,omitempty"`
+	Err    string       `json:"error,omitempty"`
+}
+
+func (r CreateTeamMemberResponse) Error() string { return r.Err }
+
+func MakeCreateTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(CreateTeamMemberRequest)
+		tm, err := s.CreateTeamMember(ctx, req.Username, req.TeamCanonical, req.Member)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return CreateTeamMemberResponse{Member: tm, Err: errs}, nil
+	}
+}
+
+type UpdateTeamMemberRequest struct {
+	TeamCanonical  string `json:"team_canonical"`
+	MemberUsername string `json:"member_username"`
+	Admin          bool   `json:"admin"`
+	Username       string `json:"username"`
+}
+type UpdateTeamMemberResponse struct {
+	Member *team.Member `json:"data,omitempty"`
+	Err    string       `json:"error,omitempty"`
+}
+
+func (r UpdateTeamMemberResponse) Error() string { return r.Err }
+
+func MakeUpdateTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(UpdateTeamMemberRequest)
+		tm, err := s.UpdateTeamMember(ctx, req.Username, req.TeamCanonical, req.MemberUsername, team.Member{
+			Admin: req.Admin,
+			User:  user.User{Username: req.MemberUsername},
+		})
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return CreateTeamMemberResponse{Member: tm, Err: errs}, nil
+	}
+}
+
+type DeleteTeamMemberRequest struct {
+	TeamCanonical  string `json:"team_canonical"`
+	MemberUsername string `json:"member_username"`
+	Username       string `json:"username"`
+}
+type DeleteTeamMemberResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r DeleteTeamMemberResponse) Error() string { return r.Err }
+
+func MakeDeleteTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(DeleteTeamMemberRequest)
+		err := s.DeleteTeamMember(ctx, req.Username, req.TeamCanonical, req.MemberUsername)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		return DeleteTeamMemberResponse{Err: errs}, nil
 	}
 }
 

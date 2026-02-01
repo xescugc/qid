@@ -5,6 +5,10 @@ type Config struct {
 
 	DBSystem string `koanf:"db-system"`
 
+	JWTSecret []byte `koanf:"jwt-secret"`
+
+	Users []string `koanf:"users"`
+
 	// MySQL
 	DBHost     string `koanf:"db-host"`
 	DBPort     int    `koanf:"db-port"`

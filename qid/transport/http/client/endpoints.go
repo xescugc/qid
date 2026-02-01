@@ -8,6 +8,16 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
+func makeUserLoginEndpoint(u url.URL) endpoint.Endpoint {
+	u.Path = "/login"
+	return kithttp.NewClient(
+		http.MethodPost,
+		&u,
+		encodeUserLoginRequest,
+		decodeUserLoginResponse,
+	).Endpoint()
+}
+
 func makeCreatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 	u.Path = "/pipelines"
 	return kithttp.NewClient(
