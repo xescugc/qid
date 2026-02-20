@@ -121,6 +121,10 @@ func (cl *Client) UserLogin(ctx context.Context, un, pass string) (*user.User, e
 	return resp.User, nil
 }
 
+func (cl *Client) GetUser(ctx context.Context, un string) (*user.WithMemberships, error) {
+	return nil, nil
+}
+
 func (cl *Client) CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error) {
 	return nil, nil
 }

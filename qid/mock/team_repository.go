@@ -57,17 +57,17 @@ func (mr *TeamRepositoryMockRecorder) Create(ctx, t any) *gomock.Call {
 }
 
 // CreateMember mocks base method.
-func (m *TeamRepository) CreateMember(ctx context.Context, tc, mc string) error {
+func (m *TeamRepository) CreateMember(ctx context.Context, tc string, tm team.Member) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateMember", ctx, tc, mc)
+	ret := m.ctrl.Call(m, "CreateMember", ctx, tc, tm)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateMember indicates an expected call of CreateMember.
-func (mr *TeamRepositoryMockRecorder) CreateMember(ctx, tc, mc any) *gomock.Call {
+func (mr *TeamRepositoryMockRecorder) CreateMember(ctx, tc, tm any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMember", reflect.TypeOf((*TeamRepository)(nil).CreateMember), ctx, tc, mc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMember", reflect.TypeOf((*TeamRepository)(nil).CreateMember), ctx, tc, tm)
 }
 
 // Delete mocks base method.
@@ -155,4 +155,18 @@ func (m *TeamRepository) Update(ctx context.Context, tc string, t team.Team) err
 func (mr *TeamRepositoryMockRecorder) Update(ctx, tc, t any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*TeamRepository)(nil).Update), ctx, tc, t)
+}
+
+// UpdateMember mocks base method.
+func (m *TeamRepository) UpdateMember(ctx context.Context, tc, mc string, tm team.Member) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMember", ctx, tc, mc, tm)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateMember indicates an expected call of UpdateMember.
+func (mr *TeamRepositoryMockRecorder) UpdateMember(ctx, tc, mc, tm any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMember", reflect.TypeOf((*TeamRepository)(nil).UpdateMember), ctx, tc, mc, tm)
 }

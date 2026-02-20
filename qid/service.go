@@ -29,6 +29,7 @@ import (
 type Service interface {
 	UserLogin(ctx context.Context, un, pass string) (*user.User, error)
 
+	GetUser(ctx context.Context, un string) (*user.WithMemberships, error)
 	CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error)
 	ListUsers(ctx context.Context) ([]*user.User, error)
 
@@ -149,6 +150,19 @@ func (q *Qid) UserLogin(ctx context.Context, un, pass string) (*user.User, error
 	return u, nil
 }
 
+func (q *Qid) GetUser(ctx context.Context, un string) (*user.WithMemberships, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, fmt.Errorf("invalid Username format %q", un)
+	}
+
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	return um, nil
+}
+
 func (q *Qid) CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error) {
 	if !utils.ValidateCanonical(u.Username) {
 		return nil, fmt.Errorf("invalid Username format %q", u.Username)
@@ -187,15 +201,6 @@ func (q *Qid) CreateTeam(ctx context.Context, un string, t team.Team) (*team.Wit
 		return nil, fmt.Errorf("invalid Username format %q", un)
 	} else if t.Name == "" {
 		return nil, fmt.Errorf("Team Name is required")
-	}
-
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin() {
-		return nil, fmt.Errorf("You cannot do this")
 	}
 
 	t.Canonical = utils.Canonicalize(t.Name)
@@ -244,15 +249,6 @@ func (q *Qid) GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, er
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	}
 
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin(tc) {
-		return nil, fmt.Errorf("You cannot do this")
-	}
-
 	t, err := q.Teams.Find(ctx, tc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Team: %w", err)
@@ -268,18 +264,9 @@ func (q *Qid) UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	}
 
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin(tc) {
-		return nil, fmt.Errorf("You cannot do this")
-	}
-
 	t.Canonical = utils.Canonicalize(t.Name)
 
-	err = q.Teams.Update(ctx, tc, t)
+	err := q.Teams.Update(ctx, tc, t)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update Team: %w", err)
 	}
@@ -299,16 +286,7 @@ func (q *Qid) DeleteTeam(ctx context.Context, un, tc string) error {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
 	}
 
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin(tc) {
-		return fmt.Errorf("You cannot do this")
-	}
-
-	err = q.Teams.Delete(ctx, tc)
+	err := q.Teams.Delete(ctx, tc)
 	if err != nil {
 		return fmt.Errorf("failed to delete Team: %w", err)
 	}
@@ -325,16 +303,7 @@ func (q *Qid) CreateTeamMember(ctx context.Context, un, tc string, tm team.Membe
 		return nil, fmt.Errorf("invalid Team Member Username format %q", tm.User.Username)
 	}
 
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin(tc) {
-		return nil, fmt.Errorf("You cannot do this")
-	}
-
-	err = q.Teams.CreateMember(ctx, tc, tm)
+	err := q.Teams.CreateMember(ctx, tc, tm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create member: %w", err)
 	}
@@ -356,16 +325,7 @@ func (q *Qid) UpdateTeamMember(ctx context.Context, un, tc, mu string, tm team.M
 		return nil, fmt.Errorf("invalid Team Member Username format %q", mu)
 	}
 
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin(tc) {
-		return nil, fmt.Errorf("You cannot do this")
-	}
-
-	err = q.Teams.UpdateMember(ctx, tc, mu, tm)
+	err := q.Teams.UpdateMember(ctx, tc, mu, tm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create member: %w", err)
 	}
@@ -387,16 +347,7 @@ func (q *Qid) DeleteTeamMember(ctx context.Context, un, tc, mc string) error {
 		return fmt.Errorf("invalid Team Member Username format %q", tc)
 	}
 
-	um, err := q.Users.FindWithMemberships(ctx, un)
-	if err != nil {
-		return fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if !um.IsAdmin(tc) {
-		return fmt.Errorf("You cannot do this")
-	}
-
-	err = q.Teams.DeleteMember(ctx, tc, mc)
+	err := q.Teams.DeleteMember(ctx, tc, mc)
 	if err != nil {
 		return fmt.Errorf("failed to create member: %w", err)
 	}

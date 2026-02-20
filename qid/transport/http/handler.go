@@ -34,6 +34,7 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 
 	auth := func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, rr *http.Request) {
+			// Aauthentication
 			reqToken := rr.Header.Get("Authorization")
 			splitToken := strings.Split(reqToken, " ")
 			if len(splitToken) != 2 {
@@ -49,18 +50,54 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 				return ts, nil
 			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 			if err != nil {
-				l.Log(err)
+				l.Log("error", err)
 				encodeError(rr.Context(), "Authentication required", rw)
 				return
 			}
 
+			var un string
 			if claims, ok := token.Claims.(jwt.MapClaims); ok {
-				rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, claims["user"].(map[string]interface{})["username"]))
+				un = claims["user"].(map[string]interface{})["username"].(string)
+				rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, un))
 			} else {
-				l.Log(err)
+				l.Log("error", err)
 				encodeError(rr.Context(), "Authentication required", rw)
 				return
 			}
+
+			// Authorization
+
+			cr := mux.CurrentRoute(rr)
+			crns := cr.GetName()
+			if crns == "" {
+				pt, _ := cr.GetPathTemplate()
+				encodeError(rr.Context(), fmt.Sprintf("Route %s has no name", pt), rw)
+				return
+			}
+
+			crn, err := RouteNameString(crns)
+			if err != nil {
+				pt, _ := cr.GetPathTemplate()
+				encodeError(rr.Context(), fmt.Sprintf("Route %s has no name conversion(%s)", pt, crns), rw)
+				return
+			}
+
+			afn, ok := routeAuthorization[crn]
+			if !ok {
+				pt, _ := cr.GetPathTemplate()
+				encodeError(rr.Context(), fmt.Sprintf("Route %s has no auth", pt), rw)
+				return
+			}
+
+			vars := mux.Vars(rr)
+			tc := vars["team_canonical"]
+			err = afn(rr.Context(), s, un, tc)
+			if err != nil {
+				l.Log("error", err)
+				encodeError(rr.Context(), "Authentication required", rw)
+				return
+			}
+
 			h.ServeHTTP(rw, rr)
 		})
 	}
@@ -93,70 +130,70 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 
 	api.Use(auth)
 
-	api.Methods(http.MethodGet).Path("/users").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/users").Name(ListUsers.String()).Handler(kithttp.NewServer(
 		e.ListUsers,
 		decodeListUsersRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodPost).Path("/users").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPost).Path("/users").Name(CreateUser.String()).Handler(kithttp.NewServer(
 		e.CreateUser,
 		decodeCreateUserRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodPost).Path("/teams").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPost).Path("/teams").Name(CreateTeam.String()).Handler(kithttp.NewServer(
 		e.CreateTeam,
 		decodeCreateTeamRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodGet).Path("/teams").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/teams").Name(ListTeams.String()).Handler(kithttp.NewServer(
 		e.ListTeams,
 		decodeListTeamsRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodGet).Path("/teams/{team_canonical}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodGet).Path("/teams/{team_canonical}").Name(GetTeam.String()).Handler(kithttp.NewServer(
 		e.GetTeam,
 		decodeGetTeamRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodPut).Path("/teams/{team_canonical}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPut).Path("/teams/{team_canonical}").Name(UpdateTeam.String()).Handler(kithttp.NewServer(
 		e.UpdateTeam,
 		decodeUpdateTeamRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}").Name(DeleteTeam.String()).Handler(kithttp.NewServer(
 		e.DeleteTeam,
 		decodeDeleteTeamRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/members").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/members").Name(CreateTeamMember.String()).Handler(kithttp.NewServer(
 		e.CreateTeamMember,
 		decodeCreateTeamMemberRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodPut).Path("/teams/{team_canonical}/members/{member_username}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodPut).Path("/teams/{team_canonical}/members/{member_username}").Name(UpdateTeamMember.String()).Handler(kithttp.NewServer(
 		e.UpdateTeamMember,
 		decodeUpdateTeamMemberRequest,
 		encodeJSONResponse,
 		options...,
 	))
 
-	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}/members/{member_username}").Handler(kithttp.NewServer(
+	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}/members/{member_username}").Name(DeleteTeamMember.String()).Handler(kithttp.NewServer(
 		e.DeleteTeamMember,
 		decodeDeleteTeamMemberRequest,
 		encodeJSONResponse,

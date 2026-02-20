@@ -197,7 +197,7 @@ func scanUserWithMemberships(rows *sql.Rows) (*user.WithMemberships, error) {
 		var (
 			du    dbUser
 			dt    dbTeam
-			admin bool
+			admin sql.NullBool
 		)
 		err := rows.Scan(
 			&du.ID,
@@ -226,7 +226,7 @@ func scanUserWithMemberships(rows *sql.Rows) (*user.WithMemberships, error) {
 			um.Memberships = make([]user.Member, 0)
 		}
 		um.Memberships = append(um.Memberships, user.Member{
-			Admin:         admin,
+			Admin:         admin.Bool,
 			TeamCanonical: t.Canonical,
 		})
 	}

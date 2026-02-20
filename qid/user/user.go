@@ -24,8 +24,32 @@ func (u *WithMemberships) IsAdmin(tcs ...string) bool {
 		return true
 	}
 	for _, tc := range tcs {
+		if tc == "" {
+			continue
+		}
 		for _, m := range u.Memberships {
 			if m.Admin && m.TeamCanonical == tc {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (u *WithMemberships) IsMember(tcs ...string) bool {
+	if u.Admin {
+		return true
+	}
+	if len(tcs) == 1 && tcs[0] == "" {
+		// In case it's only an empty one it's member
+		return true
+	}
+	for _, tc := range tcs {
+		if tc == "" {
+			continue
+		}
+		for _, m := range u.Memberships {
+			if m.TeamCanonical == tc {
 				return true
 			}
 		}
