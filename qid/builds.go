@@ -1,0 +1,79 @@
+package qid
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"time"
+
+	"github.com/xescugc/qid/qid/build"
+	"github.com/xescugc/qid/qid/utils"
+)
+
+func (q *Qid) CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error) {
+	if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return nil, fmt.Errorf("invalid Job Name format %q", pn)
+	}
+
+	id, err := q.Builds.Create(ctx, pn, jn, b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Create Build: %w", err)
+	}
+
+	b.ID = id
+
+	return &b, nil
+}
+
+func (q *Qid) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error) {
+	if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return nil, fmt.Errorf("invalid Job Name format %q", pn)
+	}
+
+	builds, err := q.Builds.Filter(ctx, pn, jn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Builds: %w", err)
+	}
+
+	slices.Reverse(builds)
+
+	return builds, nil
+}
+
+func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return fmt.Errorf("invalid Job Name format %q", pn)
+	}
+
+	if b.Status != build.Started && b.Duration == 0 {
+		b.Duration = time.Now().Sub(b.StartedAt)
+	}
+
+	err := q.Builds.Update(ctx, pn, jn, bID, b)
+	if err != nil {
+		return fmt.Errorf("failed to Update Build: %w", err)
+	}
+
+	return nil
+}
+
+func (q *Qid) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error {
+	if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return fmt.Errorf("invalid Job Name format %q", pn)
+	}
+
+	err := q.Builds.Delete(ctx, pn, jn, bID)
+	if err != nil {
+		return fmt.Errorf("failed to Delete Build: %w", err)
+	}
+
+	return nil
+}
