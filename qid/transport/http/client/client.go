@@ -139,22 +139,22 @@ func (cl *Client) CreateTeam(ctx context.Context, un string, t team.Team) (*team
 func (cl *Client) ListTeams(ctx context.Context, un string) ([]*team.WithMembers, error) {
 	return nil, nil
 }
-func (cl *Client) GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, error) {
+func (cl *Client) GetTeam(ctx context.Context, tc string) (*team.WithMembers, error) {
 	return nil, nil
 }
-func (cl *Client) UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team.WithMembers, error) {
+func (cl *Client) UpdateTeam(ctx context.Context, tc string, t team.Team) (*team.WithMembers, error) {
 	return nil, nil
 }
-func (cl *Client) DeleteTeam(ctx context.Context, un, tc string) error {
+func (cl *Client) DeleteTeam(ctx context.Context, tc string) error {
 	return nil
 }
-func (cl *Client) CreateTeamMember(ctx context.Context, un, tc string, tm team.Member) (*team.Member, error) {
+func (cl *Client) CreateTeamMember(ctx context.Context, tc string, tm team.Member) (*team.Member, error) {
 	return nil, nil
 }
-func (cl *Client) UpdateTeamMember(ctx context.Context, un, tc, mu string, tm team.Member) (*team.Member, error) {
+func (cl *Client) UpdateTeamMember(ctx context.Context, tc, mu string, tm team.Member) (*team.Member, error) {
 	return nil, nil
 }
-func (cl *Client) DeleteTeamMember(ctx context.Context, un, tc, mu string) error {
+func (cl *Client) DeleteTeamMember(ctx context.Context, tc, mu string) error {
 	return nil
 }
 

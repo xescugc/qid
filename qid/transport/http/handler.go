@@ -355,7 +355,6 @@ func decodeListUsersRequest(_ context.Context, r *http.Request) (interface{}, er
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req transport.CreateUserRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
-	//req.Username = r.Context().Value(UsernameContextKey).(string)
 
 	return req, err
 }
@@ -378,7 +377,6 @@ func decodeListTeamsRequest(ctx context.Context, r *http.Request) (interface{}, 
 func decodeGetTeamRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req transport.GetTeamRequest
 	vars := mux.Vars(r)
-	req.Username = r.Context().Value(UsernameContextKey).(string)
 	req.TeamCanonical = vars["team_canonical"]
 
 	return req, nil
@@ -388,7 +386,6 @@ func decodeUpdateTeamRequest(_ context.Context, r *http.Request) (interface{}, e
 	var req transport.UpdateTeamRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	vars := mux.Vars(r)
-	req.Username = r.Context().Value(UsernameContextKey).(string)
 	req.TeamCanonical = vars["team_canonical"]
 
 	return req, err
@@ -397,7 +394,6 @@ func decodeUpdateTeamRequest(_ context.Context, r *http.Request) (interface{}, e
 func decodeDeleteTeamRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req transport.DeleteTeamRequest
 	vars := mux.Vars(r)
-	req.Username = r.Context().Value(UsernameContextKey).(string)
 	req.TeamCanonical = vars["team_canonical"]
 
 	return req, nil
@@ -407,9 +403,7 @@ func decodeCreateTeamMemberRequest(_ context.Context, r *http.Request) (interfac
 	var req transport.CreateTeamMemberRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	vars := mux.Vars(r)
-	req.Username = r.Context().Value(UsernameContextKey).(string)
 	req.TeamCanonical = vars["team_canonical"]
-	//req.MemberUsername = vars["member_username"]
 
 	return req, err
 }
@@ -418,7 +412,6 @@ func decodeUpdateTeamMemberRequest(_ context.Context, r *http.Request) (interfac
 	var req transport.UpdateTeamMemberRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	vars := mux.Vars(r)
-	req.Username = r.Context().Value(UsernameContextKey).(string)
 	req.TeamCanonical = vars["team_canonical"]
 	req.MemberUsername = vars["member_username"]
 
@@ -428,7 +421,6 @@ func decodeUpdateTeamMemberRequest(_ context.Context, r *http.Request) (interfac
 func decodeDeleteTeamMemberRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req transport.DeleteTeamMemberRequest
 	vars := mux.Vars(r)
-	req.Username = r.Context().Value(UsernameContextKey).(string)
 	req.TeamCanonical = vars["team_canonical"]
 	req.MemberUsername = vars["member_username"]
 

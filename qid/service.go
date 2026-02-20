@@ -26,13 +26,13 @@ type Service interface {
 
 	CreateTeam(ctx context.Context, un string, t team.Team) (*team.WithMembers, error)
 	ListTeams(ctx context.Context, un string) ([]*team.WithMembers, error)
-	GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, error)
-	UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team.WithMembers, error)
-	DeleteTeam(ctx context.Context, un, tc string) error
+	GetTeam(ctx context.Context, tc string) (*team.WithMembers, error)
+	UpdateTeam(ctx context.Context, tc string, t team.Team) (*team.WithMembers, error)
+	DeleteTeam(ctx context.Context, tc string) error
 
-	CreateTeamMember(ctx context.Context, un, tc string, tm team.Member) (*team.Member, error)
-	UpdateTeamMember(ctx context.Context, un, tc, mc string, tm team.Member) (*team.Member, error)
-	DeleteTeamMember(ctx context.Context, un, tc, mc string) error
+	CreateTeamMember(ctx context.Context, tc string, tm team.Member) (*team.Member, error)
+	UpdateTeamMember(ctx context.Context, tc, mc string, tm team.Member) (*team.Member, error)
+	DeleteTeamMember(ctx context.Context, tc, mc string) error
 
 	CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
 	UpdatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error

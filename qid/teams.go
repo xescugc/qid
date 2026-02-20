@@ -55,10 +55,8 @@ func (q *Qid) ListTeams(ctx context.Context, un string) ([]*team.WithMembers, er
 	return teams, nil
 }
 
-func (q *Qid) GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, error) {
-	if !utils.ValidateCanonical(un) {
-		return nil, fmt.Errorf("invalid Username format %q", un)
-	} else if !utils.ValidateCanonical(tc) {
+func (q *Qid) GetTeam(ctx context.Context, tc string) (*team.WithMembers, error) {
+	if !utils.ValidateCanonical(tc) {
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	}
 
@@ -70,10 +68,8 @@ func (q *Qid) GetTeam(ctx context.Context, un, tc string) (*team.WithMembers, er
 	return t, nil
 }
 
-func (q *Qid) UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team.WithMembers, error) {
-	if !utils.ValidateCanonical(un) {
-		return nil, fmt.Errorf("invalid Username format %q", un)
-	} else if !utils.ValidateCanonical(tc) {
+func (q *Qid) UpdateTeam(ctx context.Context, tc string, t team.Team) (*team.WithMembers, error) {
+	if !utils.ValidateCanonical(tc) {
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	}
 
@@ -92,10 +88,8 @@ func (q *Qid) UpdateTeam(ctx context.Context, un, tc string, t team.Team) (*team
 	return twm, nil
 }
 
-func (q *Qid) DeleteTeam(ctx context.Context, un, tc string) error {
-	if !utils.ValidateCanonical(un) {
-		return fmt.Errorf("invalid Username format %q", un)
-	} else if !utils.ValidateCanonical(tc) {
+func (q *Qid) DeleteTeam(ctx context.Context, tc string) error {
+	if !utils.ValidateCanonical(tc) {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
 	}
 
@@ -107,10 +101,8 @@ func (q *Qid) DeleteTeam(ctx context.Context, un, tc string) error {
 	return nil
 }
 
-func (q *Qid) CreateTeamMember(ctx context.Context, un, tc string, tm team.Member) (*team.Member, error) {
-	if !utils.ValidateCanonical(un) {
-		return nil, fmt.Errorf("invalid Username format %q", un)
-	} else if !utils.ValidateCanonical(tc) {
+func (q *Qid) CreateTeamMember(ctx context.Context, tc string, tm team.Member) (*team.Member, error) {
+	if !utils.ValidateCanonical(tc) {
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	} else if !utils.ValidateCanonical(tm.User.Username) {
 		return nil, fmt.Errorf("invalid Team Member Username format %q", tm.User.Username)
@@ -129,10 +121,8 @@ func (q *Qid) CreateTeamMember(ctx context.Context, un, tc string, tm team.Membe
 	return rtm, nil
 }
 
-func (q *Qid) UpdateTeamMember(ctx context.Context, un, tc, mu string, tm team.Member) (*team.Member, error) {
-	if !utils.ValidateCanonical(un) {
-		return nil, fmt.Errorf("invalid Username format %q", un)
-	} else if !utils.ValidateCanonical(tc) {
+func (q *Qid) UpdateTeamMember(ctx context.Context, tc, mu string, tm team.Member) (*team.Member, error) {
+	if !utils.ValidateCanonical(tc) {
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	} else if !utils.ValidateCanonical(mu) {
 		return nil, fmt.Errorf("invalid Team Member Username format %q", mu)
@@ -151,10 +141,8 @@ func (q *Qid) UpdateTeamMember(ctx context.Context, un, tc, mu string, tm team.M
 	return rtm, nil
 }
 
-func (q *Qid) DeleteTeamMember(ctx context.Context, un, tc, mc string) error {
-	if !utils.ValidateCanonical(un) {
-		return fmt.Errorf("invalid Username format %q", un)
-	} else if !utils.ValidateCanonical(tc) {
+func (q *Qid) DeleteTeamMember(ctx context.Context, tc, mc string) error {
+	if !utils.ValidateCanonical(tc) {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
 	} else if !utils.ValidateCanonical(mc) {
 		return fmt.Errorf("invalid Team Member Username format %q", tc)

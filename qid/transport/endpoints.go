@@ -202,7 +202,6 @@ func MakeCreateTeamEndpoint(s qid.Service) endpoint.Endpoint {
 type UpdateTeamRequest struct {
 	Name          string `json:"name"`
 	TeamCanonical string `json:"team_canonical"`
-	Username      string `json:"username"`
 }
 type UpdateTeamResponse struct {
 	Team *team.WithMembers `json:"data,omitempty"`
@@ -214,7 +213,7 @@ func (r UpdateTeamResponse) Error() string { return r.Err }
 func MakeUpdateTeamEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdateTeamRequest)
-		t, err := s.UpdateTeam(ctx, req.Username, req.TeamCanonical, team.Team{Name: req.Name})
+		t, err := s.UpdateTeam(ctx, req.TeamCanonical, team.Team{Name: req.Name})
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -225,7 +224,6 @@ func MakeUpdateTeamEndpoint(s qid.Service) endpoint.Endpoint {
 
 type GetTeamRequest struct {
 	TeamCanonical string `json:"team_canonical"`
-	Username      string `json:"username"`
 }
 type GetTeamResponse struct {
 	Team *team.WithMembers `json:"data,omitempty"`
@@ -237,7 +235,7 @@ func (r GetTeamResponse) Error() string { return r.Err }
 func MakeGetTeamEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetTeamRequest)
-		t, err := s.GetTeam(ctx, req.Username, req.TeamCanonical)
+		t, err := s.GetTeam(ctx, req.TeamCanonical)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -271,7 +269,6 @@ func MakeListTeamsEndpoint(s qid.Service) endpoint.Endpoint {
 
 type DeleteTeamRequest struct {
 	TeamCanonical string `json:"team_canonical"`
-	Username      string `json:"username"`
 }
 type DeleteTeamResponse struct {
 	Err string `json:"error,omitempty"`
@@ -282,7 +279,7 @@ func (r DeleteTeamResponse) Error() string { return r.Err }
 func MakeDeleteTeamEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeleteTeamRequest)
-		err := s.DeleteTeam(ctx, req.Username, req.TeamCanonical)
+		err := s.DeleteTeam(ctx, req.TeamCanonical)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -293,7 +290,6 @@ func MakeDeleteTeamEndpoint(s qid.Service) endpoint.Endpoint {
 
 type CreateTeamMemberRequest struct {
 	TeamCanonical string `json:"team_canonical"`
-	Username      string `json:"member_username"`
 
 	team.Member
 }
@@ -307,7 +303,7 @@ func (r CreateTeamMemberResponse) Error() string { return r.Err }
 func MakeCreateTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreateTeamMemberRequest)
-		tm, err := s.CreateTeamMember(ctx, req.Username, req.TeamCanonical, req.Member)
+		tm, err := s.CreateTeamMember(ctx, req.TeamCanonical, req.Member)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -320,7 +316,6 @@ type UpdateTeamMemberRequest struct {
 	TeamCanonical  string `json:"team_canonical"`
 	MemberUsername string `json:"member_username"`
 	Admin          bool   `json:"admin"`
-	Username       string `json:"username"`
 }
 type UpdateTeamMemberResponse struct {
 	Member *team.Member `json:"data,omitempty"`
@@ -332,7 +327,7 @@ func (r UpdateTeamMemberResponse) Error() string { return r.Err }
 func MakeUpdateTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdateTeamMemberRequest)
-		tm, err := s.UpdateTeamMember(ctx, req.Username, req.TeamCanonical, req.MemberUsername, team.Member{
+		tm, err := s.UpdateTeamMember(ctx, req.TeamCanonical, req.MemberUsername, team.Member{
 			Admin: req.Admin,
 			User:  user.User{Username: req.MemberUsername},
 		})
@@ -347,7 +342,6 @@ func MakeUpdateTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
 type DeleteTeamMemberRequest struct {
 	TeamCanonical  string `json:"team_canonical"`
 	MemberUsername string `json:"member_username"`
-	Username       string `json:"username"`
 }
 type DeleteTeamMemberResponse struct {
 	Err string `json:"error,omitempty"`
@@ -358,7 +352,7 @@ func (r DeleteTeamMemberResponse) Error() string { return r.Err }
 func MakeDeleteTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeleteTeamMemberRequest)
-		err := s.DeleteTeamMember(ctx, req.Username, req.TeamCanonical, req.MemberUsername)
+		err := s.DeleteTeamMember(ctx, req.TeamCanonical, req.MemberUsername)
 		var errs string
 		if err != nil {
 			errs = err.Error()
