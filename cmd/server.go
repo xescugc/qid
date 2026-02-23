@@ -34,6 +34,8 @@ import (
 	"github.com/adrg/xdg"
 )
 
+var mainTeamCanonical = "main"
+
 var (
 	serverCmd = &cli.Command{
 		Name:  "server",
@@ -62,6 +64,7 @@ var (
 
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
 
+			&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Value: mainTeamCanonical, Usage: "Team Canonical to scope the action", Local: true},
 			&cli.StringFlag{Name: "pipeline-config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true},
 			&cli.StringFlag{Name: "pipeline-vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
 			&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline"},
@@ -192,7 +195,7 @@ var (
 			}
 
 			if cmd.String("pipeline-name") != "" {
-				err = createPipeline(ctx, fmt.Sprintf("localhost:%d", cfg.Port), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
+				err = createPipeline(ctx, cmd.String("team-canonical"), fmt.Sprintf("localhost:%d", cfg.Port), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
 				if err != nil {
 					return err
 				}

@@ -7,9 +7,9 @@ import (
 //go:generate go tool mockgen -destination=../mock/pipeline_repository.go -mock_names=Repository=PipelineRepository -package mock github.com/xescugc/qid/qid/pipeline Repository
 
 type Repository interface {
-	Create(ctx context.Context, pp Pipeline) (uint32, error)
-	Update(ctx context.Context, ppn string, pp Pipeline) error
-	Find(ctx context.Context, pn string) (*Pipeline, error)
-	Filter(ctx context.Context) ([]*Pipeline, error)
-	Delete(ctx context.Context, pn string) error
+	Create(ctx context.Context, tc string, pp Pipeline) (uint32, error)
+	Update(ctx context.Context, tc, ppn string, pp Pipeline) error
+	Find(ctx context.Context, tc, pn string) (*Pipeline, error)
+	Filter(ctx context.Context, tc string) ([]*Pipeline, error)
+	Delete(ctx context.Context, tc, pn string) error
 }

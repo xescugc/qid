@@ -42,74 +42,74 @@ func (m *JobRepository) EXPECT() *JobRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint32, error) {
+func (m *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, pn, j)
+	ret := m.ctrl.Call(m, "Create", ctx, tc, pn, j)
 	ret0, _ := ret[0].(uint32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *JobRepositoryMockRecorder) Create(ctx, pn, j any) *gomock.Call {
+func (mr *JobRepositoryMockRecorder) Create(ctx, tc, pn, j any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*JobRepository)(nil).Create), ctx, pn, j)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*JobRepository)(nil).Create), ctx, tc, pn, j)
 }
 
 // Delete mocks base method.
-func (m *JobRepository) Delete(ctx context.Context, pn, jn string) error {
+func (m *JobRepository) Delete(ctx context.Context, tc, pn, jn string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, pn, jn)
+	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn, jn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *JobRepositoryMockRecorder) Delete(ctx, pn, jn any) *gomock.Call {
+func (mr *JobRepositoryMockRecorder) Delete(ctx, tc, pn, jn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*JobRepository)(nil).Delete), ctx, pn, jn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*JobRepository)(nil).Delete), ctx, tc, pn, jn)
 }
 
 // Filter mocks base method.
-func (m *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, error) {
+func (m *JobRepository) Filter(ctx context.Context, tc, pn string) ([]*job.Job, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Filter", ctx, pn)
+	ret := m.ctrl.Call(m, "Filter", ctx, tc, pn)
 	ret0, _ := ret[0].([]*job.Job)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Filter indicates an expected call of Filter.
-func (mr *JobRepositoryMockRecorder) Filter(ctx, pn any) *gomock.Call {
+func (mr *JobRepositoryMockRecorder) Filter(ctx, tc, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*JobRepository)(nil).Filter), ctx, pn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*JobRepository)(nil).Filter), ctx, tc, pn)
 }
 
 // Find mocks base method.
-func (m *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, error) {
+func (m *JobRepository) Find(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, pn, jn)
+	ret := m.ctrl.Call(m, "Find", ctx, tc, pn, jn)
 	ret0, _ := ret[0].(*job.Job)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *JobRepositoryMockRecorder) Find(ctx, pn, jn any) *gomock.Call {
+func (mr *JobRepositoryMockRecorder) Find(ctx, tc, pn, jn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*JobRepository)(nil).Find), ctx, pn, jn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*JobRepository)(nil).Find), ctx, tc, pn, jn)
 }
 
 // Update mocks base method.
-func (m *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) error {
+func (m *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, pn, jn, j)
+	ret := m.ctrl.Call(m, "Update", ctx, tc, pn, jn, j)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *JobRepositoryMockRecorder) Update(ctx, pn, jn, j any) *gomock.Call {
+func (mr *JobRepositoryMockRecorder) Update(ctx, tc, pn, jn, j any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*JobRepository)(nil).Update), ctx, pn, jn, j)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*JobRepository)(nil).Update), ctx, tc, pn, jn, j)
 }

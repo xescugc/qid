@@ -40,12 +40,14 @@ func TestTriggerPipelineJob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)
 	ctx := context.TODO()
+	tc := "team-canonical"
 	ppn := "pipeline-name"
 	jn := "job-name"
 
 	m := queue.Body{
-		PipelineName: ppn,
-		JobName:      jn,
+		TeamCanonical: tc,
+		PipelineName:  ppn,
+		JobName:       jn,
 	}
 
 	mb, err := json.Marshal(m)

@@ -158,8 +158,8 @@ func (cl *Client) DeleteTeamMember(ctx context.Context, tc, mu string) error {
 	return nil
 }
 
-func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error {
-	response, err := cl.createPipeline(ctx, transport.CreatePipelineRequest{Name: pn, Config: pp, Vars: vars})
+func (cl *Client) CreatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) error {
+	response, err := cl.createPipeline(ctx, transport.CreatePipelineRequest{TeamCanonical: tc, Name: pn, Config: pp, Vars: vars})
 	if err != nil {
 		return err
 	}
@@ -172,8 +172,8 @@ func (cl *Client) CreatePipeline(ctx context.Context, pn string, pp []byte, vars
 	return nil
 }
 
-func (cl *Client) UpdatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error {
-	response, err := cl.updatePipeline(ctx, transport.UpdatePipelineRequest{Name: pn, Config: pp, Vars: vars})
+func (cl *Client) UpdatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) error {
+	response, err := cl.updatePipeline(ctx, transport.UpdatePipelineRequest{TeamCanonical: tc, Name: pn, Config: pp, Vars: vars})
 	if err != nil {
 		return err
 	}
@@ -186,8 +186,8 @@ func (cl *Client) UpdatePipeline(ctx context.Context, pn string, pp []byte, vars
 	return nil
 }
 
-func (cl *Client) GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, error) {
-	response, err := cl.getPipeline(ctx, transport.GetPipelineRequest{Name: pn})
+func (cl *Client) GetPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
+	response, err := cl.getPipeline(ctx, transport.GetPipelineRequest{TeamCanonical: tc, Name: pn})
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +200,8 @@ func (cl *Client) GetPipeline(ctx context.Context, pn string) (*pipeline.Pipelin
 	return resp.Pipeline, nil
 }
 
-func (cl *Client) GetPipelineImage(ctx context.Context, pn, format string) ([]byte, error) {
-	response, err := cl.getPipelineImage(ctx, transport.GetPipelineImageRequest{Name: pn, Format: format})
+func (cl *Client) GetPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
+	response, err := cl.getPipelineImage(ctx, transport.GetPipelineImageRequest{TeamCanonical: tc, Name: pn, Format: format})
 	if err != nil {
 		return nil, err
 	}
@@ -214,8 +214,8 @@ func (cl *Client) GetPipelineImage(ctx context.Context, pn, format string) ([]by
 	return []byte(resp.Image), nil
 }
 
-func (cl *Client) CreatePipelineImage(ctx context.Context, pp []byte, vars map[string]interface{}, format string) ([]byte, error) {
-	response, err := cl.createPipelineImage(ctx, transport.CreatePipelineImageRequest{Config: pp, Vars: vars, Format: format})
+func (cl *Client) CreatePipelineImage(ctx context.Context, tc string, pp []byte, vars map[string]interface{}, format string) ([]byte, error) {
+	response, err := cl.createPipelineImage(ctx, transport.CreatePipelineImageRequest{TeamCanonical: tc, Config: pp, Vars: vars, Format: format})
 	if err != nil {
 		return nil, err
 	}
@@ -228,8 +228,8 @@ func (cl *Client) CreatePipelineImage(ctx context.Context, pp []byte, vars map[s
 	return []byte(resp.Image), nil
 }
 
-func (cl *Client) ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error) {
-	response, err := cl.listPipelines(ctx, transport.ListPipelinesRequest{})
+func (cl *Client) ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipeline, error) {
+	response, err := cl.listPipelines(ctx, transport.ListPipelinesRequest{TeamCanonical: tc})
 	if err != nil {
 		return nil, err
 	}
@@ -242,8 +242,8 @@ func (cl *Client) ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, erro
 	return resp.Pipelines, nil
 }
 
-func (cl *Client) DeletePipeline(ctx context.Context, pn string) error {
-	response, err := cl.deletePipeline(ctx, transport.DeletePipelineRequest{Name: pn})
+func (cl *Client) DeletePipeline(ctx context.Context, tc, pn string) error {
+	response, err := cl.deletePipeline(ctx, transport.DeletePipelineRequest{TeamCanonical: tc, Name: pn})
 	if err != nil {
 		return err
 	}
@@ -256,8 +256,8 @@ func (cl *Client) DeletePipeline(ctx context.Context, pn string) error {
 	return nil
 }
 
-func (cl *Client) TriggerPipelineJob(ctx context.Context, ppn, jn string) error {
-	response, err := cl.triggerPipelineJob(ctx, transport.TriggerPipelineJobRequest{PipelineName: ppn, JobName: jn})
+func (cl *Client) TriggerPipelineJob(ctx context.Context, tc, ppn, jn string) error {
+	response, err := cl.triggerPipelineJob(ctx, transport.TriggerPipelineJobRequest{TeamCanonical: tc, PipelineName: ppn, JobName: jn})
 	if err != nil {
 		return err
 	}
@@ -270,8 +270,8 @@ func (cl *Client) TriggerPipelineJob(ctx context.Context, ppn, jn string) error 
 	return nil
 }
 
-func (cl *Client) GetPipelineJob(ctx context.Context, ppn, jn string) (*job.Job, error) {
-	response, err := cl.getPipelineJob(ctx, transport.GetPipelineJobRequest{PipelineName: ppn, JobName: jn})
+func (cl *Client) GetPipelineJob(ctx context.Context, tc, ppn, jn string) (*job.Job, error) {
+	response, err := cl.getPipelineJob(ctx, transport.GetPipelineJobRequest{TeamCanonical: tc, PipelineName: ppn, JobName: jn})
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +284,8 @@ func (cl *Client) GetPipelineJob(ctx context.Context, ppn, jn string) (*job.Job,
 	return resp.Job, nil
 }
 
-func (cl *Client) CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error) {
-	response, err := cl.createJobBuild(ctx, transport.CreateJobBuildRequest{PipelineName: pn, JobName: jn, Build: b})
+func (cl *Client) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error) {
+	response, err := cl.createJobBuild(ctx, transport.CreateJobBuildRequest{TeamCanonical: tc, PipelineName: pn, JobName: jn, Build: b})
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +298,8 @@ func (cl *Client) CreateJobBuild(ctx context.Context, pn, jn string, b build.Bui
 	return resp.Build, nil
 }
 
-func (cl *Client) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error {
-	response, err := cl.updateJobBuild(ctx, transport.UpdateJobBuildRequest{PipelineName: pn, JobName: jn, BuildID: bID, Build: b})
+func (cl *Client) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+	response, err := cl.updateJobBuild(ctx, transport.UpdateJobBuildRequest{TeamCanonical: tc, PipelineName: pn, JobName: jn, BuildID: bID, Build: b})
 	if err != nil {
 		return err
 	}
@@ -312,8 +312,8 @@ func (cl *Client) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32,
 	return nil
 }
 
-func (cl *Client) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error {
-	response, err := cl.deleteJobBuild(ctx, transport.DeleteJobBuildRequest{PipelineName: pn, JobName: jn, BuildID: bID})
+func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+	response, err := cl.deleteJobBuild(ctx, transport.DeleteJobBuildRequest{TeamCanonical: tc, PipelineName: pn, JobName: jn, BuildID: bID})
 	if err != nil {
 		return err
 	}
@@ -326,8 +326,8 @@ func (cl *Client) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32)
 	return nil
 }
 
-func (cl *Client) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error) {
-	response, err := cl.listJobBuilds(ctx, transport.ListJobBuildsRequest{PipelineName: pn, JobName: jn})
+func (cl *Client) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
+	response, err := cl.listJobBuilds(ctx, transport.ListJobBuildsRequest{TeamCanonical: tc, PipelineName: pn, JobName: jn})
 	if err != nil {
 		return nil, err
 	}
@@ -340,8 +340,8 @@ func (cl *Client) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Bu
 	return resp.Builds, nil
 }
 
-func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rCan string, rv resource.Version) (*resource.Version, error) {
-	response, err := cl.updateJobBuild(ctx, transport.CreateResourceVersionRequest{PipelineName: pn, ResourceCanonical: rCan, Version: rv})
+func (cl *Client) CreateResourceVersion(ctx context.Context, tc, pn, rCan string, rv resource.Version) (*resource.Version, error) {
+	response, err := cl.updateJobBuild(ctx, transport.CreateResourceVersionRequest{TeamCanonical: tc, PipelineName: pn, ResourceCanonical: rCan, Version: rv})
 	if err != nil {
 		return nil, err
 	}
@@ -354,8 +354,8 @@ func (cl *Client) CreateResourceVersion(ctx context.Context, pn, rCan string, rv
 	return resp.Version, nil
 }
 
-func (cl *Client) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
-	response, err := cl.listResourceVersions(ctx, transport.ListResourceVersionsRequest{PipelineName: pn, ResourceCanonical: rCan})
+func (cl *Client) ListResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
+	response, err := cl.listResourceVersions(ctx, transport.ListResourceVersionsRequest{TeamCanonical: tc, PipelineName: pn, ResourceCanonical: rCan})
 	if err != nil {
 		return nil, err
 	}
@@ -368,8 +368,8 @@ func (cl *Client) ListResourceVersions(ctx context.Context, pn, rCan string) ([]
 	return resp.Versions, nil
 }
 
-func (cl *Client) GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
-	response, err := cl.getPipelineResource(ctx, transport.GetPipelineResourceRequest{PipelineName: pn, ResourceCanonical: rCan})
+func (cl *Client) GetPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
+	response, err := cl.getPipelineResource(ctx, transport.GetPipelineResourceRequest{TeamCanonical: tc, PipelineName: pn, ResourceCanonical: rCan})
 	if err != nil {
 		return nil, err
 	}
@@ -382,8 +382,8 @@ func (cl *Client) GetPipelineResource(ctx context.Context, pn, rCan string) (*re
 	return resp.Resource, nil
 }
 
-func (cl *Client) UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error {
-	response, err := cl.updatePipelineResource(ctx, transport.UpdatePipelineResourceRequest{PipelineName: pn, ResourceCanonical: rCan, Resource: r})
+func (cl *Client) UpdatePipelineResource(ctx context.Context, tc, pn, rCan string, r resource.Resource) error {
+	response, err := cl.updatePipelineResource(ctx, transport.UpdatePipelineResourceRequest{TeamCanonical: tc, PipelineName: pn, ResourceCanonical: rCan, Resource: r})
 	if err != nil {
 		return err
 	}
@@ -396,8 +396,8 @@ func (cl *Client) UpdatePipelineResource(ctx context.Context, pn, rCan string, r
 	return nil
 }
 
-func (cl *Client) TriggerPipelineResource(ctx context.Context, pn, rCan string) error {
-	response, err := cl.triggerPipelineResource(ctx, transport.TriggerPipelineResourceRequest{PipelineName: pn, ResourceCanonical: rCan})
+func (cl *Client) TriggerPipelineResource(ctx context.Context, tc, pn, rCan string) error {
+	response, err := cl.triggerPipelineResource(ctx, transport.TriggerPipelineResourceRequest{TeamCanonical: tc, PipelineName: pn, ResourceCanonical: rCan})
 	if err != nil {
 		return err
 	}

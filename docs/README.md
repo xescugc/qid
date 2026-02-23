@@ -1,9 +1,3 @@
-* [Tutorial](tutorial.md#tutorial)
-  * [Start the server](tutorial.md#start-the-server)
-  * [Creating a Pipeline](tutorial.md#creating-a-pipeline)
-  * [Pipeline visualization, Jobs and Builds](tutorial.md#pipeline-visualization-jobs-and-builds)
-  * [Git resource](tutorial.md#git-resource)
-
 * [QID](documentation.md#qid)
   * [Basic architecture](documentation.md#basic-architecture)
   * [How it works](documentation.md#how-it-works)
@@ -52,5 +46,11 @@
       * [ensure](documentation.md#ensure-2)
       * [Example](documentation.md#example-5)
   * [CLI](documentation.md#cli)
+
+* [Tutorial](tutorial.md#tutorial)
+  * [Start the server](tutorial.md#start-the-server)
+  * [Creating a Pipeline](tutorial.md#creating-a-pipeline)
+  * [Pipeline visualization, Jobs and Builds](tutorial.md#pipeline-visualization-jobs-and-builds)
+  * [Git resource](tutorial.md#git-resource)
 
 Created by [gh-md-toc](https://github.com/ekalinin/github-markdown-toc.go)

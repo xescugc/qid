@@ -10,14 +10,16 @@ import (
 	"github.com/xescugc/qid/qid/utils"
 )
 
-func (q *Qid) CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error) {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error) {
+	if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
 		return nil, fmt.Errorf("invalid Job Name format %q", pn)
 	}
 
-	id, err := q.Builds.Create(ctx, pn, jn, b)
+	id, err := q.Builds.Create(ctx, tc, pn, jn, b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to Create Build: %w", err)
 	}
@@ -27,14 +29,16 @@ func (q *Qid) CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) 
 	return &b, nil
 }
 
-func (q *Qid) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error) {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
+	if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
 		return nil, fmt.Errorf("invalid Job Name format %q", pn)
 	}
 
-	builds, err := q.Builds.Filter(ctx, pn, jn)
+	builds, err := q.Builds.Filter(ctx, tc, pn, jn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Builds: %w", err)
 	}
@@ -44,8 +48,10 @@ func (q *Qid) ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build,
 	return builds, nil
 }
 
-func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+	if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
 		return fmt.Errorf("invalid Job Name format %q", pn)
@@ -55,7 +61,7 @@ func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b b
 		b.Duration = time.Now().Sub(b.StartedAt)
 	}
 
-	err := q.Builds.Update(ctx, pn, jn, bID, b)
+	err := q.Builds.Update(ctx, tc, pn, jn, bID, b)
 	if err != nil {
 		return fmt.Errorf("failed to Update Build: %w", err)
 	}
@@ -63,14 +69,16 @@ func (q *Qid) UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b b
 	return nil
 }
 
-func (q *Qid) DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+	if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
 		return fmt.Errorf("invalid Job Name format %q", pn)
 	}
 
-	err := q.Builds.Delete(ctx, pn, jn, bID)
+	err := q.Builds.Delete(ctx, tc, pn, jn, bID)
 	if err != nil {
 		return fmt.Errorf("failed to Delete Build: %w", err)
 	}

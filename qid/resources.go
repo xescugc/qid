@@ -13,14 +13,16 @@ import (
 	"gocloud.dev/pubsub"
 )
 
-func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) (*resource.Version, error) {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) CreateResourceVersion(ctx context.Context, tc, pn, rCan string, v resource.Version) (*resource.Version, error) {
+	if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateResourceCanonical(rCan) {
 		return nil, fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	id, err := q.Resources.CreateVersion(ctx, pn, rCan, v)
+	id, err := q.Resources.CreateVersion(ctx, tc, pn, rCan, v)
 	if err != nil {
 		return nil, fmt.Errorf("failed to Create Resource Version: %w", err)
 	}
@@ -30,14 +32,16 @@ func (q *Qid) CreateResourceVersion(ctx context.Context, pn, rCan string, v reso
 	return &v, nil
 }
 
-func (q *Qid) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) ListResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
+	if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateResourceCanonical(rCan) {
 		return nil, fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	rvers, err := q.Resources.FilterVersions(ctx, pn, rCan)
+	rvers, err := q.Resources.FilterVersions(ctx, tc, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to List Resource Version: %w", err)
 	}
@@ -47,14 +51,16 @@ func (q *Qid) ListResourceVersions(ctx context.Context, pn, rCan string) ([]*res
 	return rvers, nil
 }
 
-func (q *Qid) GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) GetPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
+	if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateResourceCanonical(rCan) {
 		return nil, fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	r, err := q.Resources.Find(ctx, pn, rCan)
+	r, err := q.Resources.Find(ctx, tc, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Resource: %w", err)
 	}
@@ -62,14 +68,16 @@ func (q *Qid) GetPipelineResource(ctx context.Context, pn, rCan string) (*resour
 	return r, nil
 }
 
-func (q *Qid) UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) UpdatePipelineResource(ctx context.Context, tc, pn, rCan string, r resource.Resource) error {
+	if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateResourceCanonical(rCan) {
 		return fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	err := q.Resources.Update(ctx, pn, rCan, r)
+	err := q.Resources.Update(ctx, tc, pn, rCan, r)
 	if err != nil {
 		return fmt.Errorf("failed to update Resource: %w", err)
 	}
@@ -77,19 +85,22 @@ func (q *Qid) UpdatePipelineResource(ctx context.Context, pn, rCan string, r res
 	return nil
 }
 
-func (q *Qid) TriggerPipelineResource(ctx context.Context, pn, rCan string) error {
-	if !utils.ValidateCanonical(pn) {
+func (q *Qid) TriggerPipelineResource(ctx context.Context, tc, pn, rCan string) error {
+	if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateResourceCanonical(rCan) {
 		return fmt.Errorf("invalid Resource Canonical format %q", rCan)
 	}
 
-	r, err := q.Resources.Find(ctx, pn, rCan)
+	r, err := q.Resources.Find(ctx, tc, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to find Resource: %w", err)
 	}
 
 	m := queue.Body{
+		TeamCanonical:     tc,
 		PipelineName:      pn,
 		ResourceCanonical: rCan,
 	}
@@ -104,7 +115,7 @@ func (q *Qid) TriggerPipelineResource(ctx context.Context, pn, rCan string) erro
 		//return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
 	}
 	r.LastCheck = time.Now()
-	_ = q.UpdatePipelineResource(ctx, pn, r.Canonical, *r)
+	_ = q.UpdatePipelineResource(ctx, tc, pn, r.Canonical, *r)
 
 	return nil
 }

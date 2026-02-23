@@ -40,12 +40,17 @@ func (dbp *dbPipeline) toDomainEntity() *pipeline.Pipeline {
 	}
 }
 
-func (r *PipelineRepository) Create(ctx context.Context, p pipeline.Pipeline) (uint32, error) {
+func (r *PipelineRepository) Create(ctx context.Context, tc string, p pipeline.Pipeline) (uint32, error) {
 	dbp := newDBPipeline(p)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO pipelines(name, raw)
-		VALUES (?, ?)
-	`, dbp.Name, dbp.Raw)
+		INSERT INTO pipelines(name, raw, team_id)
+		VALUES (?, ?,
+			-- pipeline_id
+			(
+				SELECT t.id
+				FROM teams AS t
+				WHERE t.canonical = ?
+			))`, dbp.Name, dbp.Raw, tc)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -58,13 +63,20 @@ func (r *PipelineRepository) Create(ctx context.Context, p pipeline.Pipeline) (u
 	return id, nil
 }
 
-func (r *PipelineRepository) Update(ctx context.Context, pn string, p pipeline.Pipeline) error {
+func (r *PipelineRepository) Update(ctx context.Context, tc, pn string, p pipeline.Pipeline) error {
 	dbp := newDBPipeline(p)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE pipelines AS p
 		SET name = ?, raw = ?
-		WHERE p.name = ?
-	`, dbp.Name, dbp.Raw, pn)
+		FROM (
+			SELECT p.id
+			FROM pipelines AS p
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ?
+		) AS pp
+		WHERE p.id = pp.id
+	`, dbp.Name, dbp.Raw, tc, pn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -77,12 +89,14 @@ func (r *PipelineRepository) Update(ctx context.Context, pn string, p pipeline.P
 	return nil
 }
 
-func (r *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pipeline, error) {
+func (r *PipelineRepository) Find(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT p.id, p.name, p.raw
 		FROM pipelines AS p
-		WHERE p.name = ?
-	`, pn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ?
+	`, tc, pn)
 
 	p, err := scanPipeline(row)
 	if err != nil {
@@ -92,11 +106,14 @@ func (r *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pip
 	return p, nil
 }
 
-func (r *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, error) {
+func (r *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline.Pipeline, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT p.id, p.name, p.raw
 		FROM pipelines AS p
-	`)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ?
+	`, tc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter Pipelines: %w", err)
 	}
@@ -109,12 +126,16 @@ func (r *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, 
 	return ps, nil
 }
 
-func (r *PipelineRepository) Delete(ctx context.Context, pn string) error {
+func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
 		FROM pipelines AS p
-		WHERE p.name = ?
-	`, pn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ?
+	`, tc, pn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}

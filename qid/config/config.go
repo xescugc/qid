@@ -23,6 +23,7 @@ type Config struct {
 
 	LogLevel string `koanf:"log-level"`
 
+	TeamCanonical  string `koanf:"team-canonical"`
 	PipelineName   string `koanf:"pipeline-name"`
 	PipelineConfig string `koanf:"pipeline-config"`
 	PipelineVars   string `koanf:"pipeline-vars"`

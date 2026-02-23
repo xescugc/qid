@@ -362,9 +362,10 @@ func MakeDeleteTeamMemberEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type CreatePipelineRequest struct {
-	Name   string                 `json:"name"`
-	Config []byte                 `json:"config"`
-	Vars   map[string]interface{} `json:"vars"`
+	TeamCanonical string                 `json:"team_canonical"`
+	Name          string                 `json:"name"`
+	Config        []byte                 `json:"config"`
+	Vars          map[string]interface{} `json:"vars"`
 }
 type CreatePipelineResponse struct {
 	Err string `json:"error,omitempty"`
@@ -375,7 +376,7 @@ func (r CreatePipelineResponse) Error() string { return r.Err }
 func MakeCreatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreatePipelineRequest)
-		err := s.CreatePipeline(ctx, req.Name, req.Config, req.Vars)
+		err := s.CreatePipeline(ctx, req.TeamCanonical, req.Name, req.Config, req.Vars)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -385,9 +386,10 @@ func MakeCreatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type UpdatePipelineRequest struct {
-	Name   string                 `json:"name"`
-	Config []byte                 `json:"config"`
-	Vars   map[string]interface{} `json:"vars"`
+	TeamCanonical string                 `json:"team_canonical"`
+	Name          string                 `json:"name"`
+	Config        []byte                 `json:"config"`
+	Vars          map[string]interface{} `json:"vars"`
 }
 type UpdatePipelineResponse struct {
 	Err string `json:"error,omitempty"`
@@ -398,7 +400,7 @@ func (r UpdatePipelineResponse) Error() string { return r.Err }
 func MakeUpdatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdatePipelineRequest)
-		err := s.UpdatePipeline(ctx, req.Name, req.Config, req.Vars)
+		err := s.UpdatePipeline(ctx, req.TeamCanonical, req.Name, req.Config, req.Vars)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -408,6 +410,7 @@ func MakeUpdatePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type ListPipelinesRequest struct {
+	TeamCanonical string `json:"team_canonical"`
 }
 type ListPipelinesResponse struct {
 	Pipelines []*pipeline.Pipeline `json:"data,omitempty"`
@@ -418,8 +421,8 @@ func (r ListPipelinesResponse) Error() string { return r.Err }
 
 func MakeListPipelinesEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		_ = request.(ListPipelinesRequest)
-		pps, err := s.ListPipelines(ctx)
+		req := request.(ListPipelinesRequest)
+		pps, err := s.ListPipelines(ctx, req.TeamCanonical)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -429,7 +432,8 @@ func MakeListPipelinesEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type GetPipelineRequest struct {
-	Name string `json:"name"`
+	TeamCanonical string `json:"team_canonical"`
+	Name          string `json:"name"`
 }
 type GetPipelineResponse struct {
 	Pipeline *pipeline.Pipeline `json:"data,omitempty"`
@@ -441,7 +445,7 @@ func (r GetPipelineResponse) Error() string { return r.Err }
 func MakeGetPipelineEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetPipelineRequest)
-		pp, err := s.GetPipeline(ctx, req.Name)
+		pp, err := s.GetPipeline(ctx, req.TeamCanonical, req.Name)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -451,7 +455,8 @@ func MakeGetPipelineEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type DeletePipelineRequest struct {
-	Name string `json:"name"`
+	TeamCanonical string `json:"team_canonical"`
+	Name          string `json:"name"`
 }
 type DeletePipelineResponse struct {
 	Err string `json:"error,omitempty"`
@@ -462,7 +467,7 @@ func (r DeletePipelineResponse) Error() string { return r.Err }
 func MakeDeletePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeletePipelineRequest)
-		err := s.DeletePipeline(ctx, req.Name)
+		err := s.DeletePipeline(ctx, req.TeamCanonical, req.Name)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -472,8 +477,9 @@ func MakeDeletePipelineEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type TriggerPipelineJobRequest struct {
-	PipelineName string `json:"pipeline_name"`
-	JobName      string `json:"job_name"`
+	TeamCanonical string `json:"team_canonical"`
+	PipelineName  string `json:"pipeline_name"`
+	JobName       string `json:"job_name"`
 }
 type TriggerPipelineJobResponse struct {
 	Err string `json:"error,omitempty"`
@@ -484,7 +490,7 @@ func (r TriggerPipelineJobResponse) Error() string { return r.Err }
 func MakeTriggerPipelineJobEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(TriggerPipelineJobRequest)
-		err := s.TriggerPipelineJob(ctx, req.PipelineName, req.JobName)
+		err := s.TriggerPipelineJob(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -494,8 +500,9 @@ func MakeTriggerPipelineJobEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type GetPipelineJobRequest struct {
-	PipelineName string `json:"pipeline_name"`
-	JobName      string `json:"job_name"`
+	TeamCanonical string `json:"team_canonical"`
+	PipelineName  string `json:"pipeline_name"`
+	JobName       string `json:"job_name"`
 }
 type GetPipelineJobResponse struct {
 	Job *job.Job `json:"data,omitempty"`
@@ -507,7 +514,7 @@ func (r GetPipelineJobResponse) Error() string { return r.Err }
 func MakeGetPipelineJobEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetPipelineJobRequest)
-		j, err := s.GetPipelineJob(ctx, req.PipelineName, req.JobName)
+		j, err := s.GetPipelineJob(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -517,9 +524,10 @@ func MakeGetPipelineJobEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type CreateJobBuildRequest struct {
-	PipelineName string      `json:"pipeline_name"`
-	JobName      string      `json:"job_name"`
-	Build        build.Build `json:"build"`
+	TeamCanonical string      `json:"team_canonical"`
+	PipelineName  string      `json:"pipeline_name"`
+	JobName       string      `json:"job_name"`
+	Build         build.Build `json:"build"`
 }
 type CreateJobBuildResponse struct {
 	Build *build.Build `json:"build,omitempty"`
@@ -531,7 +539,7 @@ func (r CreateJobBuildResponse) Error() string { return r.Err }
 func MakeCreateJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreateJobBuildRequest)
-		b, err := s.CreateJobBuild(ctx, req.PipelineName, req.JobName, req.Build)
+		b, err := s.CreateJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.Build)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -541,10 +549,11 @@ func MakeCreateJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type UpdateJobBuildRequest struct {
-	PipelineName string      `json:"pipeline_name"`
-	JobName      string      `json:"job_name"`
-	BuildID      uint32      `json:"build_id"`
-	Build        build.Build `json:"build"`
+	TeamCanonical string      `json:"team_canonical"`
+	PipelineName  string      `json:"pipeline_name"`
+	JobName       string      `json:"job_name"`
+	BuildID       uint32      `json:"build_id"`
+	Build         build.Build `json:"build"`
 }
 type UpdateJobBuildResponse struct {
 	Err string `json:"error,omitempty"`
@@ -555,7 +564,7 @@ func (r UpdateJobBuildResponse) Error() string { return r.Err }
 func MakeUpdateJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdateJobBuildRequest)
-		err := s.UpdateJobBuild(ctx, req.PipelineName, req.JobName, req.BuildID, req.Build)
+		err := s.UpdateJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildID, req.Build)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -565,9 +574,10 @@ func MakeUpdateJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type DeleteJobBuildRequest struct {
-	PipelineName string `json:"pipeline_name"`
-	JobName      string `json:"job_name"`
-	BuildID      uint32 `json:"build_id"`
+	TeamCanonical string `json:"team_canonical"`
+	PipelineName  string `json:"pipeline_name"`
+	JobName       string `json:"job_name"`
+	BuildID       uint32 `json:"build_id"`
 }
 type DeleteJobBuildResponse struct {
 	Err string `json:"error,omitempty"`
@@ -578,7 +588,7 @@ func (r DeleteJobBuildResponse) Error() string { return r.Err }
 func MakeDeleteJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeleteJobBuildRequest)
-		err := s.DeleteJobBuild(ctx, req.PipelineName, req.JobName, req.BuildID)
+		err := s.DeleteJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildID)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -588,8 +598,9 @@ func MakeDeleteJobBuildEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type ListJobBuildsRequest struct {
-	PipelineName string `json:"pipeline_name"`
-	JobName      string `json:"job_name"`
+	TeamCanonical string `json:"team_canonical"`
+	PipelineName  string `json:"pipeline_name"`
+	JobName       string `json:"job_name"`
 }
 type ListJobBuildsResponse struct {
 	Builds []*build.Build `json:"data,omitempty"`
@@ -601,7 +612,7 @@ func (r ListJobBuildsResponse) Error() string { return r.Err }
 func MakeListJobBuildsEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ListJobBuildsRequest)
-		builds, err := s.ListJobBuilds(ctx, req.PipelineName, req.JobName)
+		builds, err := s.ListJobBuilds(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -611,6 +622,7 @@ func MakeListJobBuildsEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type CreateResourceVersionRequest struct {
+	TeamCanonical     string           `json:"team_canonical"`
 	PipelineName      string           `json:"pipeline_name"`
 	ResourceCanonical string           `json:"resource_canonical"`
 	Version           resource.Version `json:"version"`
@@ -625,7 +637,7 @@ func (r CreateResourceVersionResponse) Error() string { return r.Err }
 func MakeCreateResourceVersionEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreateResourceVersionRequest)
-		ver, err := s.CreateResourceVersion(ctx, req.PipelineName, req.ResourceCanonical, req.Version)
+		ver, err := s.CreateResourceVersion(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical, req.Version)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -635,6 +647,7 @@ func MakeCreateResourceVersionEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type ListResourceVersionsRequest struct {
+	TeamCanonical     string `json:"team_canonical"`
 	PipelineName      string `json:"pipeline_name"`
 	ResourceCanonical string `json:"resource_canonical"`
 }
@@ -648,7 +661,7 @@ func (r ListResourceVersionsResponse) Error() string { return r.Err }
 func MakeListResourceVersionsEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ListResourceVersionsRequest)
-		vers, err := s.ListResourceVersions(ctx, req.PipelineName, req.ResourceCanonical)
+		vers, err := s.ListResourceVersions(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -658,6 +671,7 @@ func MakeListResourceVersionsEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type GetPipelineResourceRequest struct {
+	TeamCanonical     string `json:"team_canonical"`
 	PipelineName      string `json:"pipeline_name"`
 	ResourceCanonical string `json:"resource_canonical"`
 }
@@ -671,7 +685,7 @@ func (r GetPipelineResourceResponse) Error() string { return r.Err }
 func MakeGetPipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetPipelineResourceRequest)
-		res, err := s.GetPipelineResource(ctx, req.PipelineName, req.ResourceCanonical)
+		res, err := s.GetPipelineResource(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -681,6 +695,7 @@ func MakeGetPipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type UpdatePipelineResourceRequest struct {
+	TeamCanonical     string            `json:"team_canonical"`
 	PipelineName      string            `json:"pipeline_name"`
 	ResourceCanonical string            `json:"resource_canonical"`
 	Resource          resource.Resource `json:"resource"`
@@ -694,7 +709,7 @@ func (r UpdatePipelineResourceResponse) Error() string { return r.Err }
 func MakeUpdatePipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdatePipelineResourceRequest)
-		err := s.UpdatePipelineResource(ctx, req.PipelineName, req.ResourceCanonical, req.Resource)
+		err := s.UpdatePipelineResource(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical, req.Resource)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -704,6 +719,7 @@ func MakeUpdatePipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type TriggerPipelineResourceRequest struct {
+	TeamCanonical     string `json:"team_canonical"`
 	PipelineName      string `json:"pipeline_name"`
 	ResourceCanonical string `json:"resource_canonical"`
 }
@@ -716,7 +732,7 @@ func (r TriggerPipelineResourceResponse) Error() string { return r.Err }
 func MakeTriggerPipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(TriggerPipelineResourceRequest)
-		err := s.TriggerPipelineResource(ctx, req.PipelineName, req.ResourceCanonical)
+		err := s.TriggerPipelineResource(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -726,8 +742,9 @@ func MakeTriggerPipelineResourceEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type GetPipelineImageRequest struct {
-	Name   string `json:"name"`
-	Format string `json:"format"`
+	TeamCanonical string `json:"team_canonical"`
+	Name          string `json:"name"`
+	Format        string `json:"format"`
 }
 type GetPipelineImageResponse struct {
 	Image string `json:"image,omitempty"`
@@ -739,7 +756,7 @@ func (r GetPipelineImageResponse) Error() string { return r.Err }
 func MakeGetPipelineImageEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetPipelineImageRequest)
-		img, err := s.GetPipelineImage(ctx, req.Name, req.Format)
+		img, err := s.GetPipelineImage(ctx, req.TeamCanonical, req.Name, req.Format)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -749,9 +766,10 @@ func MakeGetPipelineImageEndpoint(s qid.Service) endpoint.Endpoint {
 }
 
 type CreatePipelineImageRequest struct {
-	Config []byte                 `json:"config"`
-	Vars   map[string]interface{} `json:"vars"`
-	Format string                 `json:"format"`
+	TeamCanonical string                 `json:"team_canonical"`
+	Config        []byte                 `json:"config"`
+	Vars          map[string]interface{} `json:"vars"`
+	Format        string                 `json:"format"`
 }
 type CreatePipelineImageResponse struct {
 	Image string `json:"image,omitempty"`
@@ -763,7 +781,7 @@ func (r CreatePipelineImageResponse) Error() string { return r.Err }
 func MakeCreatePipelineImageEndpoint(s qid.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreatePipelineImageRequest)
-		img, err := s.CreatePipelineImage(ctx, req.Config, req.Vars, req.Format)
+		img, err := s.CreatePipelineImage(ctx, req.TeamCanonical, req.Config, req.Vars, req.Format)
 		var errs string
 		if err != nil {
 			errs = err.Error()

@@ -42,74 +42,74 @@ func (m *BuildRepository) EXPECT() *BuildRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Build) (uint32, error) {
+func (m *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, pn, jn, b)
+	ret := m.ctrl.Call(m, "Create", ctx, tc, pn, jn, b)
 	ret0, _ := ret[0].(uint32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *BuildRepositoryMockRecorder) Create(ctx, pn, jn, b any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Create(ctx, tc, pn, jn, b any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*BuildRepository)(nil).Create), ctx, pn, jn, b)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*BuildRepository)(nil).Create), ctx, tc, pn, jn, b)
 }
 
 // Delete mocks base method.
-func (m *BuildRepository) Delete(ctx context.Context, pn, jn string, bID uint32) error {
+func (m *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, bID uint32) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, pn, jn, bID)
+	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn, jn, bID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *BuildRepositoryMockRecorder) Delete(ctx, pn, jn, bID any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Delete(ctx, tc, pn, jn, bID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*BuildRepository)(nil).Delete), ctx, pn, jn, bID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*BuildRepository)(nil).Delete), ctx, tc, pn, jn, bID)
 }
 
 // Filter mocks base method.
-func (m *BuildRepository) Filter(ctx context.Context, pn, jn string) ([]*build.Build, error) {
+func (m *BuildRepository) Filter(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Filter", ctx, pn, jn)
+	ret := m.ctrl.Call(m, "Filter", ctx, tc, pn, jn)
 	ret0, _ := ret[0].([]*build.Build)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Filter indicates an expected call of Filter.
-func (mr *BuildRepositoryMockRecorder) Filter(ctx, pn, jn any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Filter(ctx, tc, pn, jn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*BuildRepository)(nil).Filter), ctx, pn, jn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*BuildRepository)(nil).Filter), ctx, tc, pn, jn)
 }
 
 // Find mocks base method.
-func (m *BuildRepository) Find(ctx context.Context, pn, jn string, bID uint32) (*build.Build, error) {
+func (m *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, pn, jn, bID)
+	ret := m.ctrl.Call(m, "Find", ctx, tc, pn, jn, bID)
 	ret0, _ := ret[0].(*build.Build)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *BuildRepositoryMockRecorder) Find(ctx, pn, jn, bID any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Find(ctx, tc, pn, jn, bID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*BuildRepository)(nil).Find), ctx, pn, jn, bID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*BuildRepository)(nil).Find), ctx, tc, pn, jn, bID)
 }
 
 // Update mocks base method.
-func (m *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32, b build.Build) error {
+func (m *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, pn, jn, bID, b)
+	ret := m.ctrl.Call(m, "Update", ctx, tc, pn, jn, bID, b)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *BuildRepositoryMockRecorder) Update(ctx, pn, jn, bID, b any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Update(ctx, tc, pn, jn, bID, b any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*BuildRepository)(nil).Update), ctx, pn, jn, bID, b)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*BuildRepository)(nil).Update), ctx, tc, pn, jn, bID, b)
 }

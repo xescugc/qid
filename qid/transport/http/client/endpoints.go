@@ -19,7 +19,7 @@ func makeUserLoginEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeCreatePipelineEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines"
+	u.Path = "/teams/{team_canonical}/pipelines"
 	return kithttp.NewClient(
 		http.MethodPost,
 		&u,
@@ -29,7 +29,7 @@ func makeCreatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeUpdatePipelineEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}"
 	return kithttp.NewClient(
 		http.MethodPut,
 		&u,
@@ -39,7 +39,7 @@ func makeUpdatePipelineEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeListPipelinesEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines"
+	u.Path = "/teams/{team_canonical}/pipelines"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -49,7 +49,7 @@ func makeListPipelinesEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeGetPipelineEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -59,7 +59,7 @@ func makeGetPipelineEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeGetPipelineImageEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/image{format}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/image{format}"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -69,7 +69,7 @@ func makeGetPipelineImageEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeCreatePipelineImageEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/image{format}"
+	u.Path = "/teams/{team_canonical}/pipelines/image{format}"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -79,7 +79,7 @@ func makeCreatePipelineImageEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeDeletePipelineEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}"
 	return kithttp.NewClient(
 		http.MethodDelete,
 		&u,
@@ -89,7 +89,7 @@ func makeDeletePipelineEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeTriggerPipelineJobEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/trigger"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/trigger"
 	return kithttp.NewClient(
 		http.MethodPost,
 		&u,
@@ -99,7 +99,7 @@ func makeTriggerPipelineJobEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeGetPipelineJobEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -109,7 +109,7 @@ func makeGetPipelineJobEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeCreateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds"
 	return kithttp.NewClient(
 		http.MethodPost,
 		&u,
@@ -119,7 +119,7 @@ func makeCreateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeUpdateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}"
 	return kithttp.NewClient(
 		http.MethodPut,
 		&u,
@@ -129,7 +129,7 @@ func makeUpdateJobBuildEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeDeleteJobBuildEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}"
 	return kithttp.NewClient(
 		http.MethodDelete,
 		&u,
@@ -139,7 +139,7 @@ func makeDeleteJobBuildEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeListJobBuildsEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/jobs/{job_name}/builds"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -149,7 +149,7 @@ func makeListJobBuildsEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeCreateResourceVersionEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}/versions"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/versions"
 	return kithttp.NewClient(
 		http.MethodPost,
 		&u,
@@ -159,7 +159,7 @@ func makeCreateResourceVersionEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeListResourceVersionsEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}/versions"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/versions"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -169,7 +169,7 @@ func makeListResourceVersionsEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeGetPipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}"
 	return kithttp.NewClient(
 		http.MethodGet,
 		&u,
@@ -179,7 +179,7 @@ func makeGetPipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeUpdatePipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}"
 	return kithttp.NewClient(
 		http.MethodPut,
 		&u,
@@ -189,7 +189,7 @@ func makeUpdatePipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
 }
 
 func makeTriggerPipelineResourceEndpoint(u url.URL) endpoint.Endpoint {
-	u.Path = "/pipelines/{pipeline_name}/resources/{resource_canonical}/trigger"
+	u.Path = "/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/trigger"
 	return kithttp.NewClient(
 		http.MethodPost,
 		&u,

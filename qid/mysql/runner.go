@@ -45,7 +45,7 @@ func (dbru *dbRunner) toDomainEntity() *runner.Runner {
 	return ru
 }
 
-func (r *RunnerRepository) Create(ctx context.Context, pn string, ru runner.Runner) (uint32, error) {
+func (r *RunnerRepository) Create(ctx context.Context, tc, pn string, ru runner.Runner) (uint32, error) {
 	dbru := newDBRunner(ru)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO runners(name, run, pipeline_id)
@@ -54,8 +54,10 @@ func (r *RunnerRepository) Create(ctx context.Context, pn string, ru runner.Runn
 			(
 				SELECT p.id
 				FROM pipelines AS p
-				WHERE p.name = ?
-			))`, dbru.Name, dbru.Run, pn)
+				JOIN teams AS t
+					ON p.team_id = t.id
+				WHERE t.canonical = ? AND p.name = ?
+			))`, dbru.Name, dbru.Run, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -68,7 +70,7 @@ func (r *RunnerRepository) Create(ctx context.Context, pn string, ru runner.Runn
 	return id, nil
 }
 
-func (r *RunnerRepository) Update(ctx context.Context, pn, run string, ru runner.Runner) error {
+func (r *RunnerRepository) Update(ctx context.Context, tc, pn, run string, ru runner.Runner) error {
 	dbru := newDBRunner(ru)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE runners AS ru
@@ -78,10 +80,12 @@ func (r *RunnerRepository) Update(ctx context.Context, pn, run string, ru runner
 			FROM runners AS ru
 			JOIN pipelines AS p
 				ON ru.pipeline_id = p.id
-			WHERE p.name = ? AND ru.name = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND ru.name = ?
 		) AS ruru
 		WHERE ruru.id = ru.id
-	`, dbru.Name, dbru.Run, pn, run)
+	`, dbru.Name, dbru.Run, tc, pn, run)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -94,14 +98,16 @@ func (r *RunnerRepository) Update(ctx context.Context, pn, run string, ru runner
 	return nil
 }
 
-func (r *RunnerRepository) Find(ctx context.Context, pn, run string) (*runner.Runner, error) {
+func (r *RunnerRepository) Find(ctx context.Context, tc, pn, run string) (*runner.Runner, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT ru.id, ru.name, ru.run
 		FROM runners AS ru
 		JOIN pipelines AS p
 			ON ru.pipeline_id = p.id
-		WHERE p.name = ? AND ru.name = ?
-	`, pn, run)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND ru.name = ?
+	`, tc, pn, run)
 
 	ru, err := scanRunner(row)
 	if err != nil {
@@ -111,14 +117,16 @@ func (r *RunnerRepository) Find(ctx context.Context, pn, run string) (*runner.Ru
 	return ru, nil
 }
 
-func (r *RunnerRepository) Filter(ctx context.Context, pn string) ([]*runner.Runner, error) {
+func (r *RunnerRepository) Filter(ctx context.Context, tc, pn string) ([]*runner.Runner, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT ru.id, ru.name, ru.run
 		FROM runners AS ru
 		JOIN pipelines AS p
 			ON ru.pipeline_id = p.id
-		WHERE p.name = ?
-	`, pn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ?
+	`, tc, pn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter runners: %w", err)
 	}
@@ -131,7 +139,7 @@ func (r *RunnerRepository) Filter(ctx context.Context, pn string) ([]*runner.Run
 	return runners, nil
 }
 
-func (r *RunnerRepository) Delete(ctx context.Context, pn, run string) error {
+func (r *RunnerRepository) Delete(ctx context.Context, tc, pn, run string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
 		FROM runners
@@ -140,9 +148,11 @@ func (r *RunnerRepository) Delete(ctx context.Context, pn, run string) error {
 			FROM runners AS ru
 			JOIN pipelines AS p
 				ON ru.pipeline_id = p.id
-			WHERE p.name = ? AND ru.name = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND ru.name = ?
 		)
-	`, pn, run)
+	`, tc, pn, run)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}

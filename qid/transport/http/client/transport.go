@@ -59,8 +59,9 @@ func decodeCreateUserResponse(_ context.Context, r *http.Response) (interface{},
 }
 
 func encodeCreatePipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
-	cfr := request.(transport.CreatePipelineRequest)
-	b, err := json.Marshal(cfr)
+	req := request.(transport.CreatePipelineRequest)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1), "{team_canonical}", req.TeamCanonical, 1)
+	b, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
@@ -83,7 +84,7 @@ func decodeCreatePipelineResponse(_ context.Context, r *http.Response) (interfac
 
 func encodeUpdatePipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.UpdatePipelineRequest)
-	r.URL.Path = strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1), "{team_canonical}", req.TeamCanonical, 1)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return err
@@ -106,6 +107,8 @@ func decodeUpdatePipelineResponse(_ context.Context, r *http.Response) (interfac
 }
 
 func encodeListPipelinesRequest(_ context.Context, r *http.Request, request interface{}) error {
+	req := request.(transport.ListPipelinesRequest)
+	r.URL.Path = strings.Replace(r.URL.Path, "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 	return nil
 }
@@ -123,7 +126,7 @@ func decodeListPipelinesResponse(_ context.Context, r *http.Response) (interface
 
 func encodeGetPipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.GetPipelineRequest)
-	r.URL.Path = strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -142,7 +145,7 @@ func decodeGetPipelineResponse(_ context.Context, r *http.Response) (interface{}
 
 func encodeGetPipelineImageRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.GetPipelineImageRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1), "{format}", req.Format, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1), "{format}", req.Format, 1), "{team_canonical}", req.TeamCanonical, 1)
 
 	return nil
 }
@@ -160,7 +163,7 @@ func decodeGetPipelineImageResponse(_ context.Context, r *http.Response) (interf
 
 func encodeCreatePipelineImageRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.CreatePipelineImageRequest)
-	r.URL.Path = strings.Replace(r.URL.Path, "{format}", req.Format, 1)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{format}", req.Format, 1), "{team_canonical}", req.TeamCanonical, 1)
 
 	return nil
 }
@@ -178,7 +181,7 @@ func decodeCreatePipelineImageResponse(_ context.Context, r *http.Response) (int
 
 func encodeDeletePipelineRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.DeletePipelineRequest)
-	r.URL.Path = strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1)
+	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.Name, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -197,7 +200,7 @@ func decodeDeletePipelineResponse(_ context.Context, r *http.Response) (interfac
 
 func encodeTriggerPipelineJobRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.TriggerPipelineJobRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -216,7 +219,7 @@ func decodeTriggerPipelineJobResponse(_ context.Context, r *http.Response) (inte
 
 func encodeGetPipelineJobRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.GetPipelineJobRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -235,7 +238,7 @@ func decodeGetPipelineJobResponse(_ context.Context, r *http.Response) (interfac
 
 func encodeCreateJobBuildRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.CreateJobBuildRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -254,7 +257,7 @@ func decodeCreateJobBuildResponse(_ context.Context, r *http.Response) (interfac
 
 func encodeUpdateJobBuildRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.UpdateJobBuildRequest)
-	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{build_id}", strconv.Itoa(int(req.BuildID)), 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{build_id}", strconv.Itoa(int(req.BuildID)), 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -273,7 +276,7 @@ func decodeUpdateJobBuildResponse(_ context.Context, r *http.Response) (interfac
 
 func encodeDeleteJobBuildRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.DeleteJobBuildRequest)
-	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{build_id}", strconv.Itoa(int(req.BuildID)), 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{build_id}", strconv.Itoa(int(req.BuildID)), 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -292,7 +295,7 @@ func decodeDeleteJobBuildResponse(_ context.Context, r *http.Response) (interfac
 
 func encodeListJobBuildsRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.ListJobBuildsRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{job_name}", req.JobName, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -311,7 +314,7 @@ func decodeListJobBuildsResponse(_ context.Context, r *http.Response) (interface
 
 func encodeCreateResourceVersionRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.CreateResourceVersionRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -330,7 +333,7 @@ func decodeCreateResourceVersionResponse(_ context.Context, r *http.Response) (i
 
 func encodeListResourceVersionsRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.ListResourceVersionsRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -349,7 +352,7 @@ func decodeListResourceVersionsResponse(_ context.Context, r *http.Response) (in
 
 func encodeGetPipelineResourceRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.GetPipelineResourceRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -368,7 +371,7 @@ func decodeGetPipelineResourceResponse(_ context.Context, r *http.Response) (int
 
 func encodeUpdatePipelineResourceRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.UpdatePipelineResourceRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil
@@ -387,7 +390,7 @@ func decodeUpdatePipelineResourceResponse(_ context.Context, r *http.Response) (
 
 func encodeTriggerPipelineResourceRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(transport.TriggerPipelineResourceRequest)
-	r.URL.Path = strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1)
+	r.URL.Path = strings.Replace(strings.Replace(strings.Replace(r.URL.Path, "{pipeline_name}", req.PipelineName, 1), "{resource_canonical}", req.ResourceCanonical, 1), "{team_canonical}", req.TeamCanonical, 1)
 	r.Header.Set("Content-Type", "application/json")
 
 	return nil

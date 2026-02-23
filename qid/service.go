@@ -34,28 +34,28 @@ type Service interface {
 	UpdateTeamMember(ctx context.Context, tc, mc string, tm team.Member) (*team.Member, error)
 	DeleteTeamMember(ctx context.Context, tc, mc string) error
 
-	CreatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
-	UpdatePipeline(ctx context.Context, pn string, pp []byte, vars map[string]interface{}) error
-	GetPipeline(ctx context.Context, pn string) (*pipeline.Pipeline, error)
-	DeletePipeline(ctx context.Context, pn string) error
-	ListPipelines(ctx context.Context) ([]*pipeline.Pipeline, error)
+	CreatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) error
+	UpdatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) error
+	GetPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error)
+	DeletePipeline(ctx context.Context, tc, pn string) error
+	ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipeline, error)
 
-	GetPipelineImage(ctx context.Context, pn, format string) ([]byte, error)
-	CreatePipelineImage(ctx context.Context, pp []byte, vars map[string]interface{}, format string) ([]byte, error)
+	GetPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error)
+	CreatePipelineImage(ctx context.Context, tc string, pp []byte, vars map[string]interface{}, format string) ([]byte, error)
 
-	TriggerPipelineJob(ctx context.Context, pn, jn string) error
-	GetPipelineJob(ctx context.Context, pn, jn string) (*job.Job, error)
+	TriggerPipelineJob(ctx context.Context, tc, pn, jn string) error
+	GetPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error)
 
-	CreateJobBuild(ctx context.Context, pn, jn string, b build.Build) (*build.Build, error)
-	UpdateJobBuild(ctx context.Context, pn, jn string, bID uint32, b build.Build) error
-	DeleteJobBuild(ctx context.Context, pn, jn string, bID uint32) error
-	ListJobBuilds(ctx context.Context, pn, jn string) ([]*build.Build, error)
+	CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error)
+	UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error
+	DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error
+	ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error)
 
-	GetPipelineResource(ctx context.Context, pn, rCan string) (*resource.Resource, error)
-	UpdatePipelineResource(ctx context.Context, pn, rCan string, r resource.Resource) error
-	TriggerPipelineResource(ctx context.Context, pn, rCan string) error
-	CreateResourceVersion(ctx context.Context, pn, rCan string, v resource.Version) (*resource.Version, error)
-	ListResourceVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error)
+	GetPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error)
+	UpdatePipelineResource(ctx context.Context, tc, pn, rCan string, r resource.Resource) error
+	TriggerPipelineResource(ctx context.Context, tc, pn, rCan string) error
+	CreateResourceVersion(ctx context.Context, tc, pn, rCan string, v resource.Version) (*resource.Version, error)
+	ListResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error)
 }
 
 type Qid struct {

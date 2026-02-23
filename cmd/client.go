@@ -23,6 +23,9 @@ var (
 			{
 				Name:  "pipelines",
 				Usage: "Interacts with the QID Pipelines",
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Usage: "Team Canonical to scope the action", Required: true, Local: true},
+				},
 				Commands: []*cli.Command{
 					{
 						Name:  "create",
@@ -63,7 +66,7 @@ var (
 								}
 							}
 
-							err = c.CreatePipeline(ctx, cmd.String("name"), b, vars)
+							err = c.CreatePipeline(ctx, cmd.String("team-canonical"), cmd.String("name"), b, vars)
 							if err != nil {
 								return fmt.Errorf("failed to create Pipeline %q: %w", cmd.String("name"), err)
 							}
@@ -80,7 +83,7 @@ var (
 							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							return createPipeline(ctx, cmd.String("url"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
+							return createPipeline(ctx, cmd.String("url"), cmd.String("team-canonical"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
 						},
 					},
 					{
@@ -92,7 +95,7 @@ var (
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
 
-							pps, err := c.ListPipelines(ctx)
+							pps, err := c.ListPipelines(ctx, cmd.String("team-canonical"))
 							if err != nil {
 								return fmt.Errorf("failed to list Pipelines: %w", err)
 							}
@@ -114,7 +117,7 @@ var (
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
 
-							pp, err := c.GetPipeline(ctx, cmd.String("name"))
+							pp, err := c.GetPipeline(ctx, cmd.String("team-canonical"), cmd.String("name"))
 							if err != nil {
 								return fmt.Errorf("failed to get Pipeline %q: %w", cmd.String("name"), err)
 							}
@@ -136,7 +139,7 @@ var (
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
 
-							err = c.DeletePipeline(ctx, cmd.String("name"))
+							err = c.DeletePipeline(ctx, cmd.String("team-canonical"), cmd.String("name"))
 							if err != nil {
 								return fmt.Errorf("failed to delete Pipeline %q: %w", cmd.String("name"), err)
 							}
@@ -150,6 +153,7 @@ var (
 				Name:  "jobs",
 				Usage: "Interacts with the QID Jobs",
 				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Usage: "Team Canonical to scope the action", Required: true, Local: true},
 					&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"pn"}, Usage: "Name of the Pipeline", Required: true, Local: true},
 				},
 				Commands: []*cli.Command{
@@ -165,7 +169,7 @@ var (
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
 
-							j, err := c.GetPipelineJob(ctx, cmd.String("pipeline-name"), cmd.String("job-name"))
+							j, err := c.GetPipelineJob(ctx, cmd.String("team-canonical"), cmd.String("pipeline-name"), cmd.String("job-name"))
 							if err != nil {
 								return fmt.Errorf("failed to get Job %q from Pipeline %q: %w", cmd.String("job-name"), cmd.String("pipeline-name"), err)
 							}
@@ -187,7 +191,7 @@ var (
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
 
-							err = c.TriggerPipelineJob(ctx, cmd.String("pipeline-name"), cmd.String("job-name"))
+							err = c.TriggerPipelineJob(ctx, cmd.String("team-canonical"), cmd.String("pipeline-name"), cmd.String("job-name"))
 							if err != nil {
 								return fmt.Errorf("failed to trigger Job %q from Pipeline %q: %w", cmd.String("job-name"), cmd.String("pipeline-name"), err)
 							}
@@ -201,7 +205,7 @@ var (
 	}
 )
 
-func createPipeline(ctx context.Context, url, name, config, vars string) error {
+func createPipeline(ctx context.Context, tc, url, name, config, vars string) error {
 	c, err := client.New(url)
 	if err != nil {
 		return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
@@ -232,7 +236,7 @@ func createPipeline(ctx context.Context, url, name, config, vars string) error {
 		}
 	}
 
-	err = c.CreatePipeline(ctx, name, b, vrs)
+	err = c.CreatePipeline(ctx, tc, name, b, vrs)
 	if err != nil {
 		return fmt.Errorf("failed to create Pipeline %q: %w", name, err)
 	}
