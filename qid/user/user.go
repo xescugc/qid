@@ -11,12 +11,12 @@ type User struct {
 type WithMemberships struct {
 	User
 
-	Memberships []Member
+	Memberships []Member `json:"memberships"`
 }
 
 type Member struct {
-	Admin         bool
-	TeamCanonical string
+	Admin         bool   `json:"admin"`
+	TeamCanonical string `json:"team_canonical"`
 }
 
 func (u *WithMemberships) IsAdmin(tcs ...string) bool {

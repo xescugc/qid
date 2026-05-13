@@ -11,7 +11,7 @@ require (
 	github.com/go-kit/kit v0.13.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/golang-jwt/jwt/v5 v5.2.3
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
@@ -27,20 +27,23 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/netresearch/go-cron v0.9.1
 	github.com/stretchr/testify v1.11.1
+	github.com/tebeka/selenium v0.9.9
 	github.com/urfave/cli/v3 v3.4.1
 	github.com/zclconf/go-cty v1.16.3
 	go.uber.org/mock v0.6.0
-	gocloud.dev v0.43.0
+	gocloud.dev v0.45.0
 	gocloud.dev/pubsub/natspubsub v0.43.0
-	golang.org/x/crypto v0.41.0
+	golang.org/x/crypto v0.45.0
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
+	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dmarkham/enumer v1.6.1 // indirect
 	github.com/ekalinin/github-markdown-toc.go v1.4.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -63,23 +66,23 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/otel v1.37.0 // indirect
-	go.opentelemetry.io/otel/metric v1.37.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.37.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
-	go.opentelemetry.io/otel/trace v1.37.0 // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
+	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.242.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
-	google.golang.org/grpc v1.73.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/api v0.256.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
+	google.golang.org/grpc v1.77.0 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.4 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

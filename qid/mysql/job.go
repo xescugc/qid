@@ -72,7 +72,7 @@ func (r *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (u
 				FROM pipelines AS p
 				JOIN teams AS t
 					ON p.team_id = t.id
-				WHERE p.canonical = ? AND p.name = ?
+				WHERE t.canonical = ? AND p.name = ?
 			))`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)

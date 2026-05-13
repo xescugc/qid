@@ -18,7 +18,7 @@ import (
 )
 
 type Service interface {
-	UserLogin(ctx context.Context, un, pass string) (*user.User, error)
+	UserLogin(ctx context.Context, un, pass string) (*user.WithMemberships, string, error)
 
 	GetUser(ctx context.Context, un string) (*user.WithMemberships, error)
 	CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error)
@@ -34,8 +34,8 @@ type Service interface {
 	UpdateTeamMember(ctx context.Context, tc, mc string, tm team.Member) (*team.Member, error)
 	DeleteTeamMember(ctx context.Context, tc, mc string) error
 
-	CreatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) error
-	UpdatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) error
+	CreatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error)
+	UpdatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error)
 	GetPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error)
 	DeletePipeline(ctx context.Context, tc, pn string) error
 	ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipeline, error)
@@ -70,12 +70,15 @@ type Qid struct {
 	Runners       runner.Repository
 	Ctx           context.Context
 
+	JWTSecret []byte
+
 	cron   *cron.Cron
 	logger log.Logger
 }
 
-func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, l log.Logger) *Qid {
+func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, js []byte, l log.Logger) *Qid {
 	q := &Qid{
+		Ctx:           ctx,
 		Topic:         t,
 		Users:         ur,
 		Teams:         tr,
@@ -85,7 +88,7 @@ func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Reposit
 		ResourceTypes: rt,
 		Builds:        br,
 		Runners:       rur,
-		Ctx:           ctx,
+		JWTSecret:     js,
 		logger:        l,
 		cron:          cron.New(cron.WithContext(ctx)),
 	}

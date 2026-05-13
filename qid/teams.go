@@ -126,6 +126,8 @@ func (q *Qid) UpdateTeamMember(ctx context.Context, tc, mu string, tm team.Membe
 		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
 	} else if !utils.ValidateCanonical(mu) {
 		return nil, fmt.Errorf("invalid Team Member Username format %q", mu)
+	} else if err := q.validateTeamAdmins(ctx, tc, mu, &tm); err != nil {
+		return nil, err
 	}
 
 	err := q.Teams.UpdateMember(ctx, tc, mu, tm)
@@ -141,17 +143,41 @@ func (q *Qid) UpdateTeamMember(ctx context.Context, tc, mu string, tm team.Membe
 	return rtm, nil
 }
 
-func (q *Qid) DeleteTeamMember(ctx context.Context, tc, mc string) error {
+func (q *Qid) DeleteTeamMember(ctx context.Context, tc, mu string) error {
 	if !utils.ValidateCanonical(tc) {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
-	} else if !utils.ValidateCanonical(mc) {
+	} else if !utils.ValidateCanonical(mu) {
 		return fmt.Errorf("invalid Team Member Username format %q", tc)
+	} else if err := q.validateTeamAdmins(ctx, tc, mu, nil); err != nil {
+		return err
 	}
 
-	err := q.Teams.DeleteMember(ctx, tc, mc)
+	err := q.Teams.DeleteMember(ctx, tc, mu)
 	if err != nil {
 		return fmt.Errorf("failed to create member: %w", err)
 	}
 
+	return nil
+}
+
+func (q *Qid) validateTeamAdmins(ctx context.Context, tc, mu string, m *team.Member) error {
+	t, err := q.Teams.Find(ctx, tc)
+	if err != nil {
+		return fmt.Errorf("failed to get Team: %w", err)
+	}
+
+	var admins int
+	for _, tm := range t.Members {
+		if tm.User.Username == mu && m != nil {
+			tm = *m
+		}
+		if tm.Admin {
+			admins++
+		}
+	}
+
+	if admins == 0 {
+		return fmt.Errorf("Cannot have a Team with no Admins")
+	}
 	return nil
 }

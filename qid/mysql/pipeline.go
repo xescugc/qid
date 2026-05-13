@@ -129,12 +129,14 @@ func (r *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline
 func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
-		FROM pipelines AS p
-		JOIN teams AS t
-			ON p.team_id = t.id
-		JOIN teams AS t
-			ON p.team_id = t.id
-		WHERE t.canonical = ? AND p.name = ?
+		FROM pipelines
+		WHERE id IN (
+			SELECT p.id
+			FROM pipelines AS p
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ?
+		)
 	`, tc, pn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

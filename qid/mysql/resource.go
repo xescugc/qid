@@ -95,7 +95,7 @@ func (r *ResourceRepository) Create(ctx context.Context, tc, pn string, rs resou
 				FROM pipelines AS p
 				JOIN teams AS t
 					ON p.team_id = t.id
-				WHERE tc.canonical = ? AND p.name = ?
+				WHERE t.canonical = ? AND p.name = ?
 			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.LastCheck, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
@@ -121,7 +121,7 @@ func (r *ResourceRepository) Update(ctx context.Context, tc, pn, rCan string, rs
 				ON r.pipeline_id = p.id
 			JOIN teams AS t
 				ON p.team_id = t.id
-			WHERE t.canonical = _ AND p.name = ? AND r.canonical = ?
+			WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
 		) AS rr
 		WHERE rr.id = r.id
 	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.Logs, dbrs.LastCheck, tc, pn, rCan)
@@ -172,7 +172,7 @@ func (r *ResourceRepository) Filter(ctx context.Context, tc, pn string) ([]*reso
 
 	resources, err := scanResources(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to filter jobs: %w", err)
+		return nil, fmt.Errorf("failed to filter resources: %w", err)
 	}
 
 	return resources, nil
@@ -192,7 +192,7 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, tc, pn, rCan str
 				JOIN teams AS t
 					ON p.team_id = t.id
 				WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
-			))`, dbrv.Version, pn, rCan)
+			))`, dbrv.Version, tc, pn, rCan)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -223,7 +223,7 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, tc, pn, rCan st
 
 	rvs, err := scanResourceVersions(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to filter jobs: %w", err)
+		return nil, fmt.Errorf("failed to filter resource versions: %w", err)
 	}
 
 	return rvs, nil
@@ -231,7 +231,7 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, tc, pn, rCan st
 
 func (r *ResourceRepository) Delete(ctx context.Context, tc, pn, rCan string) error {
 	res, err := r.querier.ExecContext(ctx, `
-		DELETE r
+		DELETE
 		FROM resources
 		WHERE id IN (
 			SELECT r.id
@@ -249,7 +249,7 @@ func (r *ResourceRepository) Delete(ctx context.Context, tc, pn, rCan string) er
 
 	err = isEntityFound(res)
 	if err != nil {
-		return fmt.Errorf("failed to delete the Job: %w", err)
+		return fmt.Errorf("failed to delete the resource: %w", err)
 	}
 
 	return nil

@@ -6,10 +6,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
+	"github.com/adrg/xdg"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/urfave/cli/v3"
+	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/transport/http/client"
+)
+
+var (
+	configAuthenticationPath = "qid/authentication"
 )
 
 var (
@@ -18,13 +25,64 @@ var (
 		Usage: "Interacts with the QID server",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server", Required: true, Local: true},
+			&cli.StringFlag{Name: "jwt", Usage: "Provide the JWT to authenticate on the API, if not provided will read it from the FS", Local: true},
+		},
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			// If there is no on flags we try to set it from the configAuthenticationPath
+			// if there is one. Which is set from a 'login'
+			if cmd.String("jwt") == "" {
+				configFilePath, err := xdg.SearchConfigFile(configAuthenticationPath)
+				if err != nil {
+					return ctx, nil
+				}
+
+				data, err := os.ReadFile(configFilePath)
+				if err != nil {
+					return ctx, nil
+				}
+				cmd.Set("jwt", string(data))
+			}
+			return nil, nil
 		},
 		Commands: []*cli.Command{
+			{
+				Name:  "login",
+				Usage: fmt.Sprintf("Logs the User in and stores the JWT locally at %q", filepath.Join(xdg.ConfigHome, configAuthenticationPath)),
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "Username use to login", Required: true},
+					&cli.StringFlag{Name: "password", Aliases: []string{"p"}, Usage: "Password use to login", Required: true},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					c, err := client.New(cmd.String("url"), cmd.String("jwt"))
+					if err != nil {
+						return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
+					}
+
+					_, jwt, err := c.UserLogin(ctx, cmd.String("username"), cmd.String("password"))
+					if err != nil {
+						return fmt.Errorf("failed to log in: %w", err)
+					}
+
+					configFilePath, err := xdg.ConfigFile(configAuthenticationPath)
+					if err != nil {
+						return fmt.Errorf("failed to check $XDG_CONFIG_HOME: %w", err)
+					}
+
+					err = os.WriteFile(configFilePath, []byte(jwt), 0666)
+					if err != nil {
+						return fmt.Errorf("failed to write the authentication file: %w", err)
+					}
+
+					println("Login successfully")
+
+					return nil
+				},
+			},
 			{
 				Name:  "pipelines",
 				Usage: "Interacts with the QID Pipelines",
 				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Usage: "Team Canonical to scope the action", Required: true, Local: true},
+					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Value: "main", Usage: "Team Canonical to scope the action", Required: true, Local: true},
 				},
 				Commands: []*cli.Command{
 					{
@@ -36,7 +94,7 @@ var (
 							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
@@ -66,7 +124,7 @@ var (
 								}
 							}
 
-							err = c.CreatePipeline(ctx, cmd.String("team-canonical"), cmd.String("name"), b, vars)
+							_, err = c.CreatePipeline(ctx, cmd.String("team-canonical"), cmd.String("name"), b, vars)
 							if err != nil {
 								return fmt.Errorf("failed to create Pipeline %q: %w", cmd.String("name"), err)
 							}
@@ -83,14 +141,18 @@ var (
 							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							return createPipeline(ctx, cmd.String("url"), cmd.String("team-canonical"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
+							if err != nil {
+								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
+							}
+							return createPipeline(ctx, c, cmd.String("team-canonical"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
 						},
 					},
 					{
 						Name:  "list",
 						Usage: "Lists the QID Pipelines",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
@@ -112,7 +174,7 @@ var (
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
@@ -134,7 +196,7 @@ var (
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
@@ -164,7 +226,7 @@ var (
 							&cli.StringFlag{Name: "job-name", Aliases: []string{"n", "jn"}, Usage: "Name of the Job", Required: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
@@ -186,7 +248,7 @@ var (
 							&cli.StringFlag{Name: "job-name", Aliases: []string{"n", "jn"}, Usage: "Name of the Job", Required: true},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := client.New(cmd.String("url"))
+							c, err := client.New(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
@@ -205,11 +267,7 @@ var (
 	}
 )
 
-func createPipeline(ctx context.Context, tc, url, name, config, vars string) error {
-	c, err := client.New(url)
-	if err != nil {
-		return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
-	}
+func createPipeline(ctx context.Context, svc qid.Service, tc, name, config, vars string) error {
 
 	f, err := os.Open(config)
 	if err != nil {
@@ -236,7 +294,7 @@ func createPipeline(ctx context.Context, tc, url, name, config, vars string) err
 		}
 	}
 
-	err = c.CreatePipeline(ctx, tc, name, b, vrs)
+	_, err = svc.CreatePipeline(ctx, tc, name, b, vrs)
 	if err != nil {
 		return fmt.Errorf("failed to create Pipeline %q: %w", name, err)
 	}

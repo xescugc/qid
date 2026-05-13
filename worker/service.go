@@ -451,6 +451,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					for _, g := range nj.Get {
 						if slices.Contains(g.Passed, j.Name) && g.Trigger {
 							qb := queue.Body{
+								TeamCanonical:     m.TeamCanonical,
 								PipelineName:      pp.Name,
 								JobName:           nj.Name,
 								ResourceCanonical: g.ResourceCanonical(),
@@ -592,7 +593,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				r.Logs = out
 				nerr := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r)
 				if nerr != nil {
-					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
 				}
 				level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
 				goto END
@@ -619,7 +620,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				r.Logs = ferr.Error()
 				nerr := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r)
 				if nerr != nil {
-					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
 				}
 				level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
 				goto END
@@ -638,6 +639,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						// and this trigger is only for resources
 						if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
 							b := queue.Body{
+								TeamCanonical:     m.TeamCanonical,
 								PipelineName:      pp.Name,
 								JobName:           j.Name,
 								ResourceCanonical: r.Canonical,

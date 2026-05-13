@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli/v3"
 	"github.com/xescugc/qid/qid"
@@ -158,7 +159,7 @@ var (
 			rur := mysql.NewRunnerRepository(db)
 
 			level.Info(logger).Log("message", "initializing service")
-			var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, logger)
+			var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, cfg.JWTSecret, logger)
 			level.Info(logger).Log("message", "initialized service")
 
 			level.Info(logger).Log("message", "initializing http handlers")
@@ -195,7 +196,7 @@ var (
 			}
 
 			if cmd.String("pipeline-name") != "" {
-				err = createPipeline(ctx, cmd.String("team-canonical"), fmt.Sprintf("localhost:%d", cfg.Port), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
+				err = createPipeline(ctx, svc, cmd.String("team-canonical"), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
 				if err != nil {
 					return err
 				}
@@ -234,4 +235,15 @@ func getTopicURL(s string) string {
 		u += "?natsv2"
 	}
 	return u
+}
+
+func generateWorkerJWT(js []byte) string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"is_from_worker": true,
+	})
+	tokenString, err := token.SignedString(js)
+	if err != nil {
+		panic(err)
+	}
+	return tokenString
 }
