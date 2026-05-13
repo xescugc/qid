@@ -6,11 +6,31 @@ We'll create an easy pipeline that will test your code once a new change is dete
 
 ## Start the server
 
-Run `qid server` and then you'll have it running in `localhost:8080`. Going there you'll see the Pipelines view (empty)
+Run the server with a JWT secret and an initial user:
+
+```
+qid server --jwt-secret mysecret --users 'admin:$2a$14$...'
+```
+
+To generate the hashed password use `qid user-password --username admin --password admin123` and pass the output to `--users`.
+
+For a quick test with in-memory storage (the default), you can run:
+
+```
+qid server --jwt-secret mysecret --users 'admin:$2a$14$rwQk8Qvc2rij7qhFO4P1W.OiSF6AkgVU1RCrLaY2wawJcpkPEKwbm'
+```
+
+This creates an `admin` user with password `admin123`. Then go to `localhost:8080`.
+
+## Log In
+
+You'll see a Log In screen. Enter the username and password you configured (e.g. `admin` / `admin123`). After login you'll see the Teams view. A default `Main` team is created automatically.
+
+Click `Pipelines` on the Main team to see the Pipelines view (empty).
 
 ## Creating a Pipeline
 
-On that Pipelines view on the top right you have the `New` that will bring you to the view to create a Pipeline.
+On that Pipelines view on the top right you have the `New` button (visible only to team admins) that will bring you to the view to create a Pipeline.
 
 There you can set the:
 * `Name`: Name of the Pipeline (has to be unique)

@@ -19,9 +19,51 @@ When a job/resource is executed in a worker it creates a `$WORKDIR` `$XDG_CACHE_
 
 The execution of any action is done on a [`runner`](#runner)
 
+## Authentication and Authorization
+
+QID uses JWT-based authentication with a role-based access control (RBAC) model.
+
+### Users
+
+Users are created either via the `--users` server flag or through the API (by a global admin). Each user has a username, password (bcrypt hashed), and an optional global admin flag.
+
+To generate the hashed password value for the `--users` flag, use the helper command:
+
+```
+qid user-password --username myuser --password mypassword
+```
+
+This outputs `myuser:$2a$14$...` which can be passed to `--users`.
+
+### Teams
+
+Everything in QID is scoped under a Team. A default `main` team is used when not specified. Teams have a canonical name (lowercase, URL-safe) derived from their display name.
+
+### Roles
+
+There are 3 authorization levels:
+
+* **Global Admin**: Can do everything — create users, create/delete teams, manage all team members, and perform all operations on any team's pipelines
+* **Team Admin**: Can manage the team (update name, add/remove members), and create/edit/delete pipelines within that team
+* **Team Member**: Can view the team and its pipelines, trigger jobs and resources, and view builds and resource versions
+
+### Login
+
+On the web UI, users are presented with a login screen. After login, the JWT is stored in the browser's local storage.
+
+On the CLI, use:
+
+```
+qid client login --url localhost:4000 --username myuser --password mypassword
+```
+
+The JWT is stored at `$XDG_CONFIG_HOME/qid/authentication` and automatically used for subsequent CLI commands.
+
 ## Server Configuration
 
-* `port`: The port to expose fro the web server and API
+* `port`: The port to expose for the web server and API
+* `jwt-secret` (REQUIRED): The secret used to sign JWT tokens for authentication
+* `users`: List of initial users to create on startup, format: `USERNAME:HASH-PASSWORD` (use `qid user-password` to generate)
 * `db-system`: Which type of DB to use, each one has it's values
   * `mysql`: Uses a MySQL DB
     * `db-host`: Database Host
@@ -35,6 +77,7 @@ The execution of any action is done on a [`runner`](#runner)
 * `concurrency`: How many parallel instances has the worker
 * `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
 * `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
+* `team-canonical`: Team canonical to scope the initial pipeline creation (default: `main`)
 * `pipeline-name`: If defined it'll create a pipeline on the service start
 * `pipeline-config`: Path to the Pipeline configuration
 * `pipeline-vars`: Path to the Pipeline vars
@@ -43,6 +86,7 @@ The execution of any action is done on a [`runner`](#runner)
 ## Worker Configuration
 
 * `qid-url`: Used to make all the interactions with the DB through it
+* `jwt-secret` (REQUIRED): Must match the server's JWT secret — used to generate a worker token that bypasses authorization
 * `concurrency`: How many parallel instances has the worker
 * `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
 * `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
@@ -475,5 +519,21 @@ job "test" {
 
 Not all the API is ported to the CLI [yet](https://github.com/xescugc/qid/issues/58), it exists on the `qid/transport/http/client` as a GO client if need be.
 
-To have access to the client just run `qid client` and you can CRUD Pipelines under `qid client pipelines` and
-you can also `jobs trigger`.
+First, log in to get a JWT stored locally:
+
+```
+qid client login --url localhost:4000 --username myuser --password mypassword
+```
+
+Then you can interact with the API. All pipeline and job commands require `--team-canonical` (`-tc`) to scope the operation to a team (defaults to `main`):
+
+```
+qid client pipelines --tc main list
+qid client pipelines --tc main create --name my-pipeline --config pipeline.hcl
+qid client pipelines --tc main get --name my-pipeline
+qid client pipelines --tc main update --name my-pipeline --config pipeline.hcl
+qid client pipelines --tc main delete --name my-pipeline
+
+qid client jobs --tc main --pn my-pipeline get --jn my-job
+qid client jobs --tc main --pn my-pipeline trigger --jn my-job
+```
