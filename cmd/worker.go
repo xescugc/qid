@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -19,12 +20,12 @@ import (
 	"github.com/xescugc/qid/worker"
 	"github.com/xescugc/qid/worker/config"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/log/level"
-
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
 	_ "gocloud.dev/pubsub/mempubsub"
+
+	_ "gocloud.dev/pubsub/kafkapubsub"
+	_ "gocloud.dev/pubsub/rabbitpubsub"
 )
 
 var (
@@ -36,13 +37,13 @@ var (
 
 			&cli.StringFlag{Name: "qid-url", Aliases: []string{"u"}, Value: "localhost:8080", Usage: "URL to the QID server"},
 
-			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub System to use"},
+			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS"},
 
 			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
 
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
 
-			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "Declares the Secret used to sign the JWT when user login"},
+			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "JWT secret (must match the server's --jwt-secret)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -99,12 +100,8 @@ var (
 )
 
 func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int, llvl string) error {
-	var logger log.Logger
-	logger = log.NewLogfmtLogger(os.Stderr)
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
-	logger = log.With(logger, "service", "worker")
-	logger = level.NewFilter(logger, level.Allow(level.ParseDefault(llvl, level.InfoValue())))
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseSlogLevel(llvl)}))
+	logger = logger.With("service", "worker")
 	// Create a subscription connected to that topic.
 	subscription, err := pubsub.OpenSubscription(ctx, getSubscriptionURL(sy))
 	if err != nil {
@@ -115,14 +112,14 @@ func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c i
 	var wg sync.WaitGroup
 	for i := range c {
 		wg.Add(1)
-		nlogger := log.With(logger, "num", i+1)
-		level.Info(nlogger).Log("msg", fmt.Sprintf("Starting Worker %d", i+1))
+		nlogger := logger.With("num", i+1)
+		nlogger.Info(fmt.Sprintf("Starting Worker %d", i+1))
 		w := worker.New(s, t, subscription, nlogger)
 
 		go func() {
 			err = w.Run(ctx)
 			if err != nil {
-				level.Error(logger).Log("msg", fmt.Errorf("failed to Run worker: %w", err).Error())
+				logger.Error("failed to Run worker", "error", err)
 			}
 			wg.Done()
 		}()

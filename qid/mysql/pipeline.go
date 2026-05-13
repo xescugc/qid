@@ -90,40 +90,39 @@ func (r *PipelineRepository) Update(ctx context.Context, tc, pn string, p pipeli
 }
 
 func (r *PipelineRepository) Find(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
-	row := r.querier.QueryRowContext(ctx, `
-		SELECT p.id, p.name, p.raw
-		FROM pipelines AS p
-		JOIN teams AS t
-			ON p.team_id = t.id
+	rows, err := r.querier.QueryContext(ctx, pipelineQuery+`
 		WHERE t.canonical = ? AND p.name = ?
 	`, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query Pipeline: %w", err)
+	}
 
-	p, err := scanPipeline(row)
+	pps, err := scanPipelines(rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan Pipeline: %w", err)
 	}
 
-	return p, nil
+	if len(pps) == 0 {
+		return nil, fmt.Errorf("not found")
+	}
+
+	return pps[0], nil
 }
 
 func (r *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline.Pipeline, error) {
-	rows, err := r.querier.QueryContext(ctx, `
-		SELECT p.id, p.name, p.raw
-		FROM pipelines AS p
-		JOIN teams AS t
-			ON p.team_id = t.id
+	rows, err := r.querier.QueryContext(ctx, pipelineQuery+`
 		WHERE t.canonical = ?
 	`, tc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to filter Pipelines: %w", err)
+		return nil, fmt.Errorf("failed to query Pipelines: %w", err)
 	}
 
-	ps, err := scanPipelines(rows)
+	pps, err := scanPipelines(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan Pipeline: %w", err)
+		return nil, fmt.Errorf("failed to scan Pipelines: %w", err)
 	}
 
-	return ps, nil
+	return pps, nil
 }
 
 func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
@@ -150,37 +149,98 @@ func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 	return nil
 }
 
-func scanPipeline(s sqlr.Scanner) (*pipeline.Pipeline, error) {
-	var p dbPipeline
-
-	err := s.Scan(
-		&p.ID,
-		&p.Name,
-		&p.Raw,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("not found")
-		}
-		return nil, fmt.Errorf("failed to scan: %w", err)
-	}
-
-	return p.toDomainEntity(), nil
-}
+const pipelineQuery = `
+	SELECT
+		p.id, p.name, p.raw,
+		j.id, j.name, j.get, j.task, j.on_success, j.on_failure, j.ensure,
+		r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check,
+		rt.id, rt.name, rt.` + "`check`" + `, rt.pull, rt.push, rt.params,
+		ru.id, ru.name, ru.run
+	FROM pipelines AS p
+	JOIN teams AS t ON p.team_id = t.id
+	LEFT JOIN jobs AS j ON j.pipeline_id = p.id
+	LEFT JOIN resources AS r ON r.pipeline_id = p.id
+	LEFT JOIN resource_types AS rt ON rt.pipeline_id = p.id
+	LEFT JOIN runners AS ru ON ru.pipeline_id = p.id
+`
 
 func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
-	var ps []*pipeline.Pipeline
+	pipelineMap := make(map[uint32]*pipeline.Pipeline)
+	var pipelineOrder []uint32
+
+	// Track seen IDs to avoid duplicates from the JOIN
+	type seenKey struct {
+		pipelineID uint32
+		table      string
+		id         uint32
+	}
+	seen := make(map[seenKey]bool)
 
 	for rows.Next() {
-		p, err := scanPipeline(rows)
+		var (
+			pp  dbPipeline
+			j   dbJob
+			r   dbResource
+			rt  dbResourceType
+			ru  dbRunner
+		)
+
+		err := rows.Scan(
+			&pp.ID, &pp.Name, &pp.Raw,
+			&j.ID, &j.Name, &j.Get, &j.Task, &j.OnSuccess, &j.OnFailure, &j.Ensure,
+			&r.ID, &r.Name, &r.Type, &r.Canonical, &r.Params, &r.CheckInterval, &r.CronID, &r.Logs, &r.LastCheck,
+			&rt.ID, &rt.Name, &rt.Check, &rt.Pull, &rt.Push, &rt.Params,
+			&ru.ID, &ru.Name, &ru.Run,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan pipeline: %w", err)
+			return nil, fmt.Errorf("failed to scan: %w", err)
 		}
-		ps = append(ps, p)
+
+		ppID := uint32(pp.ID.Int64)
+		p, ok := pipelineMap[ppID]
+		if !ok {
+			p = pp.toDomainEntity()
+			pipelineMap[ppID] = p
+			pipelineOrder = append(pipelineOrder, ppID)
+		}
+
+		if j.ID.Valid {
+			k := seenKey{ppID, "j", uint32(j.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Jobs = append(p.Jobs, *j.toDomainEntity())
+			}
+		}
+		if r.ID.Valid {
+			k := seenKey{ppID, "r", uint32(r.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Resources = append(p.Resources, *r.toDomainEntity())
+			}
+		}
+		if rt.ID.Valid {
+			k := seenKey{ppID, "rt", uint32(rt.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.ResourceTypes = append(p.ResourceTypes, *rt.toDomainEntity())
+			}
+		}
+		if ru.ID.Valid {
+			k := seenKey{ppID, "ru", uint32(ru.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Runners = append(p.Runners, *ru.toDomainEntity())
+			}
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan pipeline: %w", err)
+		return nil, fmt.Errorf("failed to iterate rows: %w", err)
 	}
-	return ps, nil
+
+	result := make([]*pipeline.Pipeline, 0, len(pipelineOrder))
+	for _, id := range pipelineOrder {
+		result = append(result, pipelineMap[id])
+	}
+	return result, nil
 }
+

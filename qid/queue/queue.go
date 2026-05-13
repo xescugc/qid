@@ -7,6 +7,7 @@ import (
 )
 
 //go:generate go tool mockgen -destination=../mock/topic.go -mock_names=Topic=Topic -package mock github.com/xescugc/qid/qid/queue Topic
+//go:generate go tool mockgen -destination=../mock/subscription.go -mock_names=Subscription=Subscription -package mock github.com/xescugc/qid/qid/queue Subscription
 
 // COPIED from https://pkg.go.dev/gocloud.dev/pubsub@v0.43.0#Topic as it's an interface
 // and not a specific type

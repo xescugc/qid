@@ -43,12 +43,26 @@ db-cli: ## Locally connects to the DB
 	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml exec mariadb mariadb -uroot -proot123
 
 .PHONY: gen
-gen:
+gen: ## Runs go generate
 	@go generate ./...
 
+.PHONY: lint
+lint: ## Runs staticcheck linter
+	@go tool staticcheck ./...
+
+ARGS ?= ./...
+
 .PHONY: test
-test:
-	@go test ./...
+test: ## Runs all tests
+	@go test $(ARGS)
+
+.PHONY: test-backends
+test-backends: ## Run backend integration tests (mem-only, no external deps)
+	@go test ./integration/backends/ -v -timeout 60s
+
+.PHONY: test-backends-all
+test-backends-all: ## Run all backend integration tests (requires docker services)
+	@QID_TEST_DB_SYSTEMS=mem,sqlite,mysql,postgresql,cockroachdb,tidb QID_TEST_PUBSUB_SYSTEMS=mem,nats,rabbit,kafka go test ./integration/backends/ -v -timeout 120s
 
 PLATFORMS := linux/amd64 windows/amd64 darwin/amd64
 

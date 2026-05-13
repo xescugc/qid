@@ -3,13 +3,12 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http/httptest"
 	"os"
 	"sync"
 	"testing"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/mysql"
 	"github.com/xescugc/qid/qid/mysql/migrate"
@@ -32,11 +31,7 @@ func runTests(m *testing.M) int {
 	jwtSecret := []byte("secret")
 	ctx := context.Background()
 
-	var logger log.Logger
-	logger = log.NewLogfmtLogger(os.Stderr)
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
-	logger = log.With(logger, "service", "qid")
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})).With("service", "qid")
 
 	db, err := mysql.New("", 0, "", "", mysql.Options{
 		MultiStatements: true,
@@ -44,7 +39,7 @@ func runTests(m *testing.M) int {
 		System:          mysql.Mem,
 	})
 
-	err = migrate.Migrate(db, true)
+	err = migrate.Migrate(db, mysql.Mem)
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +59,7 @@ func runTests(m *testing.M) int {
 	br := mysql.NewBuildRepository(db)
 	rur := mysql.NewRunnerRepository(db)
 	var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, jwtSecret, logger)
-	var handler = tshttp.Handler(svc, jwtSecret, log.With(logger, "component", "HTTP"))
+	var handler = tshttp.Handler(svc, jwtSecret, logger.With("component", "HTTP"))
 	server := httptest.NewServer(handler)
 	qidURL = server.URL
 	defer server.Close()
@@ -98,12 +93,18 @@ func getSubscriptionURL(s string) string {
 }
 
 func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int, llvl string) error {
-	var logger log.Logger
-	logger = log.NewLogfmtLogger(os.Stderr)
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
-	logger = log.With(logger, "service", "worker")
-	logger = level.NewFilter(logger, level.Allow(level.ParseDefault(llvl, level.InfoValue())))
+	var lvl slog.Level
+	switch llvl {
+	case "DEBUG":
+		lvl = slog.LevelDebug
+	case "WARN":
+		lvl = slog.LevelWarn
+	case "ERROR":
+		lvl = slog.LevelError
+	default:
+		lvl = slog.LevelInfo
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})).With("service", "worker")
 	// Create a subscription connected to that topic.
 	subscription, err := pubsub.OpenSubscription(ctx, getSubscriptionURL(sy))
 	if err != nil {
@@ -114,14 +115,14 @@ func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c i
 	var wg sync.WaitGroup
 	for i := range c {
 		wg.Add(1)
-		nlogger := log.With(logger, "num", i+1)
-		level.Info(nlogger).Log("msg", fmt.Sprintf("Starting Worker %d", i+1))
+		nlogger := logger.With("num", i+1)
+		nlogger.Info(fmt.Sprintf("Starting Worker %d", i+1))
 		w := worker.New(s, t, subscription, nlogger)
 
 		go func() {
 			err = w.Run(ctx)
 			if err != nil {
-				level.Error(logger).Log("msg", fmt.Errorf("failed to Run worker: %w", err).Error())
+				logger.Error("failed to Run worker", "error", err)
 			}
 			wg.Done()
 		}()

@@ -106,13 +106,13 @@ func (q *Qid) TriggerPipelineResource(ctx context.Context, tc, pn, rCan string) 
 	}
 	mb, err := json.Marshal(m)
 	if err != nil {
-		//return fmt.Errorf("failed to marshal Message Body: %w", err)
+		return fmt.Errorf("failed to marshal Message Body: %w", err)
 	}
 	err = q.Topic.Send(ctx, &pubsub.Message{
 		Body: mb,
 	})
 	if err != nil {
-		//return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
+		return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
 	}
 	r.LastCheck = time.Now()
 	_ = q.UpdatePipelineResource(ctx, tc, pn, r.Canonical, *r)

@@ -23,6 +23,31 @@ services:
     networks:
       - qid
 
+  postgresql:
+    image: postgres:17
+    networks:
+      - qid
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    networks:
+      - qid
+
+  kafka:
+    image: bitnami/kafka
+    networks:
+      - qid
+
+  cockroachdb:
+    image: cockroachdb/cockroach
+    networks:
+      - qid
+
+  tidb:
+    image: pingcap/tidb
+    networks:
+      - qid
+
 volumes:
   cache:
 

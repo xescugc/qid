@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/awalterschulze/gographviz"
-	"github.com/go-kit/kit/log/level"
 	cron "github.com/netresearch/go-cron"
 	"github.com/xescugc/qid/qid/build"
 	"github.com/xescugc/qid/qid/pipeline"
@@ -21,10 +20,10 @@ import (
 
 func (q *Qid) newCronResourceFunc(tc, ppName, resCan string) func() {
 	return func() {
-		level.Info(q.logger).Log("msg", "Checking resource ...", "Pipeline", ppName, "Resource", resCan)
+		q.logger.Info("Checking resource ...", "Pipeline", ppName, "Resource", resCan)
 		r, err := q.Resources.Find(q.Ctx, tc, ppName, resCan)
 		if err != nil {
-			level.Error(q.logger).Log("msg", "failed to find Resource", "error", err.Error())
+			q.logger.Error("failed to find Resource", "error", err)
 			return
 		}
 		m := queue.Body{
@@ -34,14 +33,14 @@ func (q *Qid) newCronResourceFunc(tc, ppName, resCan string) func() {
 		}
 		mb, err := json.Marshal(m)
 		if err != nil {
-			level.Error(q.logger).Log("msg", "failed to marshal Message Body", "error", err.Error())
+			q.logger.Error("failed to marshal Message Body", "error", err)
 			return
 		}
 		err = q.Topic.Send(q.Ctx, &pubsub.Message{
 			Body: mb,
 		})
 		if err != nil {
-			level.Error(q.logger).Log("msg", "failed to send Topic", "error", err.Error())
+			q.logger.Error("failed to send Topic", "error", err)
 			return
 		}
 		r.LastCheck = time.Now()
@@ -296,45 +295,7 @@ func (q *Qid) ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipelin
 
 	pps, err := q.Pipelines.Filter(ctx, tc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fitler Pipelines: %w", err)
-	}
-
-	for _, pp := range pps {
-		jobs, err := q.Jobs.Filter(ctx, tc, pp.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Jobs from Pipeline %q: %w", pp.Name, err)
-		}
-
-		resources, err := q.Resources.Filter(ctx, tc, pp.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Resources from Pipeline %q: %w", pp.Name, err)
-		}
-
-		restypes, err := q.ResourceTypes.Filter(ctx, tc, pp.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Resource Types from Pipeline %q: %w", pp.Name, err)
-		}
-
-		runners, err := q.Runners.Filter(ctx, tc, pp.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Runners from Pipeline %q: %w", pp.Name, err)
-		}
-
-		for _, j := range jobs {
-			pp.Jobs = append(pp.Jobs, *j)
-		}
-
-		for _, r := range resources {
-			pp.Resources = append(pp.Resources, *r)
-		}
-
-		for _, rt := range restypes {
-			pp.ResourceTypes = append(pp.ResourceTypes, *rt)
-		}
-
-		for _, ru := range runners {
-			pp.Runners = append(pp.Runners, *ru)
-		}
+		return nil, fmt.Errorf("failed to filter Pipelines: %w", err)
 	}
 
 	return pps, nil
@@ -350,42 +311,6 @@ func (q *Qid) GetPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipelin
 	pp, err := q.Pipelines.Find(ctx, tc, pn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Pipeline %q: %w", pn, err)
-	}
-
-	jobs, err := q.Jobs.Filter(ctx, tc, pn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Jobs from Pipeline %q: %w", pn, err)
-	}
-
-	resources, err := q.Resources.Filter(ctx, tc, pn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Resources from Pipeline %q: %w", pn, err)
-	}
-
-	restypes, err := q.ResourceTypes.Filter(ctx, tc, pn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Resource Types from Pipeline %q: %w", pn, err)
-	}
-
-	runners, err := q.Runners.Filter(ctx, tc, pn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Runners from Pipeline %q: %w", pn, err)
-	}
-
-	for _, j := range jobs {
-		pp.Jobs = append(pp.Jobs, *j)
-	}
-
-	for _, r := range resources {
-		pp.Resources = append(pp.Resources, *r)
-	}
-
-	for _, rt := range restypes {
-		pp.ResourceTypes = append(pp.ResourceTypes, *rt)
-	}
-
-	for _, ru := range runners {
-		pp.Runners = append(pp.Runners, *ru)
 	}
 
 	return pp, nil
@@ -576,7 +501,6 @@ func (q *Qid) generateImage(ctx context.Context, tc string, pp *pipeline.Pipelin
 	}
 
 	str := graph.String()
-	// TODO: check for errors
 	return []byte(str), nil
 }
 
