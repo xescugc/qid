@@ -17,8 +17,9 @@ import (
 )
 
 type Client struct {
-	url string
-	jwt string
+	url        string
+	jwt        string
+	configPath string
 }
 
 // New returns a new HTTP Client for QID
@@ -40,6 +41,12 @@ func New(host, jwt string) (*Client, error) {
 	}
 
 	return cl, nil
+}
+
+// SetConfigPath sets the path where the JWT will be persisted on refresh.
+// When empty (default), JWT refresh will not be written to disk.
+func (cl *Client) SetConfigPath(path string) {
+	cl.configPath = path
 }
 
 func (cl *Client) UserLogin(ctx context.Context, un, pass string) (*user.WithMemberships, string, error) {
