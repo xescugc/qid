@@ -5,6 +5,7 @@ import (
 
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/mock"
+	"github.com/xescugc/qid/qid/unitwork"
 	"go.uber.org/mock/gomock"
 )
 
@@ -33,6 +34,17 @@ func newService(ctrl *gomock.Controller) MockService {
 	rur := mock.NewRunnerRepository(ctrl)
 	t := mock.NewTopic(ctrl)
 
+	suow := unitwork.NewNoopStartUnitOfWork(unitwork.Repositories{
+		UsersRepo:         ur,
+		TeamsRepo:         tr,
+		PipelinesRepo:     pr,
+		JobsRepo:          jr,
+		ResourcesRepo:     rr,
+		ResourceTypesRepo: rtr,
+		BuildsRepo:        br,
+		RunnersRepo:       rur,
+	})
+
 	return MockService{
 		Topic:         t,
 		Users:         ur,
@@ -44,6 +56,6 @@ func newService(ctrl *gomock.Controller) MockService {
 		Builds:        br,
 		Runners:       rur,
 
-		S: qid.New(context.TODO(), t, ur, tr, pr, jr, rr, rtr, br, rur, []byte("test-secret"), nil),
+		S: qid.New(context.TODO(), t, ur, tr, pr, jr, rr, rtr, br, rur, suow, []byte("test-secret"), nil),
 	}
 }

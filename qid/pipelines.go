@@ -14,6 +14,7 @@ import (
 	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/queue"
 	"github.com/xescugc/qid/qid/resource"
+	"github.com/xescugc/qid/qid/unitwork"
 	"github.com/xescugc/qid/qid/utils"
 	"gocloud.dev/pubsub"
 )
@@ -63,64 +64,77 @@ func (q *Qid) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, var
 	pp.Name = pn
 	pp.Raw = rpp
 
-	_, err = q.Pipelines.Create(ctx, tc, *pp)
+	var cronEntries []cron.EntryID
+	var cp *pipeline.Pipeline
+	err = q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
+		_, err := uow.Pipelines().Create(ctx, tc, *pp)
+		if err != nil {
+			return fmt.Errorf("failed to create Pipeline %q: %w", pn, err)
+		}
+
+		for _, j := range pp.Jobs {
+			if !utils.ValidateCanonical(j.Name) {
+				return fmt.Errorf("invalid Job Name format %q", j.Name)
+			}
+			_, err = uow.Jobs().Create(ctx, tc, pn, j)
+			if err != nil {
+				return fmt.Errorf("failed to create Job %q: %w", j.Name, err)
+			}
+		}
+
+		for _, rt := range pp.ResourceTypes {
+			if !utils.ValidateCanonical(rt.Name) {
+				return fmt.Errorf("invalid ResourceType Name format %q", rt.Name)
+			}
+			_, err = uow.ResourceTypes().Create(ctx, tc, pn, rt)
+			if err != nil {
+				return fmt.Errorf("failed to create ResourceType %q: %w", rt.Name, err)
+			}
+		}
+
+		for _, r := range pp.Resources {
+			if !utils.ValidateCanonical(r.Name) {
+				return fmt.Errorf("invalid Resource Name format %q", r.Name)
+			}
+			spec := r.CheckInterval
+			if spec == "" {
+				spec = "@every 1m"
+			}
+			eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
+			if err != nil {
+				return fmt.Errorf("failed to add Cron Func %q: %w", r.Name, err)
+			}
+			cronEntries = append(cronEntries, eid)
+			r.CronID = uint64(eid)
+			_, err = uow.Resources().Create(ctx, tc, pn, r)
+			if err != nil {
+				q.cron.Remove(eid)
+				return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
+			}
+		}
+
+		for _, ru := range pp.Runners {
+			if !utils.ValidateCanonical(ru.Name) {
+				return fmt.Errorf("invalid Runner Name format %q", ru.Name)
+			}
+			_, err = uow.Runners().Create(ctx, tc, pn, ru)
+			if err != nil {
+				return fmt.Errorf("failed to create Runner %q: %w", ru.Name, err)
+			}
+		}
+
+		cp, err = uow.Pipelines().Find(ctx, tc, pn)
+		if err != nil {
+			return fmt.Errorf("failed to get Pipeline: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Pipeline %q: %w", pn, err)
-	}
-
-	for _, j := range pp.Jobs {
-		if !utils.ValidateCanonical(j.Name) {
-			return nil, fmt.Errorf("invalid Job Name format %q", j.Name)
-		}
-		_, err = q.Jobs.Create(ctx, tc, pn, j)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Job %q: %w", j.Name, err)
-		}
-	}
-
-	for _, rt := range pp.ResourceTypes {
-		if !utils.ValidateCanonical(rt.Name) {
-			return nil, fmt.Errorf("invalid ResourceType Name format %q", rt.Name)
-		}
-		_, err = q.ResourceTypes.Create(ctx, tc, pn, rt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ResourceType %q: %w", rt.Name, err)
-		}
-	}
-
-	for _, r := range pp.Resources {
-		if !utils.ValidateCanonical(r.Name) {
-			return nil, fmt.Errorf("invalid Resource Name format %q", r.Name)
-		}
-		spec := r.CheckInterval
-		if spec == "" {
-			spec = "@every 1m"
-		}
-		eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
-		if err != nil {
-			return nil, fmt.Errorf("failed to add Cron Func %q: %w", r.Name, err)
-		}
-		r.CronID = uint64(eid)
-		_, err = q.Resources.Create(ctx, tc, pn, r)
-		if err != nil {
+		// Clean up any cron entries that were added
+		for _, eid := range cronEntries {
 			q.cron.Remove(eid)
-			return nil, fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
 		}
-	}
-
-	for _, ru := range pp.Runners {
-		if !utils.ValidateCanonical(ru.Name) {
-			return nil, fmt.Errorf("invalid Runner Name format %q", ru.Name)
-		}
-		_, err = q.Runners.Create(ctx, tc, pn, ru)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Runner %q: %w", ru.Name, err)
-		}
-	}
-
-	cp, err := q.GetPipeline(ctx, tc, pn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Pipeline: %w", err)
+		return nil, err
 	}
 	return cp, nil
 }
@@ -140,149 +154,160 @@ func (q *Qid) UpdatePipeline(ctx context.Context, tc, pn string, rpp []byte, var
 	pp.Name = pn
 	pp.Raw = rpp
 
-	err = q.Pipelines.Update(ctx, tc, pn, *pp)
-
-	dbpp, err := q.GetPipeline(ctx, tc, pn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Pipeline %q: %w", pn, err)
-	}
-
-	dbjbs := make(map[string]struct{})
-	for _, j := range dbpp.Jobs {
-		dbjbs[j.Name] = struct{}{}
-	}
-	for _, j := range pp.Jobs {
-		if !utils.ValidateCanonical(j.Name) {
-			return nil, fmt.Errorf("invalid Job Name format %q", j.Name)
-		}
-		if _, ok := dbjbs[j.Name]; ok {
-			delete(dbjbs, j.Name)
-			err = q.Jobs.Update(ctx, tc, pn, j.Name, j)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update Job %q: %w", j.Name, err)
-			}
-		} else {
-			_, err = q.Jobs.Create(ctx, tc, pn, j)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create Job %q: %w", j.Name, err)
-			}
-		}
-	}
-	for jn := range dbjbs {
-		err = q.Jobs.Delete(ctx, tc, pn, jn)
+	var up *pipeline.Pipeline
+	err = q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
+		err := uow.Pipelines().Update(ctx, tc, pn, *pp)
 		if err != nil {
-			return nil, fmt.Errorf("failed to delete Job %q: %w", jn, err)
+			return fmt.Errorf("failed to update Pipeline %q: %w", pn, err)
 		}
-	}
 
-	dbrts := make(map[string]struct{})
-	for _, rt := range dbpp.ResourceTypes {
-		dbrts[rt.Name] = struct{}{}
-	}
-	for _, rt := range pp.ResourceTypes {
-		if !utils.ValidateCanonical(rt.Name) {
-			return nil, fmt.Errorf("invalid ResourceType Name format %q", rt.Name)
-		}
-		if _, ok := dbrts[rt.Name]; ok {
-			delete(dbrts, rt.Name)
-			err = q.ResourceTypes.Update(ctx, tc, pn, rt.Name, rt)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update ResourceType %q: %w", rt.Name, err)
-			}
-		} else {
-			_, err = q.ResourceTypes.Create(ctx, tc, pn, rt)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create ResourceType %q: %w", rt.Name, err)
-			}
-		}
-	}
-	for rt := range dbrts {
-		err = q.ResourceTypes.Delete(ctx, tc, pn, rt)
+		dbpp, err := uow.Pipelines().Find(ctx, tc, pn)
 		if err != nil {
-			return nil, fmt.Errorf("failed to delete ResourceType %q: %w", rt, err)
+			return fmt.Errorf("failed to get Pipeline %q: %w", pn, err)
 		}
-	}
 
-	dbrs := make(map[string]resource.Resource)
-	for _, r := range dbpp.Resources {
-		dbrs[r.Canonical] = r
-	}
-	for _, r := range pp.Resources {
-		if !utils.ValidateCanonical(r.Name) {
-			return nil, fmt.Errorf("invalid Resource Name format %q", r.Name)
+		dbjbs := make(map[string]struct{})
+		for _, j := range dbpp.Jobs {
+			dbjbs[j.Name] = struct{}{}
 		}
-		if dbr, ok := dbrs[r.Canonical]; ok {
-			delete(dbrs, r.Canonical)
-			if dbr.CheckInterval != r.CheckInterval {
-				q.cron.Remove(cron.EntryID(dbr.CronID))
+		for _, j := range pp.Jobs {
+			if !utils.ValidateCanonical(j.Name) {
+				return fmt.Errorf("invalid Job Name format %q", j.Name)
+			}
+			if _, ok := dbjbs[j.Name]; ok {
+				delete(dbjbs, j.Name)
+				err = uow.Jobs().Update(ctx, tc, pn, j.Name, j)
+				if err != nil {
+					return fmt.Errorf("failed to update Job %q: %w", j.Name, err)
+				}
+			} else {
+				_, err = uow.Jobs().Create(ctx, tc, pn, j)
+				if err != nil {
+					return fmt.Errorf("failed to create Job %q: %w", j.Name, err)
+				}
+			}
+		}
+		for jn := range dbjbs {
+			err = uow.Jobs().Delete(ctx, tc, pn, jn)
+			if err != nil {
+				return fmt.Errorf("failed to delete Job %q: %w", jn, err)
+			}
+		}
+
+		dbrts := make(map[string]struct{})
+		for _, rt := range dbpp.ResourceTypes {
+			dbrts[rt.Name] = struct{}{}
+		}
+		for _, rt := range pp.ResourceTypes {
+			if !utils.ValidateCanonical(rt.Name) {
+				return fmt.Errorf("invalid ResourceType Name format %q", rt.Name)
+			}
+			if _, ok := dbrts[rt.Name]; ok {
+				delete(dbrts, rt.Name)
+				err = uow.ResourceTypes().Update(ctx, tc, pn, rt.Name, rt)
+				if err != nil {
+					return fmt.Errorf("failed to update ResourceType %q: %w", rt.Name, err)
+				}
+			} else {
+				_, err = uow.ResourceTypes().Create(ctx, tc, pn, rt)
+				if err != nil {
+					return fmt.Errorf("failed to create ResourceType %q: %w", rt.Name, err)
+				}
+			}
+		}
+		for rt := range dbrts {
+			err = uow.ResourceTypes().Delete(ctx, tc, pn, rt)
+			if err != nil {
+				return fmt.Errorf("failed to delete ResourceType %q: %w", rt, err)
+			}
+		}
+
+		dbrs := make(map[string]resource.Resource)
+		for _, r := range dbpp.Resources {
+			dbrs[r.Canonical] = r
+		}
+		for _, r := range pp.Resources {
+			if !utils.ValidateCanonical(r.Name) {
+				return fmt.Errorf("invalid Resource Name format %q", r.Name)
+			}
+			if dbr, ok := dbrs[r.Canonical]; ok {
+				delete(dbrs, r.Canonical)
+				if dbr.CheckInterval != r.CheckInterval {
+					q.cron.Remove(cron.EntryID(dbr.CronID))
+					spec := r.CheckInterval
+					if spec == "" {
+						spec = "@every 1m"
+					}
+					eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
+					if err != nil {
+						return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
+					}
+					r.CronID = uint64(eid)
+				}
+				err = uow.Resources().Update(ctx, tc, pn, r.Canonical, r)
+				if err != nil {
+					return fmt.Errorf("failed to update Resource %q: %w", r.Canonical, err)
+				}
+			} else {
 				spec := r.CheckInterval
 				if spec == "" {
 					spec = "@every 1m"
 				}
 				eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
 				if err != nil {
-					return nil, fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
+					return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
 				}
 				r.CronID = uint64(eid)
-			}
-			err = q.Resources.Update(ctx, tc, pn, r.Canonical, r)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update Resource %q: %w", r.Canonical, err)
-			}
-		} else {
-			q.cron.Remove(cron.EntryID(dbr.CronID))
-			spec := r.CheckInterval
-			if spec == "" {
-				spec = "@every 1m"
-			}
-			eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
-			if err != nil {
-				return nil, fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
-			}
-			r.CronID = uint64(eid)
-			_, err = q.Resources.Create(ctx, tc, pn, r)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create Resource %q: %w", r.Canonical, err)
+				_, err = uow.Resources().Create(ctx, tc, pn, r)
+				if err != nil {
+					return fmt.Errorf("failed to create Resource %q: %w", r.Canonical, err)
+				}
 			}
 		}
-	}
-	for rc := range dbrs {
-		err = q.Resources.Delete(ctx, tc, pn, rc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to delete Resource %q: %w", rc, err)
+		for rc := range dbrs {
+			err = uow.Resources().Delete(ctx, tc, pn, rc)
+			if err != nil {
+				return fmt.Errorf("failed to delete Resource %q: %w", rc, err)
+			}
 		}
-	}
 
-	dbru := make(map[string]struct{})
-	for _, ru := range dbpp.Runners {
-		dbru[ru.Name] = struct{}{}
-	}
-	for _, ru := range pp.Runners {
-		if !utils.ValidateCanonical(ru.Name) {
-			return nil, fmt.Errorf("invalid Resource Name format %q", ru.Name)
+		dbru := make(map[string]struct{})
+		for _, ru := range dbpp.Runners {
+			dbru[ru.Name] = struct{}{}
 		}
-		if _, ok := dbru[ru.Name]; ok {
-			delete(dbru, ru.Name)
-			err = q.Runners.Update(ctx, tc, pn, ru.Name, ru)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update Runner %q: %w", ru.Name, err)
+		for _, ru := range pp.Runners {
+			if !utils.ValidateCanonical(ru.Name) {
+				return fmt.Errorf("invalid Resource Name format %q", ru.Name)
 			}
-		} else {
-			_, err = q.Runners.Create(ctx, tc, pn, ru)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create Runner %q: %w", ru.Name, err)
+			if _, ok := dbru[ru.Name]; ok {
+				delete(dbru, ru.Name)
+				err = uow.Runners().Update(ctx, tc, pn, ru.Name, ru)
+				if err != nil {
+					return fmt.Errorf("failed to update Runner %q: %w", ru.Name, err)
+				}
+			} else {
+				_, err = uow.Runners().Create(ctx, tc, pn, ru)
+				if err != nil {
+					return fmt.Errorf("failed to create Runner %q: %w", ru.Name, err)
+				}
 			}
 		}
-	}
-	for run := range dbru {
-		err = q.Runners.Delete(ctx, tc, pn, run)
+		for run := range dbru {
+			err = uow.Runners().Delete(ctx, tc, pn, run)
+			if err != nil {
+				return fmt.Errorf("failed to delete Runner %q: %w", run, err)
+			}
+		}
+
+		up, err = uow.Pipelines().Find(ctx, tc, pn)
 		if err != nil {
-			return nil, fmt.Errorf("failed to delete Runner %q: %w", run, err)
+			return fmt.Errorf("failed to get Pipeline: %w", err)
 		}
-	}
-	up, err := q.GetPipeline(ctx, tc, pn)
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Pipeline: %w", err)
+		return nil, err
 	}
 
 	return up, nil
@@ -530,20 +555,23 @@ func (q *Qid) DeletePipeline(ctx context.Context, tc, pn string) error {
 	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	}
-	resources, err := q.Resources.Filter(ctx, tc, pn)
-	if err != nil {
-		return fmt.Errorf("failed to get Resources from Pipeline %q: %w", pn, err)
-	}
 
-	// Removes all the Cron Resources
-	for _, res := range resources {
-		q.cron.Remove(cron.EntryID(res.CronID))
-	}
+	return q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
+		resources, err := uow.Resources().Filter(ctx, tc, pn)
+		if err != nil {
+			return fmt.Errorf("failed to get Resources from Pipeline %q: %w", pn, err)
+		}
 
-	err = q.Pipelines.Delete(ctx, tc, pn)
-	if err != nil {
-		return fmt.Errorf("failed to delete Pipeline %q: %w", pn, err)
-	}
+		// Removes all the Cron Resources
+		for _, res := range resources {
+			q.cron.Remove(cron.EntryID(res.CronID))
+		}
 
-	return nil
+		err = uow.Pipelines().Delete(ctx, tc, pn)
+		if err != nil {
+			return fmt.Errorf("failed to delete Pipeline %q: %w", pn, err)
+		}
+
+		return nil
+	})
 }
