@@ -76,7 +76,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		cwd = filepath.Dir(cwd)
 
-		pp, err := w.qid.GetPipeline(ctx, m.PipelineName)
+		pp, err := w.qid.GetPipeline(ctx, m.TeamCanonical, m.PipelineName)
 		if err != nil {
 			level.Error(w.logger).Log("msg", fmt.Errorf("failed GetPipeline: %w", err))
 			continue
@@ -88,14 +88,14 @@ func (w *Worker) Run(ctx context.Context) error {
 				Task:      make([]build.Step, 0, 0),
 				StartedAt: time.Now(),
 			}
-			nb, err := w.qid.CreateJobBuild(ctx, m.PipelineName, m.JobName, b)
+			nb, err := w.qid.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
 			if err != nil {
 				level.Error(w.logger).Log("msg", fmt.Errorf("failed create Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 				continue
 			}
 			// We keep 'b' as a reference
 			b.ID = nb.ID
-			j, err := w.qid.GetPipelineJob(ctx, m.PipelineName, m.JobName)
+			j, err := w.qid.GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName)
 			if err != nil {
 				ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 				w.failBuild(ctx, m, b, ferr)
@@ -117,7 +117,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					if !passed {
 						break
 					}
-					builds, err := w.qid.ListJobBuilds(ctx, m.PipelineName, p)
+					builds, err := w.qid.ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, p)
 					if err != nil {
 						ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 						w.failBuild(ctx, m, b, ferr)
@@ -160,7 +160,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 				// Set the VERSION_HASH either from the Job or from the last
 				// Version of the resource
-				dbvers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+				dbvers, err := w.qid.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 				if err != nil {
 					ferr := fmt.Errorf("failed Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 					w.failBuild(ctx, m, b, ferr)
@@ -232,7 +232,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							Logs:     out,
 							Duration: d,
 						})
-						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+						err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
 							ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 							w.failBuild(ctx, m, b, ferr)
@@ -255,7 +255,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							Logs:     out,
 							Duration: d,
 						})
-						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+						err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
 							ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 							w.failBuild(ctx, m, b, ferr)
@@ -272,7 +272,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					Logs:      out,
 					Duration:  d,
 				})
-				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+				err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
 					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 					w.failBuild(ctx, m, b, ferr)
@@ -294,7 +294,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						Logs:     out,
 						Duration: d,
 					})
-					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
 						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 						w.failBuild(ctx, m, b, ferr)
@@ -317,7 +317,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						Logs:     out,
 						Duration: d,
 					})
-					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
 						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 						w.failBuild(ctx, m, b, ferr)
@@ -355,7 +355,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							Logs:     out,
 							Duration: d,
 						})
-						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+						err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
 							ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 							w.failBuild(ctx, m, b, ferr)
@@ -378,7 +378,7 @@ func (w *Worker) Run(ctx context.Context) error {
 							Logs:     out,
 							Duration: d,
 						})
-						err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+						err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 						if err != nil {
 							ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 							w.failBuild(ctx, m, b, ferr)
@@ -394,7 +394,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					Logs:     out,
 					Duration: d,
 				})
-				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+				err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
 					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err)
 					w.failBuild(ctx, m, b, ferr)
@@ -416,7 +416,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						Logs:     out,
 						Duration: d,
 					})
-					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
 						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 						w.failBuild(ctx, m, b, ferr)
@@ -439,7 +439,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						Logs:     out,
 						Duration: d,
 					})
-					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
 						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 						w.failBuild(ctx, m, b, ferr)
@@ -451,6 +451,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					for _, g := range nj.Get {
 						if slices.Contains(g.Passed, j.Name) && g.Trigger {
 							qb := queue.Body{
+								TeamCanonical:     m.TeamCanonical,
 								PipelineName:      pp.Name,
 								JobName:           nj.Name,
 								ResourceCanonical: g.ResourceCanonical(),
@@ -471,7 +472,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 			}
 			b.Status = build.Succeeded
-			err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+			err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 			if err != nil {
 				level.Error(w.logger).Log("msg", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.JobName, m.PipelineName, err))
 				continue
@@ -491,7 +492,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					Logs:     out,
 					Duration: d,
 				})
-				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+				err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
 					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 					w.failBuild(ctx, m, b, ferr)
@@ -518,7 +519,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						Logs:     out,
 						Duration: d,
 					})
-					err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+					err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 					if err != nil {
 						ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 						w.failBuild(ctx, m, b, ferr)
@@ -542,7 +543,7 @@ func (w *Worker) Run(ctx context.Context) error {
 					Logs:     out,
 					Duration: d,
 				})
-				err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+				err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 				if err != nil {
 					ferr := fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err)
 					w.failBuild(ctx, m, b, ferr)
@@ -566,7 +567,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 			params := rt.Check.Params
 
-			dbvers, err := w.qid.ListResourceVersions(ctx, m.PipelineName, r.Canonical)
+			dbvers, err := w.qid.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 			if err != nil {
 				ferr := fmt.Errorf("failed to list resource versions: %w", err)
 				level.Error(w.logger).Log("msg", ferr)
@@ -590,16 +591,16 @@ func (w *Worker) Run(ctx context.Context) error {
 			out, _, err := w.runRunner(ctx, ru, cwd, params)
 			if err != nil {
 				r.Logs = out
-				nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+				nerr := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r)
 				if nerr != nil {
-					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
 				}
 				level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
 				goto END
 			}
 			if r.Logs != "" {
 				r.Logs = ""
-				err = w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+				err = w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r)
 				if err != nil {
 					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q from Pipeline %q: %w", r.Canonical, m.PipelineName, err))
 					goto END
@@ -617,15 +618,15 @@ func (w *Worker) Run(ctx context.Context) error {
 				ferr := fmt.Errorf("failed to Unmarshal versions(%s): %w", rawVers, err)
 				level.Error(w.logger).Log("msg", ferr)
 				r.Logs = ferr.Error()
-				nerr := w.qid.UpdatePipelineResource(ctx, m.PipelineName, r.Canonical, r)
+				nerr := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r)
 				if nerr != nil {
-					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q.%q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
+					level.Error(w.logger).Log("msg", fmt.Errorf("failed update Resource %q from Pipeline %q: %w", r.Canonical, m.PipelineName, nerr))
 				}
 				level.Error(w.logger).Log("msg", fmt.Errorf("failed to run command: %w", err))
 				goto END
 			}
 			for _, v := range vers {
-				cv, err := w.qid.CreateResourceVersion(ctx, m.PipelineName, r.Canonical, resource.Version{
+				cv, err := w.qid.CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, resource.Version{
 					Version: v,
 				})
 				if err != nil {
@@ -638,6 +639,7 @@ func (w *Worker) Run(ctx context.Context) error {
 						// and this trigger is only for resources
 						if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {
 							b := queue.Body{
+								TeamCanonical:     m.TeamCanonical,
 								PipelineName:      pp.Name,
 								JobName:           j.Name,
 								ResourceCanonical: r.Canonical,
@@ -723,14 +725,14 @@ func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err
 	if err != nil {
 		b.Error = err.Error()
 	}
-	err = w.qid.UpdateJobBuild(ctx, m.PipelineName, m.JobName, b.ID, b)
+	err = w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 	if err != nil {
 		level.Error(w.logger).Log("msg", fmt.Errorf("failed update Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 	}
 }
 
 func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
-	err := w.qid.DeleteJobBuild(ctx, m.PipelineName, m.JobName, b.ID)
+	err := w.qid.DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID)
 	if err != nil {
 		level.Error(w.logger).Log("msg", fmt.Errorf("failed delete Build for Job %q from Pipeline %q: %w", m.PipelineName, m.JobName, err))
 	}

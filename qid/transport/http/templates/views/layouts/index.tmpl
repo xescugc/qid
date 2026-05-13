@@ -10,6 +10,7 @@
   <body>
     <div id="app">
     </div>
+    <h1>
 
     <script type = "text/javascript" src="/js/jquery.min.js"></script>
     <script type = "text/javascript" src="/js/underscorejs.min.js"></script>
@@ -36,6 +37,18 @@
             <img src="/images/logo.png" alt="Logo" width="45" height="25" class="d-inline-block align-text-top">
             QID
           </a>
+          <% if (session) { %>
+            <div class="navbar" id="navbarSupportedContent"> 
+              <div class="d-flex">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <%- session.user.full_name %>
+                </a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" id="logout" href="/logout">Logout</a></li>
+                </ul>
+              </div>
+            </div>
+          <% } %>
         </div>
       </nav>
     </script>
@@ -50,10 +63,166 @@
       </div>
     </script>
 
+    <script type="text/template" id="session-new-view">
+      <div class="w-100 m-auto" style="max-width: 400px;padding-top:200px">
+        <h1>Log In</h1>
+        <form>
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" aria-describedby="username">
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" aria-describedby="password" >
+          </div>
+          <button type="submit" id="login" class="btn btn-primary">Log In</button>
+        </form>
+      </div>
+    </script>
+
+    <script type="text/template" id="teams-view">
+      <div class="row">
+        <% if (isAdmin()) { %>
+          <div class="col">
+            <a type="button" id="team-new" class="btn btn-success float-end" href="/teams/new">New</a>
+          </div>
+        <% } %>
+      </div>
+      </br>
+      <div class="row">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th scope="col" class="col-10">Name</th>
+              <th scope="col" class="col-2">Options</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </script>
+
+    <script type="text/template" id="teams-new-view">
+      <h1>New Team</h1>
+      <form>
+        <div class="mb-3">
+          <label for="name" class="form-label">Name</label>
+          <input type="text" class="form-control" id="name" aria-describedby="name" value="<%- name %>" <%- id ? "disabled" : ""%>>
+        </div>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </form>
+    </script>
+
+    <script type="text/template" id="team-row-view">
+      <td><%- name %></td>
+      <td>
+				<div class="btn-group" role="group">
+          <a id="pipelines" href="/teams/<%- canonical %>/pipelines" type="button" class="btn btn-primary">Pipelines</a>
+          <a id="manage" href="/teams/<%- canonical %>" type="button" class="btn btn-info">Manage</a>
+          <% if (isAdmin(canonical)) { %>
+					  <button id="delete" type="button" class="btn btn-danger">Delete</button>
+          <% } %>
+				</div>
+      </td>
+    </script>
+
+    <script type="text/template" id="team-show-view">
+      <div class="row">
+        <h1>Team: <%- name %></h1>
+      </div>
+      <div class="row">
+        <form>
+          <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="name" aria-describedby="name" value="<%- name %>"
+              <% if (!isAdmin(canonical)) { %>
+                disabled=""
+              <% } %>
+            >
+          </div>
+          <% if (isAdmin(canonical)) { %>
+            <button type="submit" class="btn btn-primary">Update</button>
+          <% } %>
+        </form>
+      </div>
+      </br>
+      </br>
+      <div class="row">
+        <div class="col">
+          <h3>Members</h3>
+        </div>
+        <div class="col">
+          <% if (isAdmin(canonical)) { %>
+            <a type="button" id="new-member" class="btn btn-success float-end">New</a>
+          <% } %>
+        </div>
+      </div>
+      <div class="row">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th scope="col" class="col-5">Full Name</th>
+              <th scope="col" class="col-5">Admin</th>
+              <th scope="col" class="col-2">Options</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </script>
+
+    <script type="text/template" id="team-new-member-row-view">
+      <td>
+				<select class="form-select" id="username">
+          <% _.each(members, function(m) { %>
+            <option value="<%- m.username %>"><%- m.full_name %></option>
+          <% }) %>
+				</select>
+      </td>
+      <td>
+				<div class="form-check form-switch">
+					<input class="form-check-input" type="checkbox" role="switch" id="admin" />
+				</div>
+      </td>
+      <td>
+				<div class="btn-group" role="group">
+					<button id="create" type="button" class="btn btn-success">Create</button>
+				</div>
+      </td>
+    </script>
+
+    <script type="text/template" id="team-show-member-row-view">
+      <td><%- member.user.full_name %></td>
+      <td>
+				<div class="form-check form-switch">
+					<input class="form-check-input" type="checkbox" role="switch" id="admin"
+            <% if (member.admin) { %>
+              checked=""
+            <% } %>
+
+            <% if (!isAdmin(team.canonical)) { %>
+              disabled=""
+            <% } %>
+          />
+				</div>
+      </td>
+      <td>
+				<div class="btn-group" role="group">
+          <% if (isAdmin(team.canonical)) { %>
+					  <button id="delete" type="button" class="btn btn-danger">Delete</button>
+          <% } %>
+				</div>
+      </td>
+    </script>
+
     <script type="text/template" id="pipelines-view">
       <div class="row">
         <div class="col">
-          <a type="button" id="pipelines-new" class="btn btn-success float-end" href="/pipelines/new">New</a>
+          <% if (isAdmin(team.canonical)) { %>
+            <a type="button" id="pipelines-new" class="btn btn-success float-end" href="/teams/<%- team.canonical %>/pipelines/new">New</a>
+          <% } %>
         </div>
       </div>
       </br>
@@ -75,8 +244,10 @@
       <div class="row">
         <div class="col">
           <div class="btn-group float-end">
+          <% if (isAdmin(team.canonical)) { %>
             <button type="button" id="edit-pipeline" class="btn btn-info float-end">Edit</button>
             <button type="button" id="delete-pipeline" class="btn btn-danger float-end">Delete</button>
+          <% } %>
           </div>
         </div>
       </div>
@@ -121,7 +292,9 @@
     <script type="text/template" id="job-builds-view">
       <div class="row">
         <div class="col">
-          <button type="button" id="trigger-job" class="btn btn-warning float-end">Trigger Job</button>
+          <% if (isMember(team.canonical)) { %>
+            <button type="button" id="trigger-job" class="btn btn-warning float-end">Trigger Job</button>
+          <% } %>
         </div>
       </div>
       <div class="">
@@ -136,22 +309,34 @@
 
     <script type="text/template" id="breadcrumb-view">
       <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/">Pipelines</a></li>
+        <li class="breadcrumb-item"><a href="/">Teams</a></li>
+        <% if (team) { %>
+          <% if (!pipeline && !showPipelines) { %>
+            <li class="breadcrumb-item active"><%- team.name %></li>
+          <% } else { %>
+            <li class="breadcrumb-item"><a href="/teams/<%- team.canonical %>"><%- team.name %></a></li>
+            <% if (showPipelines) { %>
+              <li class="breadcrumb-item active">Pipelines</li>
+            <% } else { %>
+              <li class="breadcrumb-item"><a href="/teams/<%- team.canonical %>/pipelines">Pipelines</a></li>
+            <% } %>
+          <% } %>
+        <% } %>
         <% if (pipeline) { %>
           <% if (!job && !resource) { %>
-            <li class="breadcrumb-item active"><%- pipeline %></li>
+            <li class="breadcrumb-item active"><%- pipeline.name %></li>
           <% }  else {%>
-            <li class="breadcrumb-item"><a href="/pipelines/<%- pipeline %>"><%- pipeline %></a></li>
+            <li class="breadcrumb-item"><a href="/teams/<%- team.canonical %>/pipelines/<%- pipeline.name %>"><%- pipeline.name %></a></li>
           <% } %>
         <% } %>
         <% if (job) { %>
           <li class="breadcrumb-item active">Jobs</li>
-          <li class="breadcrumb-item active"><%- job %></li>
+          <li class="breadcrumb-item active"><%- job.name %></li>
           <li class="breadcrumb-item active">Builds</li>
         <% } %>
         <% if (resource) { %>
           <li class="breadcrumb-item active">Resources</li>
-          <li class="breadcrumb-item active"><%- resource %></li>
+          <li class="breadcrumb-item active"><%- resource.canonical %></li>
           <li class="breadcrumb-item active">Versions</li>
         <% } %>
       </ol>
@@ -239,7 +424,9 @@
       </div>
       <div class="row">
         <div class="col">
-          <button type="button" id="trigger-resource" class="btn btn-warning float-end">Trigger Resource</button>
+          <% if (isMember(team.canonical)) { %>
+            <button type="button" id="trigger-resource" class="btn btn-warning float-end">Trigger Resource</button>
+          <% } %>
           <p class="float-end">Last checked (<%- resource.check_interval||"@every 1m" %>) at: <%- new Date(resource.last_check).toLocaleString() %></p>
         </div>
       </div>
@@ -275,6 +462,7 @@
       'use strict';
       var app = {};
       var fetchInterval = 2000
+      var isLogin = true
 
       var durationToString = function(duration) {
         if (duration === 0) {
@@ -304,10 +492,108 @@
         }
         return hours+ ":" + minutes + ":" + seconds
       }
+      var addSessionFunctions = function(data) {
+        return _.extend(app.session.data(), data)
+      }
 
       //--------------
       // Models
       //--------------
+      app.Session = Backbone.Model.extend({
+        url: "login",
+        //defaults: {
+        //  username: null,
+        //  password: null,
+        //},
+        parse: function(response) {
+          if (response.data){
+            return response.data
+          }
+          return response;
+        },
+        isEmpty: function() {
+          return !this.get("jwt")
+        },
+        isAdmin: function(tc) {
+          if (this.get("user").admin){
+            return true
+          }
+          var admin = false
+          if (tc !== "") {
+            _.each(this.get("user").memberships, function(m) {
+              if (m.admin && m.team_canonical === tc) {
+                admin = true
+              }
+            })
+          }
+          return admin
+        },
+        isMember: function(tc) {
+          if (this.get("user").admin) {
+            return true
+          }
+          if (tc === "") {
+            return true
+          }
+          var member = false
+          _.each(this.get("user").memberships, function(m) {
+            if (m.team_canonical === tc) {
+              member = true
+            }
+          })
+          return member
+        },
+        data: function() {
+          return {
+            isAdmin: this.isAdmin.bind(this),
+            isMember: this.isMember.bind(this),
+          }
+        },
+      });
+      app.User = Backbone.Model.extend({
+        defaults: {
+          id: null,
+          full_name: null,
+          username: null,
+          admin: null,
+        },
+        idAttribute: "username",
+      });
+      app.Team = Backbone.Model.extend({
+        idAttribute: "canonical",
+        defaults: {
+          id: null,
+          name: null,
+          canonical: null,
+        },
+        initialize: function(attr) {
+          attr = attr || {}
+          if (attr.members && attr.members.constructionr === Array) {
+            this.set("members", new app.TeamMembers(attr.members, {team: this}))
+          }
+        },
+        parse: function(response) {
+          if (response.data){
+            response.data.members = new app.TeamMembers(response.data.members, {team: this})
+            return response.data
+          }
+          response.members = new app.TeamMembers(response.members, {team: this})
+          return response;
+        }
+      });
+      app.TeamMember = Backbone.Model.extend({
+        initialize: function(attr, opts){
+          opts = opts || {}
+          this.set("id", attr.user.username)
+          this.team = opts.team
+        },
+        parse: function(response) {
+          if (response.data){
+            return response.data
+          }
+          return response;
+        }
+      })
       app.Pipeline = Backbone.Model.extend({
         idAttribute: "name",
         defaults: {
@@ -380,9 +666,41 @@
       //--------------
       // Collections
       //--------------
+      app.Users = Backbone.Collection.extend({
+        model: app.User,
+        url: "/users",
+        parse: function(response) {
+          return response.data;
+        }
+      });
+      app.Teams = Backbone.Collection.extend({
+        model: app.Team,
+        url: "/teams",
+        parse: function(response) {
+          return response.data;
+        }
+      });
+      app.TeamMembers = Backbone.Collection.extend({
+        model: app.TeamMember,
+        url: function() {
+          //return "/teams/"+this.team.get("canonical")+"/members"
+          return this.team.url()+"/members"
+        },
+        initialize: function(attr, opts) {
+          this.team = opts.team
+        },
+        parse: function(response) {
+          return response.data;
+        }
+      });
       app.Pipelines = Backbone.Collection.extend({
         model: app.Pipeline,
-        url: "/pipelines",
+        url: function() {
+          return this.team.url()+"/pipelines"
+        },
+        initialize: function(attr, opts) {
+          this.team = opts.team
+        },
         parse: function(response) {
           return response.data;
         }
@@ -463,7 +781,9 @@
         }
       });
 
-      app.pipelines = new app.Pipelines();
+      app.teams = new app.Teams();
+      var userSessionKey = "qid-user-jwt"
+      app.session = new app.Session(JSON.parse(window.localStorage.getItem(userSessionKey)||"{}"))
 
 
       //--------------
@@ -484,12 +804,14 @@
       app.HeaderView = Backbone.View.extend({
         template: _.template($('#header-view').html()),
         initialize: function() {
+          this.listenTo(app.session, "change", this.render)
           this.render();
         },
         events: {
-          'click a#logo': 'clickLink',
+          'click a#logo': 'clickLogo',
+          'click a#logout': 'clickLogout',
         },
-        clickLink: function(event) {
+        clickLogo: function(event) {
           event.preventDefault();
           if (event.target.tagName === "IMG") {
             event.target = event.target.parentElement
@@ -497,8 +819,17 @@
           var url = new URL(event.target.href)
           app.router.navigate(url.pathname, { trigger: true });
         },
+        clickLogout: function(event) {
+          event.preventDefault();
+          var url = new URL(event.target.href)
+          app.router.navigate(url.pathname, { trigger: true });
+        },
         render: function () {
-          this.$el.html(this.template());
+          var sjson 
+          if (!app.session.isEmpty()) {
+            sjson = app.session.toJSON()
+          }
+          this.$el.html(this.template({session: sjson}));
           return this; // enable chained calls
         }
       })
@@ -520,17 +851,21 @@
         },
         initialize: function(opts) {
           opts = opts||{}
+          this.team = opts.team
           this.pipeline = opts.pipeline
           this.job = opts.job
           this.resource = opts.resource
+          this.showPipelines = opts.showPipelines
 
           //this.listenTo(this.model, "change", this.render)
         },
         render: function() {
           this.$el.html(this.template({
+            team: this.team,
             pipeline: this.pipeline,
             job: this.job,
             resource: this.resource,
+            showPipelines: this.showPipelines,
           }));
           return this; // enable chained calls
         },
@@ -540,12 +875,237 @@
           app.router.navigate(url.pathname, { trigger: true });
         },
       })
+      app.SessionNewView = Backbone.View.extend({
+        template: _.template($('#session-new-view').html()),
+        events: {
+          'click #login': 'clickLink',
+          'submit #login': 'clickLink',
+        },
+        render: function () {
+          this.$el.html(this.template());
+
+          return this; // enable chained calls
+        },
+        clickLink: function(event) {
+          event.preventDefault();
+          var username = this.$el.find("#username").get(0).value
+          var password = this.$el.find("#password").get(0).value
+
+          app.session.save({username: username, password: password}, {
+            success: function(resp) {
+              app.session.unset("password")
+              app.session.unset("username")
+              window.localStorage.setItem(userSessionKey, JSON.stringify(app.session.toJSON()))
+              app.router.navigate('', { trigger: true });
+            },
+          })
+        },
+      })
+      app.TeamsView = Backbone.View.extend({
+        template: _.template($('#teams-view').html()),
+        initialize: function() {
+          this.listenTo(this.collection, "add", this.addTeam)
+          this.listenTo(this.collection, "destroy", this.render)
+
+          app.teams.fetch()
+        },
+        events: {
+          'click #team-new': 'clickLink',
+        },
+        addTeam: function(t) {
+          var view = new app.TeamRowView({model: t});
+          this.$el.find('tbody').append(view.render().el);
+        },
+        render: function () {
+          this.$el.html(this.template(addSessionFunctions({})));
+
+          var that = this
+          this.collection.each(function(m) {
+            that.addTeam(m)
+          })
+          return this; // enable chained calls
+        },
+        clickLink: function(event) {
+          event.preventDefault();
+          var url = new URL(event.target.href)
+          app.router.navigate(url.pathname, { trigger: true });
+        },
+      })
+      app.TeamRowView = Backbone.View.extend({
+        template: _.template($('#team-row-view').html()),
+        tagName: "tr",
+        events: {
+          'click': 'clickLink',
+          'click #pipelines':   'clickLink',
+          'click #manage':      'clickLink',
+          'click #delete':      'clickDelete',
+        },
+        render: function () {
+          this.$el.html(this.template(addSessionFunctions(this.model.toJSON())));
+          return this; // enable chained calls
+        },
+        clickLink: function(event) {
+          event.preventDefault();
+          var url = new URL(event.target.href)
+          app.router.navigate(url.pathname, { trigger: true });
+        },
+        clickDelete: function(event) {
+          event.preventDefault();
+          event.stopPropagation();
+
+          this.model.destroy()
+        },
+      })
+      app.TeamsNewView = Backbone.View.extend({
+        template: _.template($('#teams-new-view').html()),
+        events: {
+          'click #create': 'clickCreate',
+          'submit form':   'clickCreate',
+        },
+        render: function () {
+          var data = this.model.toJSON()
+          if (data.raw) {
+            data.raw = atob(data.raw)
+          }
+          this.$el.html(this.template(data));
+          return this; // enable chained calls
+        },
+        clickCreate: function(event) {
+          event.preventDefault();
+          var name = this.$el.find("#name").get(0).value
+
+          app.teams.create({name: name}, {
+            //type: "POST",
+            // TODO: Try to find a way to create a model with the idAttribute
+            // set with POST
+            //url: app.teams.url,
+            success: function(m) {
+              app.router.navigate('teams/'+m.get("canonical"), { trigger: true });
+            },
+          })
+        },
+      })
+      app.TeamShowView = Backbone.View.extend({
+        template: _.template($('#team-show-view').html()),
+        initialize: function() {
+          this.listenTo(this.model, "change", this.render)
+          this.listenTo(this.model.get("members"), "destroy", this.renderMembers)
+          this.listenTo(this.model.get("members"), "add", this.renderMembers)
+        },
+        events: {
+          'submit form': 'clickUpdate',
+          'click #new-member': 'clickNewMember',
+        },
+        render: function () {
+          this.$el.html(this.template(addSessionFunctions(this.model.toJSON())));
+          this.renderMembers()
+
+          return this; // enable chained calls
+        },
+        renderMembers: function() {
+          this.$el.find('tbody').empty()
+          var that = this
+          this.model.get("members").each(function(m) {
+            that.renderMember(m)
+          })
+
+          return this; // enable chained calls
+        },
+        renderMember: function(m) {
+          var view = new app.TeamShowMemberRowView({team: this.model, model: m});
+          this.$el.find('tbody').append(view.render().el);
+        },
+        clickUpdate: function(event){
+          event.preventDefault();
+          var name = this.$el.find("#name").get(0).value
+          this.model.save({name: name}, {
+            success: function(m) {
+              app.router.navigate('teams/'+m.get("canonical"), { trigger: true });
+            },
+          })
+        },
+        clickNewMember: function(event){
+          event.preventDefault();
+          var view = new app.TeamNewMemberRowView({members: this.model.get("members")});
+          if (this.$el.find('tbody #create-member').length === 0) {
+            this.$el.find('tbody').prepend(view.render().el);
+          }
+        },
+      })
+      app.TeamNewMemberRowView = Backbone.View.extend({
+        template: _.template($('#team-new-member-row-view').html()),
+        tagName: "tr",
+        attributes: {
+          id: "create-member",
+        },
+        events: {
+          'click #create': 'clickCreateMember',
+          'submit': 'clickCreateMember',
+        },
+        initialize: function(opts) {
+          opts = opts||{}
+          this.members = opts.members
+        },
+        render: function() {
+          var users = new app.Users()
+          var that = this
+          users.fetch({
+            success: function() {
+              var membersJSON = _.invoke(users.filter(function(u) {
+                return !that.members.get(u.get("username"));
+              }), "toJSON")
+              that.$el.html(that.template({members: membersJSON}));
+            },
+          })
+          return this
+        },
+        clickCreateMember: function(event) {
+          event.preventDefault();
+          var username = this.$el.find("#username").get(0).value
+          var admin = this.$el.find("#admin").get(0).checked
+          var that = this
+          this.members.create({admin: admin, user: {
+            username: username,
+          }}, {url: this.members.url(), method: "POST",
+            wait: true,
+            success: function(){
+              Backbone.View.prototype.remove.call(that);
+            },
+          })
+        },
+      })
+      app.TeamShowMemberRowView = Backbone.View.extend({
+        template: _.template($('#team-show-member-row-view').html()),
+        tagName: "tr",
+        initialize: function(opts) {
+          this.listenTo(this.model, "change", this.render)
+          this.team = opts.team
+        },
+        events: {
+          'click #admin': 'updateAdmin',
+          'click #delete': 'deleteMember',
+        },
+        render: function () {
+          this.$el.html(this.template(addSessionFunctions({member: this.model.toJSON(), team: this.team.toJSON()})));
+          return this; // enable chained calls
+        },
+        updateAdmin: function(event) {
+          event.preventDefault();
+          this.model.save({admin: !this.model.get("admin")},{
+            wait: true,
+          })
+        },
+        deleteMember: function(event) {
+          event.preventDefault();
+          this.model.destroy()
+        },
+      })
       app.PipelinesView = Backbone.View.extend({
         template: _.template($('#pipelines-view').html()),
         initialize: function() {
           this.listenTo(this.collection, "add", this.addPipeline)
 
-          app.pipelines.fetch()
+          this.collection.fetch()
         },
         events: {
           'click #pipelines-new': 'clickLink',
@@ -555,7 +1115,7 @@
           this.$el.find('#pipelines').append(view.render().el);
         },
         render: function () {
-          this.$el.html(this.template());
+          this.$el.html(this.template(addSessionFunctions({team: this.collection.team.toJSON()})));
 
           var that = this
           this.collection.each(function(m) {
@@ -588,7 +1148,7 @@
         },
         clickCard: function(event) {
           event.preventDefault();
-          app.router.navigate("/pipelines/"+this.model.get("name"), { trigger: true });
+          app.router.navigate(this.model.url(), { trigger: true });
         },
       })
       app.PipelineShowView = Backbone.View.extend({
@@ -608,7 +1168,7 @@
           'click #delete-pipeline': 'clickDelete',
         },
         render: function () {
-          this.$el.html(this.template(this.model.toJSON()));
+          this.$el.html(this.template(addSessionFunctions({ pipeline: this.model.toJSON(), team: this.model.collection.team.toJSON() })));
           this.$el.find("#graphviz").html(new app.PipelineGraphView({model: this.image}).render().el)
           this.image.trigger("change", this.image)
           return this; // enable chained calls
@@ -620,20 +1180,20 @@
         clickPipeline: function(event) {
           event.preventDefault();
           if (event.target.parentElement.href !== undefined){
-            var url = new URL(event.target.parentElement.href.baseVal)
-            app.router.navigate(url.pathname, { trigger: true });
+            app.router.navigate(event.target.parentElement.href.baseVal, { trigger: true });
           }
         },
-        clickEdit: function(){
+        clickEdit: function(event){
           event.preventDefault();
-          app.router.navigate("/pipelines/"+this.model.get("name")+"/edit", { trigger: true });
+          app.router.navigate(this.model.url()+"/edit", { trigger: true });
         },
-        clickDelete: function(){
+        clickDelete: function(event){
           event.preventDefault();
           if (confirm("Are you sure you want to delete Pipeline '"+this.model.get("name")+"'")) {
+            var pps = this.model.collection
             this.model.destroy({
               success: function() {
-                app.router.navigate('pipelines', { trigger: true });
+                app.router.navigate(pps.url(), { trigger: true });
               },
             })
           }
@@ -684,7 +1244,7 @@
           }
           return this; // enable chained calls
         },
-        clickCreate: function() {
+        clickCreate: function(event) {
           event.preventDefault();
           var name = this.$el.find("#name").get(0).value
           var pp = this.$el.find("#pipeline").get(0).value
@@ -701,20 +1261,21 @@
             data.push(pp.charCodeAt(i));
           }
           if (this.model.get("id")){
-            app.pipelines.create({name: name, config: data, vars: vars}, {
-              url: app.pipelines.url+"/"+this.model.get("name"),
-              success: function() {
-                app.router.navigate('pipelines/'+name, { trigger: true });
+            this.collection.create({name: name, config: data, vars: vars}, {
+              url: this.model.url(),
+              success: function(m) {
+                app.router.navigate(m.url(), { trigger: true });
               },
             })
           } else {
-            app.pipelines.create({name: name, config: data, vars: vars}, {
+            var that = this
+            this.collection.create({name: name, config: data, vars: vars}, {
               type: "POST",
               // TODO: Try to find a way to create a model with the idAttribute
               // set with POST
-              url: app.pipelines.url,
-              success: function() {
-                app.router.navigate('pipelines/'+name, { trigger: true });
+              url: this.collection.url(),
+              success: function(m) {
+                app.router.navigate(m.url(), { trigger: true });
               },
             })
           }
@@ -734,7 +1295,7 @@
           for (var i = 0; i < pp.length; i++){
             data.push(pp.charCodeAt(i));
           }
-          this.image.save({config: data, vars: vars}, {url: "/pipelines/image.dot"})
+          this.image.save({config: data, vars: vars}, {url: this.collection.url()+"/image.dot"})
         },
       })
       app.JobBuildsView = Backbone.View.extend({
@@ -773,10 +1334,11 @@
           })
         },
         render: function () {
-          this.$el.html(this.template({
+          this.$el.html(this.template(addSessionFunctions({
+            team: this.collection.job.collection.pipeline.collection.team.toJSON(),
             pipeline: this.collection.job.collection.pipeline.toJSON(),
             job: this.collection.job.toJSON(),
-          }));
+          })));
           return this; // enable chained calls
         },
         remove: function() {
@@ -880,10 +1442,11 @@
           }, fetchInterval);
         },
         render: function () {
-          this.$el.html(this.template({
+          this.$el.html(this.template(addSessionFunctions({
+            team: this.collection.resource.collection.pipeline.collection.team.toJSON(),
             pipeline: this.collection.resource.collection.pipeline.toJSON(),
             resource: this.collection.resource.toJSON(),
-          }));
+          })));
           var that = this;
           this.collection.each(function(m) {
             that.addVersion(m)
@@ -917,74 +1480,190 @@
       //--------------
       app.Router = Backbone.Router.extend({
         routes: {
-          '' :                    'pipelinesIndex',
-          'pipelines' :           'pipelinesIndex',
-          'pipelines/new' :       'pipelinesNew',
-          'pipelines/:pn':        'pipelinesShow',
-          'pipelines/:pn/edit' :  'pipelinesEdit',
+          'login':  'sessionNew',
+          'logout': 'sessionDelete',
 
-          'pipelines/:pn/jobs/:jn/builds':        'jobBuilds',
-          'pipelines/:pn/jobs/:jn/builds/:bid':   'jobBuilds',
+          '':                'teamsIndex',
+          'teams':           'teamsIndex',
+          'teams/new':       'teamsNew',
+          'teams/:tn':       'teamsShow',
 
-          'pipelines/:pn/resources/:rCan/versions': 'resourceVersions',
+          'teams/:tc/pipelines' :           'pipelinesIndex',
+          'teams/:tc/pipelines/new' :       'pipelinesNew',
+          'teams/:tc/pipelines/:pn':        'pipelinesShow',
+          'teams/:tc/pipelines/:pn/edit' :  'pipelinesEdit',
+
+          'teams/:tc/pipelines/:pn/jobs/:jn/builds':        'jobBuilds',
+          'teams/:tc/pipelines/:pn/jobs/:jn/builds/:bid':   'jobBuilds',
+
+          'teams/:tn/pipelines/:pn/resources/:rCan/versions': 'resourceVersions',
           '*notFound': 'notFound',
         },
-        pipelinesIndex: function() {
-          this.setup();
-          this.contentView = new app.PipelinesView({collection: app.pipelines});
+        sessionNew: function() {
+          if (!this.setup(isLogin)) {
+            return
+          }
+          this.contentView = new app.SessionNewView();
+          $('#main').html(this.contentView.render().el)
+          $('#breadcrumb').empty()
+        },
+        sessionDelete: function() {
+          window.localStorage.removeItem(userSessionKey)
+          app.session.clear()
+          app.router.navigate("login", { trigger: true });
+        },
+        teamsIndex: function() {
+          if (!this.setup(!isLogin)) {
+            return
+          }
+          this.contentView = new app.TeamsView({collection: app.teams});
           $('#main').html(this.contentView.render().el)
           $('#breadcrumb').html(new app.BreadcrumbView().render().el)
         },
-        pipelinesNew: function() {
-          this.setup();
-          this.contentView = new app.PipelinesNewView({collection: app.pipelines, model: new app.Pipeline()});
+        teamsNew: function() {
+          if (!this.setup(!isLogin)) {
+            return
+          }
+          if (!app.session.isAdmin()) {
+            app.router.navigate('', { trigger: true });
+            return
+          }
+          this.contentView = new app.TeamsNewView({collection: app.teams, model: new app.Team()});
           $('#main').html(this.contentView.render().el)
           $('#breadcrumb').html(new app.BreadcrumbView().render().el)
         },
-        pipelinesEdit: function(pn) {
-          this.setup();
+        teamsShow: function(tc) {
+          if (!this.setup(!isLogin)) {
+            return
+          }
           var promises = []
-          var pp = app.pipelines.get(pn)
-          if (pp === undefined) {
-            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
-            promises.push(pp)
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
           }
           var complete = _.invoke(promises, 'fetch');
           var that = this
           $.when.apply($, complete).done(function() {
-            that.contentView = new app.PipelinesNewView({collection: app.pipelines, model: pp});
+            that.contentView = new app.TeamShowView({model: t});
             $('#main').html(that.contentView.render().el)
             $('#breadcrumb').html(new app.BreadcrumbView({
-              pipeline: pp.get("name"),
+              team: t.toJSON(),
             }).render().el)
           })
         },
-        pipelinesShow: function(pn) {
-          this.setup();
-          var promises = []
-          var pp = app.pipelines.get(pn)
-          if (pp === undefined) {
-            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
-            promises.push(pp)
+        pipelinesIndex: function(tc) {
+          if (!this.setup(!isLogin)) {
+            return
           }
+          var promises = []
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
+          }
+          var pps = new app.Pipelines(null, {team: t})
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.PipelinesView({collection: pps});
+            $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView({
+              team: t.toJSON(),
+              showPipelines: true,
+            }).render().el)
+          })
+        },
+        pipelinesNew: function(tc) {
+          if (!this.setup(!isLogin)) {
+            return
+          }
+          if (!app.session.isAdmin(tc)) {
+            app.router.navigate('teams/'+tc+'/pipelines', { trigger: true });
+            return
+          }
+          var promises = []
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
+          }
+          var pps = new app.Pipelines(null, {team: t})
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.PipelinesNewView({collection: pps, model: new app.Pipeline(null, {team: t})});
+            $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView().render({
+              team: t.toJSON(),
+            }).el)
+          })
+        },
+        pipelinesEdit: function(tc, pn) {
+          if (!this.setup(!isLogin)) {
+            return
+          }
+          if (!app.session.isAdmin(tc)) {
+            app.router.navigate('teams/'+tc+'/pipelines/'+pn, { trigger: true });
+            return
+          }
+          var promises = []
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
+          }
+          var pps = new app.Pipelines(null, {team: t})
+          var pp = new app.Pipeline({name: pn},{collection: pps})
+          promises.push(pp)
+          var complete = _.invoke(promises, 'fetch');
+          var that = this
+          $.when.apply($, complete).done(function() {
+            that.contentView = new app.PipelinesNewView({collection: pps, model: pp});
+            $('#main').html(that.contentView.render().el)
+            $('#breadcrumb').html(new app.BreadcrumbView({
+              team: t.toJSON(),
+              pipeline: pp.toJSON(),
+            }).render().el)
+          })
+        },
+        pipelinesShow: function(tc, pn) {
+          if (!this.setup(!isLogin)) {
+            return
+          }
+          var promises = []
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
+          }
+          var pps = new app.Pipelines(null, {team: t})
+          var pp = new app.Pipeline({name: pn},{collection: pps})
+          promises.push(pp)
           var complete = _.invoke(promises, 'fetch');
           var that = this
           $.when.apply($, complete).done(function() {
             that.contentView = new app.PipelineShowView({model: pp, image: new app.PipelineImage(null, {pipeline: pp}) });
             $('#main').html(that.contentView.render().el)
             $('#breadcrumb').html(new app.BreadcrumbView({
-              pipeline: pp.get("name"),
+              team: t.toJSON(),
+              pipeline: pp.toJSON(),
             }).render().el)
           })
         },
-        jobBuilds: function(pn, jn, bid) {
-          this.setup();
-          var promises = []
-          var pp = app.pipelines.get(pn)
-          if (pp === undefined) {
-            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
-            promises.push(pp)
+        jobBuilds: function(tc, pn, jn, bid) {
+          if (!this.setup(!isLogin)) {
+            return
           }
+          var promises = []
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
+          }
+          var pps = new app.Pipelines(null, {team: t})
+          var pp = new app.Pipeline({name: pn},{collection: pps})
+          promises.push(pp)
           var jbs = new app.Jobs(null, {pipeline: pp})
           var jb = new app.Job({name: jn}, {collection: jbs})
           promises.push(jb)
@@ -1000,19 +1679,25 @@
             });
             $('#main').html(that.contentView.render().el)
             $('#breadcrumb').html(new app.BreadcrumbView({
-              pipeline: pp.get("name"),
-              job: jb.get("name"),
+              team: t.toJSON(),
+              pipeline: pp.toJSON(),
+              job: jb.toJSON(),
             }).render().el)
           })
         },
-        resourceVersions: function(pn, rCan) {
-          this.setup();
-          var promises = []
-          var pp = app.pipelines.get(pn)
-          if (pp === undefined) {
-            pp = new app.Pipeline({name: pn},{collection: app.pipelines})
-            promises.push(pp)
+        resourceVersions: function(tc, pn, rCan) {
+          if (!this.setup(!isLogin)) {
+            return
           }
+          var promises = []
+          var t = app.teams.get(tc)
+          if (t === undefined) {
+            t = new app.Team({canonical: tc}, {collection: app.teams})
+            promises.push(t)
+          }
+          var pps = new app.Pipelines(null, {team: t})
+          var pp = new app.Pipeline({name: pn},{collection: pps})
+          promises.push(pp)
           var rss = new app.Resources(null, {pipeline: pp})
           var rs = new app.Resource({canonical: rCan}, {collection: rss})
           promises.push(rs)
@@ -1027,20 +1712,26 @@
             });
             $('#main').html(that.contentView.render().el)
             $('#breadcrumb').html(new app.BreadcrumbView({
-              pipeline: pp.get("name"),
-              resource: rs.get("canonical"),
+              team: t.toJSON(),
+              pipeline: pp.toJSON(),
+              resource: rs.toJSON(),
             }).render().el)
           })
         },
         notFound: function() {
           app.router.navigate('', { trigger: true });
         },
-        setup: function () {
-          app.apiError.clear()
+        setup: function(isLogin) {
           if (!this.mainView) {
             this.mainView = new app.MainView({ el: '#app' });
           }
-          if (this.contentView) {
+          if (app.session.isEmpty() && !isLogin) {
+            app.router.navigate("login", { trigger: true });
+            return false
+          } else if (!app.session.isEmpty() && isLogin) {
+            app.router.navigate("", { trigger: true });
+            return true 
+          } else if (this.contentView) {
             // TODO: Recheck this
             //// COMPLETELY UNBIND THE VIEW
             this.contentView.undelegateEvents();
@@ -1051,6 +1742,7 @@
             this.contentView.remove();
             Backbone.View.prototype.remove.call(this.contentView);
           }
+          return true
         }
       }); 
 
@@ -1063,6 +1755,9 @@
         options.headers = {
           'Content-Type': 'application/json',
         };
+        if (!app.session.isEmpty()) {
+          options.headers['Authorization'] = 'Bearer ' + app.session.get("jwt")
+        }
         var optError = options.error
         options.error = function(response){
           app.apiError.set({error: response.responseJSON.error})

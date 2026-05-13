@@ -42,74 +42,74 @@ func (m *RunnerRepository) EXPECT() *RunnerRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *RunnerRepository) Create(ctx context.Context, pn string, ru runner.Runner) (uint32, error) {
+func (m *RunnerRepository) Create(ctx context.Context, tc, pn string, ru runner.Runner) (uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, pn, ru)
+	ret := m.ctrl.Call(m, "Create", ctx, tc, pn, ru)
 	ret0, _ := ret[0].(uint32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *RunnerRepositoryMockRecorder) Create(ctx, pn, ru any) *gomock.Call {
+func (mr *RunnerRepositoryMockRecorder) Create(ctx, tc, pn, ru any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*RunnerRepository)(nil).Create), ctx, pn, ru)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*RunnerRepository)(nil).Create), ctx, tc, pn, ru)
 }
 
 // Delete mocks base method.
-func (m *RunnerRepository) Delete(ctx context.Context, pn, run string) error {
+func (m *RunnerRepository) Delete(ctx context.Context, tc, pn, run string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, pn, run)
+	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn, run)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *RunnerRepositoryMockRecorder) Delete(ctx, pn, run any) *gomock.Call {
+func (mr *RunnerRepositoryMockRecorder) Delete(ctx, tc, pn, run any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*RunnerRepository)(nil).Delete), ctx, pn, run)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*RunnerRepository)(nil).Delete), ctx, tc, pn, run)
 }
 
 // Filter mocks base method.
-func (m *RunnerRepository) Filter(ctx context.Context, pn string) ([]*runner.Runner, error) {
+func (m *RunnerRepository) Filter(ctx context.Context, tc, pn string) ([]*runner.Runner, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Filter", ctx, pn)
+	ret := m.ctrl.Call(m, "Filter", ctx, tc, pn)
 	ret0, _ := ret[0].([]*runner.Runner)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Filter indicates an expected call of Filter.
-func (mr *RunnerRepositoryMockRecorder) Filter(ctx, pn any) *gomock.Call {
+func (mr *RunnerRepositoryMockRecorder) Filter(ctx, tc, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*RunnerRepository)(nil).Filter), ctx, pn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*RunnerRepository)(nil).Filter), ctx, tc, pn)
 }
 
 // Find mocks base method.
-func (m *RunnerRepository) Find(ctx context.Context, pn, run string) (*runner.Runner, error) {
+func (m *RunnerRepository) Find(ctx context.Context, tc, pn, run string) (*runner.Runner, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, pn, run)
+	ret := m.ctrl.Call(m, "Find", ctx, tc, pn, run)
 	ret0, _ := ret[0].(*runner.Runner)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *RunnerRepositoryMockRecorder) Find(ctx, pn, run any) *gomock.Call {
+func (mr *RunnerRepositoryMockRecorder) Find(ctx, tc, pn, run any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*RunnerRepository)(nil).Find), ctx, pn, run)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*RunnerRepository)(nil).Find), ctx, tc, pn, run)
 }
 
 // Update mocks base method.
-func (m *RunnerRepository) Update(ctx context.Context, pn, run string, ru runner.Runner) error {
+func (m *RunnerRepository) Update(ctx context.Context, tc, pn, run string, ru runner.Runner) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, pn, run, ru)
+	ret := m.ctrl.Call(m, "Update", ctx, tc, pn, run, ru)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *RunnerRepositoryMockRecorder) Update(ctx, pn, run, ru any) *gomock.Call {
+func (mr *RunnerRepositoryMockRecorder) Update(ctx, tc, pn, run, ru any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*RunnerRepository)(nil).Update), ctx, pn, run, ru)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*RunnerRepository)(nil).Update), ctx, tc, pn, run, ru)
 }

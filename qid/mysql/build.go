@@ -64,7 +64,7 @@ func (dbb *dbBuild) toDomainEntity() *build.Build {
 	return b
 }
 
-func (r *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Build) (uint32, error) {
+func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, error) {
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO builds( get, task, job, status, error, started_at, duration, job_id)
@@ -75,8 +75,10 @@ func (r *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Bui
 				FROM jobs AS j
 				JOIN pipelines AS p
 					ON j.pipeline_id = p.id
-				WHERE p.name = ? AND j.name = ?
-			))`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, pn, jn)
+				JOIN teams AS t
+					ON p.team_id = t.id
+				WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+			))`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -89,7 +91,7 @@ func (r *BuildRepository) Create(ctx context.Context, pn, jn string, b build.Bui
 	return id, nil
 }
 
-func (r *BuildRepository) Find(ctx context.Context, pn, jn string, bID uint32) (*build.Build, error) {
+func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT b.id, b.get, b.task, b.job, b.status, b.error, b.started_at, b.duration
 		FROM builds AS b
@@ -97,8 +99,10 @@ func (r *BuildRepository) Find(ctx context.Context, pn, jn string, bID uint32) (
 			ON b.job_id = j.id
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
-		WHERE p.name = ? AND j.name = ? AND b.id = ?
-	`, pn, jn, bID)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE tc.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
+	`, tc, pn, jn, bID)
 
 	j, err := scanBuild(row)
 	if err != nil {
@@ -108,7 +112,7 @@ func (r *BuildRepository) Find(ctx context.Context, pn, jn string, bID uint32) (
 	return j, nil
 }
 
-func (r *BuildRepository) Filter(ctx context.Context, pn, jn string) ([]*build.Build, error) {
+func (r *BuildRepository) Filter(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT b.id, b.get, b.task, b.job, b.status, b.error, b.started_at, b.duration
 		FROM builds AS b
@@ -116,8 +120,10 @@ func (r *BuildRepository) Filter(ctx context.Context, pn, jn string) ([]*build.B
 			ON b.job_id = j.id
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
-		WHERE p.name = ? AND j.name = ?
-	`, pn, jn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+	`, tc, pn, jn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter builds: %w", err)
 	}
@@ -130,7 +136,7 @@ func (r *BuildRepository) Filter(ctx context.Context, pn, jn string) ([]*build.B
 	return builds, nil
 }
 
-func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32, b build.Build) error {
+func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE builds AS b
@@ -142,10 +148,12 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 				ON b.job_id = j.id
 			JOIN pipelines AS p
 				ON j.pipeline_id = p.id
-			WHERE p.name = ? AND j.name = ? AND b.id = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
 		) AS bb
 		WHERE bb.id = b.id
-	`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, pn, jn, bID, bID)
+	`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn, bID, bID)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -158,7 +166,7 @@ func (r *BuildRepository) Update(ctx context.Context, pn, jn string, bID uint32,
 	return nil
 }
 
-func (r *BuildRepository) Delete(ctx context.Context, pn, jn string, bID uint32) error {
+func (r *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, bID uint32) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
 		FROM builds
@@ -169,9 +177,11 @@ func (r *BuildRepository) Delete(ctx context.Context, pn, jn string, bID uint32)
 				ON b.job_id = j.id
 			JOIN pipelines AS p
 				ON j.pipeline_id = p.id
-			WHERE p.name = ? AND j.name = ? AND b.id
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id
 		)
-	`, pn, jn, bID)
+	`, tc, pn, jn, bID)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}

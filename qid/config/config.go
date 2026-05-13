@@ -5,6 +5,10 @@ type Config struct {
 
 	DBSystem string `koanf:"db-system"`
 
+	JWTSecret []byte `koanf:"jwt-secret"`
+
+	Users []string `koanf:"users"`
+
 	// MySQL
 	DBHost     string `koanf:"db-host"`
 	DBPort     int    `koanf:"db-port"`
@@ -19,6 +23,7 @@ type Config struct {
 
 	LogLevel string `koanf:"log-level"`
 
+	TeamCanonical  string `koanf:"team-canonical"`
 	PipelineName   string `koanf:"pipeline-name"`
 	PipelineConfig string `koanf:"pipeline-config"`
 	PipelineVars   string `koanf:"pipeline-vars"`

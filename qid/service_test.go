@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xescugc/qid/qid/job"
+	"github.com/xescugc/qid/qid/pipeline"
 	"github.com/xescugc/qid/qid/queue"
 	"go.uber.org/mock/gomock"
 	"gocloud.dev/pubsub"
@@ -18,6 +19,7 @@ func TestCreatePipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)
 	ctx := context.TODO()
+	tc := "team-canonical"
 	ppn := "pipeline-name"
 
 	b, err := os.ReadFile("testdata/pipeline.hcl")
@@ -27,35 +29,45 @@ func TestCreatePipeline(t *testing.T) {
 		"repo_name": "repo",
 	}
 
-	s.Pipelines.EXPECT().Create(ctx, gomock.Any()).Return(uint32(1), nil)
-	s.Jobs.EXPECT().Create(ctx, ppn, gomock.Any()).Return(uint32(1), nil).Times(3)
-	s.ResourceTypes.EXPECT().Create(ctx, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
-	s.Resources.EXPECT().Create(ctx, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
+	s.Pipelines.EXPECT().Create(ctx, tc, gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(3)
+	s.ResourceTypes.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
+	s.Resources.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
+	s.Runners.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
+	// GetPipeline expectations
+	s.Pipelines.EXPECT().Find(ctx, tc, ppn).Return(&pipeline.Pipeline{Name: ppn}, nil)
+	s.Jobs.EXPECT().Filter(ctx, tc, ppn).Return(nil, nil)
+	s.Resources.EXPECT().Filter(ctx, tc, ppn).Return(nil, nil)
+	s.ResourceTypes.EXPECT().Filter(ctx, tc, ppn).Return(nil, nil)
+	s.Runners.EXPECT().Filter(ctx, tc, ppn).Return(nil, nil)
 
-	err = s.S.CreatePipeline(ctx, ppn, b, mvars)
+	pp, err := s.S.CreatePipeline(ctx, tc, ppn, b, mvars)
 	require.NoError(t, err)
+	require.NotNil(t, pp)
 }
 
 func TestTriggerPipelineJob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)
 	ctx := context.TODO()
+	tc := "team-canonical"
 	ppn := "pipeline-name"
 	jn := "job-name"
 
 	m := queue.Body{
-		PipelineName: ppn,
-		JobName:      jn,
+		TeamCanonical: tc,
+		PipelineName:  ppn,
+		JobName:       jn,
 	}
 
 	mb, err := json.Marshal(m)
 	require.NoError(t, err)
-	s.Jobs.EXPECT().Find(ctx, ppn, jn).Return(&job.Job{ID: 2}, nil)
+	s.Jobs.EXPECT().Find(ctx, tc, ppn, jn).Return(&job.Job{ID: 2}, nil)
 	s.Topic.EXPECT().Send(ctx, &pubsub.Message{
 		Body: mb,
 	}).Return(nil)
 
-	err = s.S.TriggerPipelineJob(ctx, ppn, jn)
+	err = s.S.TriggerPipelineJob(ctx, tc, ppn, jn)
 	require.NoError(t, err)
 }
 
@@ -63,13 +75,14 @@ func TestGetPipelineJob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)
 	ctx := context.TODO()
+	tc := "team-canonical"
 	ppn := "pipeline-name"
 	jn := "job-name"
 	rj := &job.Job{ID: 2}
 
-	s.Jobs.EXPECT().Find(ctx, ppn, jn).Return(rj, nil)
+	s.Jobs.EXPECT().Find(ctx, tc, ppn, jn).Return(rj, nil)
 
-	j, err := s.S.GetPipelineJob(ctx, ppn, jn)
+	j, err := s.S.GetPipelineJob(ctx, tc, ppn, jn)
 	require.NoError(t, err)
 	assert.Equal(t, rj, j)
 }

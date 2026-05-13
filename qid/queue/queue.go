@@ -38,6 +38,7 @@ type Subscription interface {
 }
 
 type Body struct {
+	TeamCanonical     string `json:"team_canonical,omitempty"`
 	PipelineName      string `json:"pipeline_name,omitempty"`
 	JobName           string `json:"job_name,omitempty"`
 	ResourceCanonical string `json:"resource_canonical,omitempty"`

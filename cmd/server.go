@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli/v3"
 	"github.com/xescugc/qid/qid"
@@ -19,6 +20,7 @@ import (
 	"github.com/xescugc/qid/qid/mysql"
 	"github.com/xescugc/qid/qid/mysql/migrate"
 	tshttp "github.com/xescugc/qid/qid/transport/http"
+	"github.com/xescugc/qid/qid/user"
 	"gocloud.dev/pubsub"
 
 	"github.com/knadh/koanf/parsers/json"
@@ -33,6 +35,8 @@ import (
 	"github.com/adrg/xdg"
 )
 
+var mainTeamCanonical = "main"
+
 var (
 	serverCmd = &cli.Command{
 		Name:  "server",
@@ -41,6 +45,10 @@ var (
 			&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the config file"},
 
 			&cli.IntFlag{Name: "port", Aliases: []string{"p"}, Value: 8080, Usage: "Port in which to start the server"},
+
+			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "Declares the Secret used to sign the JWT when user login"},
+
+			&cli.StringSliceFlag{Name: "users", Usage: "List of Users which will have 'USERNAME:HASH-PASSWORD', you can use the 'user-password' command to help you"},
 
 			&cli.StringFlag{Name: "db-system", Value: mysql.Mem, Usage: "Flag to know if the database should run (mem, sqlite, mysql)"},
 			&cli.StringFlag{Name: "db-host", Usage: "Database Host"},
@@ -57,6 +65,7 @@ var (
 
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
 
+			&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Value: mainTeamCanonical, Usage: "Team Canonical to scope the action", Local: true},
 			&cli.StringFlag{Name: "pipeline-config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true},
 			&cli.StringFlag{Name: "pipeline-vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
 			&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline"},
@@ -140,6 +149,8 @@ var (
 				level.Info(logger).Log("msg", "Migrations ran")
 			}
 
+			ur := mysql.NewUserRepository(db)
+			tr := mysql.NewTeamRepository(db)
 			ppr := mysql.NewPipelineRepository(db)
 			jr := mysql.NewJobRepository(db)
 			rr := mysql.NewResourceRepository(db)
@@ -148,11 +159,11 @@ var (
 			rur := mysql.NewRunnerRepository(db)
 
 			level.Info(logger).Log("message", "initializing service")
-			var svc = qid.New(ctx, topic, ppr, jr, rr, rt, br, rur, logger)
+			var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, cfg.JWTSecret, logger)
 			level.Info(logger).Log("message", "initialized service")
 
 			level.Info(logger).Log("message", "initializing http handlers")
-			var handler = tshttp.Handler(svc, log.With(logger, "component", "HTTP"))
+			var handler = tshttp.Handler(svc, cfg.JWTSecret, log.With(logger, "component", "HTTP"))
 			level.Info(logger).Log("message", "initialized http handlers")
 
 			mux := http.NewServeMux()
@@ -185,9 +196,19 @@ var (
 			}
 
 			if cmd.String("pipeline-name") != "" {
-				err = createPipeline(ctx, fmt.Sprintf("localhost:%d", cfg.Port), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
+				err = createPipeline(ctx, svc, cmd.String("team-canonical"), cmd.String("pipeline-name"), cmd.String("pipeline-config"), cmd.String("pipeline-vars"))
 				if err != nil {
 					return err
+				}
+			}
+			if users := cmd.StringSlice("users"); len(users) != 0 {
+				for _, u := range users {
+					us := strings.Split(u, userPasswordSeparator)
+					isHashed := true
+					_, err = svc.CreateUser(ctx, user.User{FullName: us[0], Username: us[0], Password: us[1]}, isHashed)
+					if err != nil {
+						return fmt.Errorf("failed to creat user %q: %w", us[0], err)
+					}
 				}
 			}
 
@@ -214,4 +235,15 @@ func getTopicURL(s string) string {
 		u += "?natsv2"
 	}
 	return u
+}
+
+func generateWorkerJWT(js []byte) string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"is_from_worker": true,
+	})
+	tokenString, err := token.SignedString(js)
+	if err != nil {
+		panic(err)
+	}
+	return tokenString
 }

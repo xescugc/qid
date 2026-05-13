@@ -41,6 +41,8 @@ var (
 			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
 
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
+
+			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "Declares the Secret used to sign the JWT when user login"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -77,7 +79,8 @@ var (
 			var cfg config.Config
 			k.Unmarshal("qid.worker", &cfg)
 
-			c, err := client.New(cfg.QIDURL)
+			workerToken := generateWorkerJWT(cfg.JWTSecret)
+			c, err := client.New(cfg.QIDURL, workerToken)
 			if err != nil {
 				return fmt.Errorf("failed to initialize client with url %q: %w", cfg.QIDURL, err)
 			}

@@ -57,7 +57,7 @@ func (dbrt *dbResourceType) toDomainEntity() *restype.ResourceType {
 	return rt
 }
 
-func (r *ResourceTypeRepository) Create(ctx context.Context, pn string, rt restype.ResourceType) (uint32, error) {
+func (r *ResourceTypeRepository) Create(ctx context.Context, tc, pn string, rt restype.ResourceType) (uint32, error) {
 	dbrt := newDBResourceType(rt)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO resource_types(name, `+"`check`"+`, pull, push, params, pipeline_id)
@@ -66,8 +66,10 @@ func (r *ResourceTypeRepository) Create(ctx context.Context, pn string, rt resty
 			(
 				SELECT p.id
 				FROM pipelines AS p
-				WHERE p.name = ?
-			))`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, pn)
+				JOIN teams AS t
+					ON p.team_id = t.id
+				WHERE t.canonical = ? AND p.name = ?
+			))`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -80,7 +82,7 @@ func (r *ResourceTypeRepository) Create(ctx context.Context, pn string, rt resty
 	return id, nil
 }
 
-func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt restype.ResourceType) error {
+func (r *ResourceTypeRepository) Update(ctx context.Context, tc, pn, rtn string, rt restype.ResourceType) error {
 	dbrt := newDBResourceType(rt)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resource_types AS rt
@@ -90,10 +92,12 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt 
 			FROM resource_types AS rt
 			JOIN pipelines AS p
 				ON rt.pipeline_id = p.id
-			WHERE p.name = ? AND rt.name = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND rt.name = ?
 		) AS rtt
 		WHERE rtt.id = rt.id
-	`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, pn, rtn)
+	`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, tc, pn, rtn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -106,14 +110,16 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, pn, rtn string, rt 
 	return nil
 }
 
-func (r *ResourceTypeRepository) Find(ctx context.Context, pn, rtn string) (*restype.ResourceType, error) {
+func (r *ResourceTypeRepository) Find(ctx context.Context, tc, pn, rtn string) (*restype.ResourceType, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT rt.id, rt.name, `+"rt.`check`"+`, rt.pull, rt.push, rt.params
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
-		WHERE p.name = ? AND rt.name = ?
-	`, pn, rtn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND rt.name = ?
+	`, tc, pn, rtn)
 
 	rt, err := scanResourceType(row)
 	if err != nil {
@@ -123,14 +129,16 @@ func (r *ResourceTypeRepository) Find(ctx context.Context, pn, rtn string) (*res
 	return rt, nil
 }
 
-func (r *ResourceTypeRepository) Filter(ctx context.Context, pn string) ([]*restype.ResourceType, error) {
+func (r *ResourceTypeRepository) Filter(ctx context.Context, tc, pn string) ([]*restype.ResourceType, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT rt.id, rt.name, `+"rt.`check`"+`, rt.pull, rt.push, rt.params
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
-		WHERE p.name = ?
-	`, pn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ?
+	`, tc, pn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter ResourceTypes: %w", err)
 	}
@@ -143,14 +151,16 @@ func (r *ResourceTypeRepository) Filter(ctx context.Context, pn string) ([]*rest
 	return restypes, nil
 }
 
-func (r *ResourceTypeRepository) Delete(ctx context.Context, pn, rtn string) error {
+func (r *ResourceTypeRepository) Delete(ctx context.Context, tc, pn, rtn string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE rt
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
-		WHERE p.name = ? AND rt.name = ?
-	`, pn, rtn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND rt.name = ?
+	`, tc, pn, rtn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}

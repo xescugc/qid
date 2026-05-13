@@ -61,7 +61,7 @@ func (dbp *dbJob) toDomainEntity() *job.Job {
 	return j
 }
 
-func (r *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint32, error) {
+func (r *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO jobs(name, get, task, on_success, on_failure, ensure, pipeline_id)
@@ -70,8 +70,10 @@ func (r *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint3
 			(
 				SELECT p.id
 				FROM pipelines AS p
-				WHERE p.name = ?
-			))`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, pn)
+				JOIN teams AS t
+					ON p.team_id = t.id
+				WHERE t.canonical = ? AND p.name = ?
+			))`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -84,7 +86,7 @@ func (r *JobRepository) Create(ctx context.Context, pn string, j job.Job) (uint3
 	return id, nil
 }
 
-func (r *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) error {
+func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job) error {
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE jobs AS j
@@ -94,10 +96,12 @@ func (r *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) er
 			FROM jobs AS j
 			JOIN pipelines AS p
 				ON j.pipeline_id = p.id
-			WHERE p.name = ? AND j.name = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
 		) AS jj
 		WHERE jj.id = j.id
-	`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, pn, jn)
+	`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -110,14 +114,16 @@ func (r *JobRepository) Update(ctx context.Context, pn, jn string, j job.Job) er
 	return nil
 }
 
-func (r *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, error) {
+func (r *JobRepository) Find(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT j.id, j.name, j.get, j.task, j.on_success, j.on_failure, j.ensure
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
-		WHERE p.name = ? AND j.name = ?
-	`, pn, jn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+	`, tc, pn, jn)
 
 	j, err := scanJob(row)
 	if err != nil {
@@ -127,14 +133,16 @@ func (r *JobRepository) Find(ctx context.Context, pn, jn string) (*job.Job, erro
 	return j, nil
 }
 
-func (r *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, error) {
+func (r *JobRepository) Filter(ctx context.Context, tc, pn string) ([]*job.Job, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT j.id, j.name, j.get, j.task, j.on_success, j.on_failure, j.ensure
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
-		WHERE p.name = ?
-	`, pn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ?
+	`, tc, pn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter jobs: %w", err)
 	}
@@ -147,7 +155,7 @@ func (r *JobRepository) Filter(ctx context.Context, pn string) ([]*job.Job, erro
 	return jobs, nil
 }
 
-func (r *JobRepository) Delete(ctx context.Context, pn, jn string) error {
+func (r *JobRepository) Delete(ctx context.Context, tc, pn, jn string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
 		FROM jobs
@@ -156,9 +164,11 @@ func (r *JobRepository) Delete(ctx context.Context, pn, jn string) error {
 			FROM jobs AS j
 			JOIN pipelines AS p
 				ON j.pipeline_id = p.id
-			WHERE p.name = ? AND j.name = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
 		)
-	`, pn, jn)
+	`, tc, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}

@@ -42,74 +42,74 @@ func (m *ResourceTypeRepository) EXPECT() *ResourceTypeRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *ResourceTypeRepository) Create(ctx context.Context, pn string, rt restype.ResourceType) (uint32, error) {
+func (m *ResourceTypeRepository) Create(ctx context.Context, tc, pn string, rt restype.ResourceType) (uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, pn, rt)
+	ret := m.ctrl.Call(m, "Create", ctx, tc, pn, rt)
 	ret0, _ := ret[0].(uint32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *ResourceTypeRepositoryMockRecorder) Create(ctx, pn, rt any) *gomock.Call {
+func (mr *ResourceTypeRepositoryMockRecorder) Create(ctx, tc, pn, rt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*ResourceTypeRepository)(nil).Create), ctx, pn, rt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*ResourceTypeRepository)(nil).Create), ctx, tc, pn, rt)
 }
 
 // Delete mocks base method.
-func (m *ResourceTypeRepository) Delete(ctx context.Context, pn, tn string) error {
+func (m *ResourceTypeRepository) Delete(ctx context.Context, tc, pn, tn string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, pn, tn)
+	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn, tn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *ResourceTypeRepositoryMockRecorder) Delete(ctx, pn, tn any) *gomock.Call {
+func (mr *ResourceTypeRepositoryMockRecorder) Delete(ctx, tc, pn, tn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*ResourceTypeRepository)(nil).Delete), ctx, pn, tn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*ResourceTypeRepository)(nil).Delete), ctx, tc, pn, tn)
 }
 
 // Filter mocks base method.
-func (m *ResourceTypeRepository) Filter(ctx context.Context, pn string) ([]*restype.ResourceType, error) {
+func (m *ResourceTypeRepository) Filter(ctx context.Context, tc, pn string) ([]*restype.ResourceType, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Filter", ctx, pn)
+	ret := m.ctrl.Call(m, "Filter", ctx, tc, pn)
 	ret0, _ := ret[0].([]*restype.ResourceType)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Filter indicates an expected call of Filter.
-func (mr *ResourceTypeRepositoryMockRecorder) Filter(ctx, pn any) *gomock.Call {
+func (mr *ResourceTypeRepositoryMockRecorder) Filter(ctx, tc, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*ResourceTypeRepository)(nil).Filter), ctx, pn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*ResourceTypeRepository)(nil).Filter), ctx, tc, pn)
 }
 
 // Find mocks base method.
-func (m *ResourceTypeRepository) Find(ctx context.Context, pn, tn string) (*restype.ResourceType, error) {
+func (m *ResourceTypeRepository) Find(ctx context.Context, tc, pn, tn string) (*restype.ResourceType, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, pn, tn)
+	ret := m.ctrl.Call(m, "Find", ctx, tc, pn, tn)
 	ret0, _ := ret[0].(*restype.ResourceType)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *ResourceTypeRepositoryMockRecorder) Find(ctx, pn, tn any) *gomock.Call {
+func (mr *ResourceTypeRepositoryMockRecorder) Find(ctx, tc, pn, tn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*ResourceTypeRepository)(nil).Find), ctx, pn, tn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*ResourceTypeRepository)(nil).Find), ctx, tc, pn, tn)
 }
 
 // Update mocks base method.
-func (m *ResourceTypeRepository) Update(ctx context.Context, pn, tn string, rt restype.ResourceType) error {
+func (m *ResourceTypeRepository) Update(ctx context.Context, tc, pn, tn string, rt restype.ResourceType) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, pn, tn, rt)
+	ret := m.ctrl.Call(m, "Update", ctx, tc, pn, tn, rt)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *ResourceTypeRepositoryMockRecorder) Update(ctx, pn, tn, rt any) *gomock.Call {
+func (mr *ResourceTypeRepositoryMockRecorder) Update(ctx, tc, pn, tn, rt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*ResourceTypeRepository)(nil).Update), ctx, pn, tn, rt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*ResourceTypeRepository)(nil).Update), ctx, tc, pn, tn, rt)
 }

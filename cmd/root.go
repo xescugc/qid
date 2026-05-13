@@ -16,6 +16,7 @@ var (
 			serverCmd,
 			clientCmd,
 			workerCmd,
+			userPasswordCmd,
 		},
 	}
 )

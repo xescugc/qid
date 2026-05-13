@@ -42,74 +42,74 @@ func (m *PipelineRepository) EXPECT() *PipelineRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *PipelineRepository) Create(ctx context.Context, pp pipeline.Pipeline) (uint32, error) {
+func (m *PipelineRepository) Create(ctx context.Context, tc string, pp pipeline.Pipeline) (uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, pp)
+	ret := m.ctrl.Call(m, "Create", ctx, tc, pp)
 	ret0, _ := ret[0].(uint32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *PipelineRepositoryMockRecorder) Create(ctx, pp any) *gomock.Call {
+func (mr *PipelineRepositoryMockRecorder) Create(ctx, tc, pp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*PipelineRepository)(nil).Create), ctx, pp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*PipelineRepository)(nil).Create), ctx, tc, pp)
 }
 
 // Delete mocks base method.
-func (m *PipelineRepository) Delete(ctx context.Context, pn string) error {
+func (m *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, pn)
+	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *PipelineRepositoryMockRecorder) Delete(ctx, pn any) *gomock.Call {
+func (mr *PipelineRepositoryMockRecorder) Delete(ctx, tc, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*PipelineRepository)(nil).Delete), ctx, pn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*PipelineRepository)(nil).Delete), ctx, tc, pn)
 }
 
 // Filter mocks base method.
-func (m *PipelineRepository) Filter(ctx context.Context) ([]*pipeline.Pipeline, error) {
+func (m *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline.Pipeline, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Filter", ctx)
+	ret := m.ctrl.Call(m, "Filter", ctx, tc)
 	ret0, _ := ret[0].([]*pipeline.Pipeline)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Filter indicates an expected call of Filter.
-func (mr *PipelineRepositoryMockRecorder) Filter(ctx any) *gomock.Call {
+func (mr *PipelineRepositoryMockRecorder) Filter(ctx, tc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*PipelineRepository)(nil).Filter), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*PipelineRepository)(nil).Filter), ctx, tc)
 }
 
 // Find mocks base method.
-func (m *PipelineRepository) Find(ctx context.Context, pn string) (*pipeline.Pipeline, error) {
+func (m *PipelineRepository) Find(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, pn)
+	ret := m.ctrl.Call(m, "Find", ctx, tc, pn)
 	ret0, _ := ret[0].(*pipeline.Pipeline)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *PipelineRepositoryMockRecorder) Find(ctx, pn any) *gomock.Call {
+func (mr *PipelineRepositoryMockRecorder) Find(ctx, tc, pn any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*PipelineRepository)(nil).Find), ctx, pn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*PipelineRepository)(nil).Find), ctx, tc, pn)
 }
 
 // Update mocks base method.
-func (m *PipelineRepository) Update(ctx context.Context, ppn string, pp pipeline.Pipeline) error {
+func (m *PipelineRepository) Update(ctx context.Context, tc, ppn string, pp pipeline.Pipeline) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, ppn, pp)
+	ret := m.ctrl.Call(m, "Update", ctx, tc, ppn, pp)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *PipelineRepositoryMockRecorder) Update(ctx, ppn, pp any) *gomock.Call {
+func (mr *PipelineRepositoryMockRecorder) Update(ctx, tc, ppn, pp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*PipelineRepository)(nil).Update), ctx, ppn, pp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*PipelineRepository)(nil).Update), ctx, tc, ppn, pp)
 }

@@ -84,7 +84,7 @@ func (dbrv *dbResourceVersion) toDomainEntity() *resource.Version {
 	return v
 }
 
-func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.Resource) (uint32, error) {
+func (r *ResourceRepository) Create(ctx context.Context, tc, pn string, rs resource.Resource) (uint32, error) {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO resources(name, `+"`type`"+`, canonical, params, check_interval, cron_id, last_check, pipeline_id)
@@ -93,8 +93,10 @@ func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.
 			(
 				SELECT p.id
 				FROM pipelines AS p
-				WHERE p.name = ?
-			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.LastCheck, pn)
+				JOIN teams AS t
+					ON p.team_id = t.id
+				WHERE t.canonical = ? AND p.name = ?
+			))`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.LastCheck, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -107,7 +109,7 @@ func (r *ResourceRepository) Create(ctx context.Context, pn string, rs resource.
 	return id, nil
 }
 
-func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs resource.Resource) error {
+func (r *ResourceRepository) Update(ctx context.Context, tc, pn, rCan string, rs resource.Resource) error {
 	dbrs := newDBResource(rs)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resources AS r
@@ -117,10 +119,12 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 			FROM resources AS r
 			JOIN pipelines AS p
 				ON r.pipeline_id = p.id
-			WHERE p.name = ? AND r.canonical = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
 		) AS rr
 		WHERE rr.id = r.id
-	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.Logs, dbrs.LastCheck, pn, rCan)
+	`, dbrs.Name, dbrs.Type, dbrs.Canonical, dbrs.Params, dbrs.CheckInterval, dbrs.CronID, dbrs.Logs, dbrs.LastCheck, tc, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -133,14 +137,16 @@ func (r *ResourceRepository) Update(ctx context.Context, pn, rCan string, rs res
 	return nil
 }
 
-func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resource.Resource, error) {
+func (r *ResourceRepository) Find(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
 	row := r.querier.QueryRowContext(ctx, `
 		SELECT r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
-		WHERE p.name = ? AND r.canonical = ?
-	`, pn, rCan)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
+	`, tc, pn, rCan)
 
 	rs, err := scanResource(row)
 	if err != nil {
@@ -150,27 +156,29 @@ func (r *ResourceRepository) Find(ctx context.Context, pn, rCan string) (*resour
 	return rs, nil
 }
 
-func (r *ResourceRepository) Filter(ctx context.Context, pn string) ([]*resource.Resource, error) {
+func (r *ResourceRepository) Filter(ctx context.Context, tc, pn string) ([]*resource.Resource, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check
 		FROM resources AS r
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
-		WHERE p.name = ?
-	`, pn)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ?
+	`, tc, pn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter Resources: %w", err)
 	}
 
 	resources, err := scanResources(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to filter jobs: %w", err)
+		return nil, fmt.Errorf("failed to filter resources: %w", err)
 	}
 
 	return resources, nil
 }
 
-func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string, rv resource.Version) (uint32, error) {
+func (r *ResourceRepository) CreateVersion(ctx context.Context, tc, pn, rCan string, rv resource.Version) (uint32, error) {
 	dbrv := newDBResourceVersion(rv)
 	res, err := r.querier.ExecContext(ctx, `
 		INSERT INTO resource_versions(version, resource_id)
@@ -181,8 +189,10 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string,
 				FROM resources AS r
 				JOIN pipelines AS p
 					ON r.pipeline_id = p.id
-				WHERE p.name = ? AND r.canonical = ?
-			))`, dbrv.Version, pn, rCan)
+				JOIN teams AS t
+					ON p.team_id = t.id
+				WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
+			))`, dbrv.Version, tc, pn, rCan)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -195,7 +205,7 @@ func (r *ResourceRepository) CreateVersion(ctx context.Context, pn, rCan string,
 	return id, nil
 }
 
-func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rCan string) ([]*resource.Version, error) {
+func (r *ResourceRepository) FilterVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT rv.id, rv.version
 		FROM resource_versions AS rv
@@ -203,39 +213,43 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, pn, rCan string
 			ON rv.resource_id = r.id
 		JOIN pipelines AS p
 			ON r.pipeline_id = p.id
-		WHERE p.name = ? AND r.canonical = ?
-	`, pn, rCan)
+		JOIN teams AS t
+			ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
+	`, tc, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter Resources: %w", err)
 	}
 
 	rvs, err := scanResourceVersions(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to filter jobs: %w", err)
+		return nil, fmt.Errorf("failed to filter resource versions: %w", err)
 	}
 
 	return rvs, nil
 }
 
-func (r *ResourceRepository) Delete(ctx context.Context, pn, rCan string) error {
+func (r *ResourceRepository) Delete(ctx context.Context, tc, pn, rCan string) error {
 	res, err := r.querier.ExecContext(ctx, `
-		DELETE r
+		DELETE
 		FROM resources
 		WHERE id IN (
 			SELECT r.id
 			FROM resources AS r
 			JOIN pipelines AS p
 				ON r.pipeline_id = p.id
-			WHERE p.name = ? AND r.canonical = ?
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
 		)
-	`, pn, rCan)
+	`, tc, pn, rCan)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	err = isEntityFound(res)
 	if err != nil {
-		return fmt.Errorf("failed to delete the Job: %w", err)
+		return fmt.Errorf("failed to delete the resource: %w", err)
 	}
 
 	return nil
