@@ -35,6 +35,26 @@ func (q *Qid) UserLogin(ctx context.Context, un, pass string) (*user.WithMembers
 	return um, tokenString, nil
 }
 
+func (q *Qid) RefreshToken(ctx context.Context, un string) (*user.WithMemberships, string, error) {
+	if !utils.ValidateCanonical(un) {
+		return nil, "", fmt.Errorf("invalid Username format %q", un)
+	}
+	um, err := q.Users.FindWithMemberships(ctx, un)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to Find User: %w", err)
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user": um,
+	})
+	tokenString, err := token.SignedString(q.JWTSecret)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return um, tokenString, nil
+}
+
 func (q *Qid) GetUser(ctx context.Context, un string) (*user.WithMemberships, error) {
 	if !utils.ValidateCanonical(un) {
 		return nil, fmt.Errorf("invalid Username format %q", un)

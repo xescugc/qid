@@ -3,14 +3,17 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"image"
 	"image/png"
+	"net/http"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tebeka/selenium"
+	thttp "github.com/xescugc/qid/qid/transport/http"
 )
 
 func TestQID(t *testing.T) {
@@ -761,6 +764,63 @@ job "gen" {
 				return len(builds) > initialCount
 			}, 5*time.Second)
 		})
+	})
+	t.Run("RefreshToken", func(t *testing.T) {
+		// Pepito is still logged in as a non-admin member of "main".
+		// We promote pepito to team admin via a direct HTTP call (as admin),
+		// then navigate in the browser. The next Backbone.sync fetch should
+		// detect the stale JWT via the X-Refresh-Token header, auto-refresh
+		// the session, and pepito should now see admin controls.
+
+		// Step 1: Get admin JWT via HTTP
+		loginBody, _ := json.Marshal(thttp.UserLoginRequest{
+			Username: "admin",
+			Password: "admin123",
+		})
+		loginReq, err := http.NewRequest(http.MethodPost, qidURL+"/login.json", bytes.NewReader(loginBody))
+		require.NoError(t, err)
+		loginResp, err := http.DefaultClient.Do(loginReq)
+		require.NoError(t, err)
+		defer loginResp.Body.Close()
+		require.Equal(t, http.StatusOK, loginResp.StatusCode)
+		var lr thttp.UserLoginResponse
+		json.NewDecoder(loginResp.Body).Decode(&lr)
+		require.Empty(t, lr.Err)
+		adminJWT := lr.Data.JWT
+
+		// Step 2: Promote pepito to admin on "main" team via HTTP
+		updateBody, _ := json.Marshal(thttp.UpdateTeamMemberRequest{Admin: true})
+		updateReq, err := http.NewRequest(http.MethodPut, qidURL+"/teams/main/members/pepito.json", bytes.NewReader(updateBody))
+		require.NoError(t, err)
+		updateReq.Header.Set("Authorization", "Bearer "+adminJWT)
+		updateResp, err := http.DefaultClient.Do(updateReq)
+		require.NoError(t, err)
+		defer updateResp.Body.Close()
+		require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+		// Step 3: Navigate to teams list — this triggers a Backbone.sync fetch
+		// which will detect the stale JWT and auto-refresh the session
+		err = wd.Get(qidURL + "/")
+		require.NoError(t, err)
+
+		waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams"), 5*time.Second)
+
+		// Step 4: Navigate to pipelines — give the refresh a moment to complete
+		// The first fetch triggered the refresh. Navigate again to see the updated UI.
+		pipelines, err := wd.FindElement(selenium.ByCSSSelector, "#pipelines")
+		require.NoError(t, err)
+		err = pipelines.Click()
+		require.NoError(t, err)
+
+		waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines"), 5*time.Second)
+
+		// Step 5: Pepito should now see the "New" pipeline button (admin control)
+		// The first navigation triggered the token refresh asynchronously.
+		// We may need to navigate once more for the refreshed session to take effect.
+		waitFor(t, wd, func(t *testing.T, wd selenium.WebDriver) bool {
+			_, err := wd.FindElement(selenium.ByCSSSelector, "#pipelines-new")
+			return err == nil
+		}, 5*time.Second)
 	})
 }
 

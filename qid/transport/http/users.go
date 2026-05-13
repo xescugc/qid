@@ -56,6 +56,47 @@ func userLogin(s qid.Service) http.HandlerFunc {
 	}
 }
 
+type RefreshTokenResponse struct {
+	Err  string `json:"error,omitempty"`
+	Data struct {
+		User *user.WithMemberships `json:"user,omitempty"`
+		JWT  string                `json:"jwt,omitempty"`
+	} `json:"data,omitempty"`
+}
+
+func (r RefreshTokenResponse) Error() string {
+	return r.Err
+}
+
+func refreshToken(s qid.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		un, _ := ctx.Value(UsernameContextKey).(string)
+		if un == "" {
+			encodeResponse(RefreshTokenResponse{Err: "missing username"}, w)
+			return
+		}
+
+		u, jwt, err := s.RefreshToken(ctx, un)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+
+		resp := RefreshTokenResponse{
+			Data: struct {
+				User *user.WithMemberships `json:"user,omitempty"`
+				JWT  string                `json:"jwt,omitempty"`
+			}{
+				User: u,
+				JWT:  jwt,
+			},
+			Err: errs,
+		}
+		encodeResponse(resp, w)
+	}
+}
+
 type ListUsersResponse struct {
 	Err   string       `json:"error,omitempty"`
 	Users []*user.User `json:"data,omitempty"`

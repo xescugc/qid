@@ -60,6 +60,21 @@ func (cl *Client) UserLogin(ctx context.Context, un, pass string) (*user.WithMem
 	return resp.Data.User, resp.Data.JWT, nil
 }
 
+func (cl *Client) RefreshToken(ctx context.Context, un string) (*user.WithMemberships, string, error) {
+	var resp thttp.RefreshTokenResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/refresh-token", cl.url), nil, &resp)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, "", fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Data.User, resp.Data.JWT, nil
+}
+
 func (cl *Client) GetUser(ctx context.Context, un string) (*user.WithMemberships, error) {
 	// No server-side endpoint for GetUser; it's only used internally for authorization
 	return nil, fmt.Errorf("GetUser is not exposed via HTTP")

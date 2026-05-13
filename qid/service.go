@@ -21,6 +21,7 @@ import (
 
 type Service interface {
 	UserLogin(ctx context.Context, un, pass string) (*user.WithMemberships, string, error)
+	RefreshToken(ctx context.Context, un string) (*user.WithMemberships, string, error)
 
 	GetUser(ctx context.Context, un string) (*user.WithMemberships, error)
 	CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error)

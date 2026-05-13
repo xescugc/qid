@@ -11,7 +11,8 @@ type authorizationFn func(ctx context.Context, s qid.Service, un, tc string) err
 
 var (
 	routeAuthorization = map[RouteName]authorizationFn{
-		UserLogin: nothing,
+		UserLogin:    nothing,
+		RefreshToken: nothing,
 
 		CreateUser: admin,
 		ListUsers:  admin,

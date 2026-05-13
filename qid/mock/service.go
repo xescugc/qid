@@ -372,6 +372,22 @@ func (mr *ServiceMockRecorder) ListUsers(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsers", reflect.TypeOf((*Service)(nil).ListUsers), ctx)
 }
 
+// RefreshToken mocks base method.
+func (m *Service) RefreshToken(ctx context.Context, un string) (*user.WithMemberships, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshToken", ctx, un)
+	ret0, _ := ret[0].(*user.WithMemberships)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RefreshToken indicates an expected call of RefreshToken.
+func (mr *ServiceMockRecorder) RefreshToken(ctx, un any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshToken", reflect.TypeOf((*Service)(nil).RefreshToken), ctx, un)
+}
+
 // TriggerPipelineJob mocks base method.
 func (m *Service) TriggerPipelineJob(ctx context.Context, tc, pn, jn string) error {
 	m.ctrl.T.Helper()
