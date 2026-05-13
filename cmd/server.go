@@ -20,6 +20,7 @@ import (
 	"github.com/xescugc/qid/qid/mysql"
 	"github.com/xescugc/qid/qid/mysql/migrate"
 	tshttp "github.com/xescugc/qid/qid/transport/http"
+	"github.com/xescugc/qid/qid/unitwork"
 	"github.com/xescugc/qid/qid/user"
 	"gocloud.dev/pubsub"
 
@@ -161,8 +162,10 @@ var (
 			br := mysql.NewBuildRepository(querier)
 			rur := mysql.NewRunnerRepository(querier)
 
+			suow := unitwork.NewStartUnitOfWork(db)
+
 			logger.Info("initializing service")
-			var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, cfg.JWTSecret, logger)
+			var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, cfg.JWTSecret, logger)
 			logger.Info("initialized service")
 
 			logger.Info("initializing http handlers")

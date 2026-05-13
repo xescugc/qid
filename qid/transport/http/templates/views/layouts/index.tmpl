@@ -975,6 +975,7 @@
           var name = this.$el.find("#name").get(0).value
 
           app.teams.create({name: name}, {
+            wait: true,
             //type: "POST",
             // TODO: Try to find a way to create a model with the idAttribute
             // set with POST
@@ -1262,6 +1263,7 @@
           }
           if (this.model.get("id")){
             this.collection.create({name: name, config: data, vars: vars}, {
+              wait: true,
               url: this.model.url(),
               success: function(m) {
                 app.router.navigate(m.url(), { trigger: true });
@@ -1270,6 +1272,7 @@
           } else {
             var that = this
             this.collection.create({name: name, config: data, vars: vars}, {
+              wait: true,
               type: "POST",
               // TODO: Try to find a way to create a model with the idAttribute
               // set with POST

@@ -14,6 +14,7 @@ import (
 	"github.com/xescugc/qid/qid/mysql/migrate"
 	"github.com/xescugc/qid/qid/queue"
 	tshttp "github.com/xescugc/qid/qid/transport/http"
+	"github.com/xescugc/qid/qid/unitwork"
 	"github.com/xescugc/qid/qid/user"
 	"github.com/xescugc/qid/worker"
 	"gocloud.dev/pubsub"
@@ -58,7 +59,8 @@ func runTests(m *testing.M) int {
 	rt := mysql.NewResourceTypeRepository(db)
 	br := mysql.NewBuildRepository(db)
 	rur := mysql.NewRunnerRepository(db)
-	var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, jwtSecret, logger)
+	suow := unitwork.NewStartUnitOfWork(db)
+	var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, jwtSecret, logger)
 	var handler = tshttp.Handler(svc, jwtSecret, logger.With("component", "HTTP"))
 	server := httptest.NewServer(handler)
 	qidURL = server.URL

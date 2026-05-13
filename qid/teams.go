@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/xescugc/qid/qid/team"
+	"github.com/xescugc/qid/qid/unitwork"
 	"github.com/xescugc/qid/qid/user"
 	"github.com/xescugc/qid/qid/utils"
 )
@@ -18,25 +19,33 @@ func (q *Qid) CreateTeam(ctx context.Context, un string, t team.Team) (*team.Wit
 
 	t.Canonical = utils.Canonicalize(t.Name)
 
-	id, err := q.Teams.Create(ctx, t)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Team: %w", err)
-	}
-	t.ID = id
+	var twm *team.WithMembers
+	err := q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
+		id, err := uow.Teams().Create(ctx, t)
+		if err != nil {
+			return fmt.Errorf("failed to create Team: %w", err)
+		}
+		t.ID = id
 
-	err = q.Teams.CreateMember(ctx, t.Canonical, team.Member{
-		Admin: true,
-		User: user.User{
-			Username: un,
-		},
+		err = uow.Teams().CreateMember(ctx, t.Canonical, team.Member{
+			Admin: true,
+			User: user.User{
+				Username: un,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create Team Member: %w", err)
+		}
+
+		twm, err = uow.Teams().Find(ctx, t.Canonical)
+		if err != nil {
+			return fmt.Errorf("failed to find Team: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Team Member: %w", err)
-	}
-
-	twm, err := q.Teams.Find(ctx, t.Canonical)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find Team: %w", err)
+		return nil, err
 	}
 
 	return twm, nil
