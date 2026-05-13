@@ -6,6 +6,7 @@ type RouteName int
 
 const (
 	UserLogin RouteName = iota
+	RefreshToken
 
 	CreateUser
 	ListUsers

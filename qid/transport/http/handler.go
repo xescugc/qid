@@ -13,6 +13,7 @@ import (
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/transport/http/assets"
 	"github.com/xescugc/qid/qid/transport/http/templates"
+	"github.com/xescugc/qid/qid/user"
 )
 
 const (
@@ -114,6 +115,14 @@ func Handler(s qid.Service, ts []byte, l *slog.Logger) http.Handler {
 					encodeError("Authentication required", rw)
 					return
 				}
+
+				// Check if JWT claims are stale compared to DB
+				if un != "" {
+					um, err := s.GetUser(rr.Context(), un)
+					if err == nil && membershipsDiffer(userClaim, um) {
+						rw.Header().Set("X-Refresh-Token", "true")
+					}
+				}
 			}
 
 			h.ServeHTTP(rw, rr)
@@ -142,6 +151,8 @@ func Handler(s qid.Service, ts []byte, l *slog.Logger) http.Handler {
 	api := jsonr.PathPrefix("/").Subrouter()
 
 	api.Use(auth)
+
+	api.Methods(http.MethodPost).Path("/refresh-token").Name(RefreshToken.String()).Handler(refreshToken(s))
 
 	api.Methods(http.MethodGet).Path("/users").Name(ListUsers.String()).Handler(listUsers(s))
 	api.Methods(http.MethodPost).Path("/users").Name(CreateUser.String()).Handler(createUser(s))
@@ -216,6 +227,43 @@ func (r ErrorResponse) Error() string {
 
 type Errorer interface {
 	Error() string
+}
+
+func membershipsDiffer(jwtUser map[string]interface{}, dbUser *user.WithMemberships) bool {
+	jwtAdmin, _ := jwtUser["admin"].(bool)
+	if jwtAdmin != dbUser.Admin {
+		return true
+	}
+
+	jwtMemberships, _ := jwtUser["memberships"].([]interface{})
+	if len(jwtMemberships) != len(dbUser.Memberships) {
+		return true
+	}
+
+	dbSet := make(map[string]bool, len(dbUser.Memberships))
+	for _, m := range dbUser.Memberships {
+		key := m.TeamCanonical
+		if m.Admin {
+			key += ":admin"
+		}
+		dbSet[key] = true
+	}
+	for _, jm := range jwtMemberships {
+		m, ok := jm.(map[string]interface{})
+		if !ok {
+			return true
+		}
+		tc, _ := m["team_canonical"].(string)
+		a, _ := m["admin"].(bool)
+		key := tc
+		if a {
+			key += ":admin"
+		}
+		if !dbSet[key] {
+			return true
+		}
+	}
+	return false
 }
 
 func encodeResponse(r interface{}, w http.ResponseWriter) {
