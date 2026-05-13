@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 
@@ -48,5 +49,28 @@ func (c *Client) Request(ctx context.Context, method, url string, body, resp int
 		}
 	}
 
+	if hresp.Header.Get("X-Refresh-Token") == "true" {
+		c.refreshToken(ctx)
+	}
+
 	return nil
+}
+
+func (c *Client) refreshToken(ctx context.Context) {
+	var resp thttp.RefreshTokenResponse
+
+	err := c.Request(ctx, http.MethodPost, fmt.Sprintf("%s/refresh-token", c.url), nil, &resp)
+	if err != nil {
+		return
+	}
+
+	if resp.Err != "" || resp.Data.JWT == "" {
+		return
+	}
+
+	c.jwt = resp.Data.JWT
+
+	if c.configPath != "" {
+		_ = os.WriteFile(c.configPath, []byte(c.jwt), 0600)
+	}
 }
