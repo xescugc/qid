@@ -568,7 +568,7 @@
         },
         initialize: function(attr) {
           attr = attr || {}
-          if (attr.members && attr.members.constructionr === Array) {
+          if (attr.members && Array.isArray(attr.members)) {
             this.set("members", new app.TeamMembers(attr.members, {team: this}))
           }
         },

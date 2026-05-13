@@ -2,7 +2,7 @@
 
 QID is a CI/CD based on Queues, meaning that the ones running the Jobs are basically queue workers.
 
-:warning: This is still a PoC and under heavily development which may cause breaking changes on the API or configuration :warning:
+:warning: This is still a PoC and under heavy development which may cause breaking changes on the API or configuration :warning:
 
 ## Basic architecture
 
@@ -11,9 +11,9 @@ run the Jobs tasks and interact with the QID server to make any operations.
 
 ## How it works
 
-Pipelines Resources are check with the [`check_interval`](#check_interval) to see if there is a new version to trigger a new Build for a
-Job that depends on that Resource that changed. If there is then a new job/s will be queued for a Worker to do.
-Then when it finishes it checks if another job depends on it and queues for that job/s to be triggered.
+Pipeline Resources are checked with the [`check_interval`](#check_interval) to see if there is a new version to trigger a new Build for a
+Job that depends on that Resource that changed. If there is, then the new job(s) will be queued for a Worker to do.
+Then when it finishes it checks if another job depends on it and queues that job(s) to be triggered.
 
 When a job/resource is executed in a worker it creates a `$WORKDIR` `$XDG_CACHE_HOME/qid/{UUID}/` in which everything is executed.
 
@@ -64,18 +64,23 @@ The JWT is stored at `$XDG_CONFIG_HOME/qid/authentication` and automatically use
 * `port`: The port to expose for the web server and API
 * `jwt-secret` (REQUIRED): The secret used to sign JWT tokens for authentication
 * `users`: List of initial users to create on startup, format: `USERNAME:HASH-PASSWORD` (use `qid user-password` to generate)
-* `db-system`: Which type of DB to use, each one has it's values
-  * `mysql`: Uses a MySQL DB
-    * `db-host`: Database Host
-    * `db-port`: Database Port
-    * `db-user`: Database User
-    * `db-password`: Database Password
-    * `db-name`: Database Name
+* `db-system`: Which type of DB to use. Each system has its own required flags:
+  * `mem`: Run the DB in memory (default). Uses SQLite's in-memory mode
   * `sqlite`: Uses SQLite. The file will be at `$XDG_DATA_HOME/qid/qid.db`
-  * `mem`: Run the DB in memory, which basically uses the SQLite memory option
+  * `mysql`: Uses a MySQL/MariaDB DB. Requires: `db-host`, `db-port`, `db-user`, `db-password`, `db-name`
+  * `postgresql`: Uses a PostgreSQL DB (also compatible with CockroachDB). Requires: `db-host`, `db-port`, `db-user`, `db-password`, `db-name`
+* `db-host`: Database host
+* `db-port`: Database port
+* `db-user`: Database user
+* `db-password`: Database password
+* `db-name`: Database name
 * `run-worker`: Specifies if you want to run the workers on the same server or not
 * `concurrency`: How many parallel instances has the worker
-* `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
+* `pubsub-system`: Which PubSub system to use. Supported values:
+  * `mem`: In-memory (default, for development/testing)
+  * `nats`: NATS messaging. Requires env var `NATS_SERVER_URL`
+  * `rabbit`: RabbitMQ. Requires env var `RABBIT_SERVER_URL` (AMQP URL format, e.g. `amqp://guest:guest@localhost:5672/`)
+  * `kafka`: Apache Kafka. Requires env var `KAFKA_BROKERS` (comma-separated broker list, e.g. `localhost:9092`)
 * `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
 * `team-canonical`: Team canonical to scope the initial pipeline creation (default: `main`)
 * `pipeline-name`: If defined it'll create a pipeline on the service start
@@ -88,8 +93,32 @@ The JWT is stored at `$XDG_CONFIG_HOME/qid/authentication` and automatically use
 * `qid-url`: Used to make all the interactions with the DB through it
 * `jwt-secret` (REQUIRED): Must match the server's JWT secret — used to generate a worker token that bypasses authorization
 * `concurrency`: How many parallel instances has the worker
-* `pubsub-system`: Which DB system to use. Internally I use [google/go-cloud/pubsub](https://gocloud.dev/howto/runtimevar/#services) so any of those could be implemented but I only did it with `mem` and `nats`. For NATS you'll need to pass the `NATS_SERVER_URL`. For any other just open an issue.
+* `pubsub-system`: Which PubSub system to use (`mem`, `nats`, `rabbit`, `kafka`). See Server Configuration for env var details per system
 * `log-level`: Sets the log level (`debug`, `info`, `warn`, `error`), by default is `info`
+
+## Supported Backends
+
+### Database Backends
+
+| Name | `--db-system` value | Driver | Tested with (Docker image) | Notes |
+|---|---|---|---|---|
+| In-Memory | `mem` | SQLite (`:memory:`) | — | Default, for dev/testing |
+| SQLite | `sqlite` | SQLite | — | File-based, single-node |
+| MySQL/MariaDB | `mysql` | `go-sql-driver/mysql` | `mariadb:11.4.2` | Production-ready |
+| PostgreSQL | `postgresql` | `lib/pq` | `postgres:17` | Production-ready |
+| CockroachDB | — | `lib/pq` (PG-compatible) | `cockroachdb/cockroach` | Use `postgresql` as db-system |
+| TiDB | — | `go-sql-driver/mysql` (MySQL-compatible) | `pingcap/tidb` | Use `mysql` as db-system |
+
+CockroachDB and TiDB work as PostgreSQL-compatible and MySQL-compatible databases respectively. They are not first-class `--db-system` flag values; instead, use `postgresql` or `mysql` and point the connection to the CockroachDB/TiDB host.
+
+### PubSub Backends
+
+| Name | `--pubsub-system` value | Env Var | Docker Image |
+|---|---|---|---|
+| In-Memory | `mem` | — | — |
+| NATS | `nats` | `NATS_SERVER_URL` | `nats:2.12.0` |
+| RabbitMQ | `rabbit` | `RABBIT_SERVER_URL` | `rabbitmq:3-management` |
+| Kafka | `kafka` | `KAFKA_BROKERS` | `bitnami/kafka` |
 
 ## Pipeline
 
@@ -103,7 +132,7 @@ The main blocks of the Pipeline are:
 
 ### HCL
 
-A quick introduction to people not use to HCL.
+A quick introduction for people not used to HCL.
 
 HCL has 2 main structures
 
@@ -123,7 +152,7 @@ A block is defined for a key and N labels and then `{}`
 my_block "label1" "label2" {}
 ```
 
-Blocks can sometimes be defined multiple times, lie the root ones: `job`, `resource`, `variable` ... etc.
+Blocks can sometimes be defined multiple times, like the root ones: `job`, `resource`, `variable`, etc.
 
 ### Variables
 
@@ -131,7 +160,7 @@ You can define variables to the pipeline configuration for reusability purpose (
 
 Another usecase for the Variables is to pass secrets to the Pipeline. On the future I may implement a dedicated element [`secret_type` and `secret`](https://github.com/xescugc/qid/issues/12) that would make it more simpler and declarative to use secrets.
 
-When creating a Pipeline, one of the options is the `vars` which is a JSON withe the overwrite values of the Variables
+When creating a Pipeline, one of the options is `vars`, which is a JSON with the overridden values of the Variables
 
 Variables are used like:
 * `attribute = var.my_var`
@@ -194,7 +223,7 @@ runner "exec" {
 }
 ```
 
-So to use it you need to pass to the block a `path` and an `args`. If you want to pass  multyline or separate the arguments here is an example:
+So to use it you need to pass a `path` and `args` to the block. If you want to pass multiline or separate arguments, here is an example:
 
 ```hcl
 job "build" {
@@ -248,9 +277,9 @@ runner "docker" {
 
 ### Resource Type
 
-Resource Type are the core of QID CI/CD as they are the ones that automate all the Jobs by listening to external resources changes.
+Resource Types are the core of QID CI/CD as they are the ones that automate all the Jobs by listening to external resource changes.
 
-For now you always have to defined the `resource_type` but ideally they are really reusable in between different pipelines so in the future this will [change](https://github.com/xescugc/qid/issues/11) so you can reuse it
+For now you always have to define the `resource_type`, but ideally they are reusable between different pipelines so in the future this will [change](https://github.com/xescugc/qid/issues/11) so you can reuse them
 
 #### Internals
 
@@ -258,7 +287,7 @@ This is the list of internal Resource Types:
 
 ##### `cron`
 
-It'll always return a new value (internally does `date` so for now only available if `date` is present). When used in a [`resource`](#resource) with
+It always returns a new value (internally runs `date`, so for now only available if `date` is present). When used in a [`resource`](#resource) with
 [`check_interval`](#check_interval) you effectively created a way to execute a Job periodically.
 
 ###### Example
@@ -301,8 +330,8 @@ It'll be passed to the `check`, `pull` and `push` as `$param_url` and `$param_na
 
 The `label` is the [`runner`](#runner)
 
-Is called periodically (`@every 1m` but can be changed on the [`resource.check_interval`](#check_interval)) to see if there are new versions.
-The **LAST LINE** (so do not pretty print JSON) of the output has to be a JSON containing an array of all the new versions. This new versions will the be available via ENV to the `pull` and `push` by flattening(nested values will be flatten with `_`) the JSON and prefixing it with `$version_`(JSON key).
+Called periodically (`@every 1m` by default, configurable via [`resource.check_interval`](#check_interval)) to see if there are new versions.
+The **LAST LINE** (do not pretty-print JSON) of the output must be a JSON array of all the new versions. These new versions will be available via ENV to `pull` and `push` by flattening (nested values are flattened with `_`) the JSON and prefixing it with `$version_` (JSON key).
 
 For example on `git` you could do `git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"` which will then return 
 
@@ -310,17 +339,17 @@ For example on `git` you could do `git log -1 --pretty=format:"%H" | jq -Rsc "(.
 [{"ref":"7101df99a068495ccf23ec656db8d93d18fe30a2"}]
 ```
 
-Then on the `pull` you'll have a `$version_ref` available, if there where more attributes those would also be available.
+Then on the `pull` you'll have a `$version_ref` available, if there were more attributes those would also be available.
 
-On the check you have also access to the **PREVIOUS** version that was detected so on the script you should check if there is anything new, if not
-then just return `[]`, any element on the `[]` will be considered a new version (there is no uniqueness detection) so check to not return
-the same version again (if that's not what's needed ofc).
+On the check you also have access to the **PREVIOUS** version that was detected, so in the script you should check if there is anything new. If not,
+return `[]`. Any element in the `[]` will be considered a new version (there is no uniqueness detection), so make sure not to return
+the same version again (unless that's what you need).
 
 #### `pull`
 
 The `label` is the [`runner`](#runner)
 
-When a Job has a `get` to a resource, when the Job is executed the `resource.pull` is ran beforehand and the `job.task` is ran on the same context so you can pull from GIT(if git is the resource) and the `job.task` will have access to the pulled repository locally. It will have version (with `$version_*`) which is the version to pull (same one returned on the `check`)
+When a Job has a `get` to a resource, the `resource.pull` is run before the `job.task` in the same context. For example, you can pull from Git (if git is the resource) and the `job.task` will have access to the pulled repository locally. The version is available via `$version_*` env vars (the same values returned by `check`).
 
 #### `push`
 
@@ -366,7 +395,7 @@ resource_type "git" {
 
 Resources are the implementation of the [Resource Type](#resource-type) by initializing it with the params defined on the [`resource_type.params`](#params).
 
-When defined a `resource` the first label is the `resource_type` and the 2nd is the name of the resource.
+When defining a `resource`, the first label is the `resource_type` and the second is the name of the resource.
 
 #### `params`
 
@@ -390,12 +419,11 @@ resource "git" "my_repo" {
 
 ### Job
 
-Jobs are where the use actions happen. Jobs define a set of tasks that will be ran in groups, first all the `get` and then all the `task`.
+Jobs are where the user actions happen. Jobs define a set of tasks that are run in groups: first all the `get` steps and then all the `task` steps.
 
 #### `get`
 
-Tasks are the ones marking which resources does the job depends on. The labels have to match the `resource`, it
-has the following configuration:
+Get steps declare which resources the job depends on. The labels must match a `resource` definition. Each has the following configuration:
 
 ##### `trigger`
 
@@ -403,8 +431,8 @@ Boolean marking if changes on that resource will automatically trigger the Job
 
 ##### `passed`
 
-Array of job names that the Job depends on. Meaning that if that job finishes and has also
-the resource and trigger it'll be automatically executed on success
+Array of job names that the Job depends on. If a listed job finishes successfully and also
+has the resource with trigger enabled, this job will be automatically executed
 
 ##### `on_success`
 
@@ -472,7 +500,7 @@ Runs always
 
 #### Example
 
-3 jobs, `test` depends on `gen` and `gen` and `notify_slack` are triggered by the `git.my_repo` `resource`
+2 jobs: `test` depends on `gen`, and `gen` is triggered by the `git.my_repo` resource
 
 ```hcl
 job "gen" {
@@ -517,7 +545,7 @@ job "test" {
 
 ## CLI
 
-Not all the API is ported to the CLI [yet](https://github.com/xescugc/qid/issues/58), it exists on the `qid/transport/http/client` as a GO client if need be.
+Not all the API is ported to the CLI [yet](https://github.com/xescugc/qid/issues/58). A Go client is available at `qid/transport/http/client` if needed.
 
 First, log in to get a JWT stored locally:
 

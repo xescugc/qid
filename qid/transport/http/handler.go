@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -12,20 +13,18 @@ import (
 	"github.com/xescugc/qid/qid"
 	"github.com/xescugc/qid/qid/transport/http/assets"
 	"github.com/xescugc/qid/qid/transport/http/templates"
-
-	"github.com/go-kit/log"
 )
 
 const (
 	UsernameContextKey string = "username_context_key"
 )
 
-func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
+func Handler(s qid.Service, ts []byte, l *slog.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	auth := func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, rr *http.Request) {
-			// Aauthentication
+			// Authentication
 			reqToken := rr.Header.Get("Authorization")
 			splitToken := strings.Split(reqToken, " ")
 			if len(splitToken) != 2 {
@@ -41,7 +40,7 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 				return ts, nil
 			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 			if err != nil {
-				l.Log("error", err)
+				l.Error("authentication error", "error", err)
 				encodeError("Authentication required", rw)
 				return
 			}
@@ -50,19 +49,39 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 				un           string
 				isFromWorker bool
 			)
-			if claims, ok := token.Claims.(jwt.MapClaims); ok {
-				un = claims["user"].(map[string]interface{})["username"].(string)
-				rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, un))
-				isFromWorker, _ = claims["is_from_worker"].(bool)
-			} else {
-				l.Log("error", err)
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				l.Error("invalid token claims")
 				encodeError("Authentication required", rw)
 				return
+			}
+			userClaim, ok := claims["user"].(map[string]interface{})
+			if !ok {
+				// Worker tokens don't have a "user" claim
+				isFromWorker, _ = claims["is_from_worker"].(bool)
+				if !isFromWorker {
+					l.Error("missing user claim in token")
+					encodeError("Authentication required", rw)
+					return
+				}
+			} else {
+				un, ok = userClaim["username"].(string)
+				if !ok {
+					l.Error("missing username in token")
+					encodeError("Authentication required", rw)
+					return
+				}
+				rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, un))
+				isFromWorker, _ = claims["is_from_worker"].(bool)
 			}
 
 			// Authorization
 
 			cr := mux.CurrentRoute(rr)
+			if cr == nil {
+				encodeError("Route not found", rw)
+				return
+			}
 			crns := cr.GetName()
 			if crns == "" {
 				pt, _ := cr.GetPathTemplate()
@@ -91,7 +110,7 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 				tc := vars["team_canonical"]
 				err = afn(rr.Context(), s, un, tc)
 				if err != nil {
-					l.Log("error", err)
+					l.Error("authorization error", "error", err)
 					encodeError("Authentication required", rw)
 					return
 				}
@@ -170,8 +189,14 @@ func Handler(s qid.Service, ts []byte, l log.Logger) http.Handler {
 	r.PathPrefix("/images/").Handler(http.FileServer(http.FS(assets.Assets)))
 
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t, _ := templates.Templates["views/layouts/index.tmpl"]
-		t.Execute(w, nil)
+		t, ok := templates.Templates["views/layouts/index.tmpl"]
+		if !ok {
+			http.Error(w, "template not found", http.StatusInternalServerError)
+			return
+		}
+		if err := t.Execute(w, nil); err != nil {
+			l.Error("failed to execute template", "error", err)
+		}
 	})
 
 	return r
@@ -199,8 +224,7 @@ func encodeResponse(r interface{}, w http.ResponseWriter) {
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		r = ErrorResponse{Err: fmt.Sprintf("the response %T is not 'Errorer'", r)}
-	}
-	if ok && e.Error() != "" {
+	} else if e.Error() != "" {
 		w.WriteHeader(http.StatusBadRequest)
 	} else {
 		w.WriteHeader(http.StatusOK)

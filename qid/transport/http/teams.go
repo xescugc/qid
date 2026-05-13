@@ -27,7 +27,12 @@ func createTeam(s qid.Service) http.HandlerFunc {
 			req CreateTeamRequest
 			ctx = r.Context()
 		)
-		req.Username = ctx.Value(UsernameContextKey).(string)
+		un, ok := ctx.Value(UsernameContextKey).(string)
+		if !ok {
+			encodeResponse(CreateTeamResponse{Err: "missing username in context"}, w)
+			return
+		}
+		req.Username = un
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			encodeResponse(CreateTeamResponse{Err: err.Error()}, w)
@@ -121,7 +126,12 @@ func listTeams(s qid.Service) http.HandlerFunc {
 			req ListTeamsRequest
 			ctx = r.Context()
 		)
-		req.Username = ctx.Value(UsernameContextKey).(string)
+		un, ok := ctx.Value(UsernameContextKey).(string)
+		if !ok {
+			encodeResponse(ListTeamsResponse{Err: "missing username in context"}, w)
+			return
+		}
+		req.Username = un
 		ts, err := s.ListTeams(ctx, req.Username)
 		var errs string
 		if err != nil {

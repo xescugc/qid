@@ -153,13 +153,17 @@ func (r *ResourceTypeRepository) Filter(ctx context.Context, tc, pn string) ([]*
 
 func (r *ResourceTypeRepository) Delete(ctx context.Context, tc, pn, rtn string) error {
 	res, err := r.querier.ExecContext(ctx, `
-		DELETE rt
-		FROM resource_types AS rt
-		JOIN pipelines AS p
-			ON rt.pipeline_id = p.id
-		JOIN teams AS t
-			ON p.team_id = t.id
-		WHERE t.canonical = ? AND p.name = ? AND rt.name = ?
+		DELETE
+		FROM resource_types
+		WHERE id IN (
+			SELECT rt.id
+			FROM resource_types AS rt
+			JOIN pipelines AS p
+				ON rt.pipeline_id = p.id
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND rt.name = ?
+		)
 	`, tc, pn, rtn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

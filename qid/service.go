@@ -14,8 +14,10 @@ import (
 	"github.com/xescugc/qid/qid/team"
 	"github.com/xescugc/qid/qid/user"
 
-	"github.com/go-kit/kit/log"
+	"log/slog"
 )
+
+//go:generate go tool mockgen -destination=mock/service.go -mock_names=Service=Service -package mock github.com/xescugc/qid/qid Service
 
 type Service interface {
 	UserLogin(ctx context.Context, un, pass string) (*user.WithMemberships, string, error)
@@ -73,10 +75,10 @@ type Qid struct {
 	JWTSecret []byte
 
 	cron   *cron.Cron
-	logger log.Logger
+	logger *slog.Logger
 }
 
-func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, js []byte, l log.Logger) *Qid {
+func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, js []byte, l *slog.Logger) *Qid {
 	q := &Qid{
 		Ctx:           ctx,
 		Topic:         t,

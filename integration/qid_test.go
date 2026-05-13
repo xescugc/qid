@@ -332,7 +332,7 @@ job "gen" {
 			require.NoError(t, err)
 
 			//spew.Dump(res)
-			//screnshoot(t, wd)
+			//screenshot(t, wd)
 			//err = res.MoveTo(0, 0)
 			//require.NoError(t, err)
 			//wd.Click(selenium.LeftButton)
@@ -769,7 +769,8 @@ type waitForFn func(*testing.T, selenium.WebDriver) bool
 func waitFor(t *testing.T, wd selenium.WebDriver, wffn waitForFn, d time.Duration) {
 	t.Helper()
 
-	ctx, _ := context.WithTimeout(context.Background(), d)
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
 	var found bool
 	for !found {
 		select {
@@ -782,7 +783,7 @@ func waitFor(t *testing.T, wd selenium.WebDriver, wffn waitForFn, d time.Duratio
 
 END:
 	if !found {
-		screnshoot(t, wd)
+		screenshot(t, wd)
 	}
 	require.True(t, found)
 }
@@ -804,14 +805,14 @@ func eqText(by, value, txt string) waitForFn {
 	}
 }
 
-func screnshoot(t *testing.T, wd selenium.WebDriver) {
+func screenshot(t *testing.T, wd selenium.WebDriver) {
 	b, err := wd.Screenshot()
 	require.NoError(t, err)
 
 	img, _, err := image.Decode(bytes.NewReader(b))
 	require.NoError(t, err)
 
-	f, err := os.Create("screnshoot.png")
+	f, err := os.Create("screenshot.png")
 	require.NoError(t, err)
 	defer f.Close()
 
