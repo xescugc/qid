@@ -129,21 +129,6 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 		})
 	}
 
-	// If the URL ends in `.json` it'll match a URL with `Content-Type=application/json`
-	jsm := func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, rr *http.Request) {
-			if strings.HasSuffix(rr.URL.String(), ".json") {
-				rr.URL.Path = strings.TrimSuffix(rr.URL.Path, ".json")
-				rr.Header.Set("Content-Type", "application/json")
-				r.ServeHTTP(rw, rr)
-				return
-			}
-			h.ServeHTTP(rw, rr)
-		})
-	}
-
-	r.Use(jsm)
-
 	jsonr := r.Headers("Content-Type", "application/json").Subrouter()
 
 	jsonr.Methods(http.MethodPost).Path("/login").Handler(userLogin(s))
@@ -210,7 +195,15 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 		}
 	})
 
-	return r
+	// Wrap the router: strip .json suffix and set Content-Type before
+	// mux route matching, so the jsonr subrouter matches correctly.
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.HasSuffix(req.URL.Path, ".json") {
+			req.URL.Path = strings.TrimSuffix(req.URL.Path, ".json")
+			req.Header.Set("Content-Type", "application/json")
+		}
+		r.ServeHTTP(w, req)
+	})
 }
 
 func encodeError(errs string, w http.ResponseWriter) {
