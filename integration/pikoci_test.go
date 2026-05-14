@@ -16,13 +16,13 @@ import (
 	thttp "github.com/xescugc/pikoci/pikoci/transport/http"
 )
 
-func TestQID(t *testing.T) {
+func TestPikoCI(t *testing.T) {
 	wd := getRemote(t)
 	// Some cases some elements are not on the viewport, to avoid
 	// some weird logic to scroll to them I just resize the widnow
 	wd.ResizeWindow("", 1500, 1500)
 
-	err := wd.Get(qidURL)
+	err := wd.Get(pikoURL)
 	require.NoError(t, err)
 
 	t.Run("Admin", func(t *testing.T) {
@@ -342,7 +342,7 @@ job "gen" {
 			//err = res.Click()
 			//require.NoError(t, err)
 
-			err = wd.Get(qidURL + url)
+			err = wd.Get(pikoURL + url)
 			require.NoError(t, err)
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines\ncron\nResources\ncron.my_cron_edit\nVersions"), 5*time.Second)
@@ -383,7 +383,7 @@ job "gen" {
 			url, err := res.GetAttribute("xlink:href")
 			require.NoError(t, err)
 
-			err = wd.Get(qidURL + url)
+			err = wd.Get(pikoURL + url)
 			require.NoError(t, err)
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines\ncron\nJobs\ngen\nBuilds"), 5*time.Second)
@@ -585,7 +585,7 @@ job "gen" {
 			require.Error(t, err)
 		})
 		t.Run("Navigate to New Team redirects", func(t *testing.T) {
-			err := wd.Get(qidURL + "/teams/new")
+			err := wd.Get(pikoURL + "/teams/new")
 			require.NoError(t, err)
 
 			// Should be redirected back to teams list
@@ -659,7 +659,7 @@ job "gen" {
 			require.Error(t, err)
 		})
 		t.Run("Navigate to New Pipeline redirects", func(t *testing.T) {
-			err := wd.Get(qidURL + "/teams/main/pipelines/new")
+			err := wd.Get(pikoURL + "/teams/main/pipelines/new")
 			require.NoError(t, err)
 
 			// Should be redirected back to pipelines list
@@ -681,7 +681,7 @@ job "gen" {
 			require.Error(t, err)
 		})
 		t.Run("Navigate to Edit Pipeline redirects", func(t *testing.T) {
-			err := wd.Get(qidURL + "/teams/main/pipelines/cron/edit")
+			err := wd.Get(pikoURL + "/teams/main/pipelines/cron/edit")
 			require.NoError(t, err)
 
 			// Should be redirected back to pipeline show page
@@ -703,7 +703,7 @@ job "gen" {
 			url, err := res.GetAttribute("xlink:href")
 			require.NoError(t, err)
 
-			err = wd.Get(qidURL + url)
+			err = wd.Get(pikoURL + url)
 			require.NoError(t, err)
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines\ncron\nResources\ncron.my_cron\nVersions"), 5*time.Second)
@@ -741,7 +741,7 @@ job "gen" {
 			url, err := res.GetAttribute("xlink:href")
 			require.NoError(t, err)
 
-			err = wd.Get(qidURL + url)
+			err = wd.Get(pikoURL + url)
 			require.NoError(t, err)
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines\ncron\nJobs\ngen\nBuilds"), 5*time.Second)
@@ -777,7 +777,7 @@ job "gen" {
 			Username: "admin",
 			Password: "admin123",
 		})
-		loginReq, err := http.NewRequest(http.MethodPost, qidURL+"/login.json", bytes.NewReader(loginBody))
+		loginReq, err := http.NewRequest(http.MethodPost, pikoURL+"/login.json", bytes.NewReader(loginBody))
 		require.NoError(t, err)
 		loginResp, err := http.DefaultClient.Do(loginReq)
 		require.NoError(t, err)
@@ -790,7 +790,7 @@ job "gen" {
 
 		// Step 2: Promote pepito to admin on "main" team via HTTP
 		updateBody, _ := json.Marshal(thttp.UpdateTeamMemberRequest{Admin: true})
-		updateReq, err := http.NewRequest(http.MethodPut, qidURL+"/teams/main/members/pepito.json", bytes.NewReader(updateBody))
+		updateReq, err := http.NewRequest(http.MethodPut, pikoURL+"/teams/main/members/pepito.json", bytes.NewReader(updateBody))
 		require.NoError(t, err)
 		updateReq.Header.Set("Authorization", "Bearer "+adminJWT)
 		updateResp, err := http.DefaultClient.Do(updateReq)
@@ -800,7 +800,7 @@ job "gen" {
 
 		// Step 3: Navigate to teams list — this triggers a Backbone.sync fetch
 		// which will detect the stale JWT and auto-refresh the session
-		err = wd.Get(qidURL + "/")
+		err = wd.Get(pikoURL + "/")
 		require.NoError(t, err)
 
 		waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams"), 5*time.Second)
