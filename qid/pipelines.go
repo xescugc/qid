@@ -343,11 +343,20 @@ func (q *Qid) GetPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipelin
 
 var (
 	jobColors = map[build.Status]string{
-		build.Started:   "6",
-		build.Failed:    "1",
-		build.Succeeded: "3",
+		build.Started:   `"#FFA300"`,
+		build.Failed:    `"#FF004D"`,
+		build.Succeeded: `"#00A83A"`,
 	}
-	colorscheme = "set19"
+	jobBorderColors = map[build.Status]string{
+		build.Started:   `"#CC8200"`,
+		build.Failed:    `"#CC003E"`,
+		build.Succeeded: `"#008030"`,
+	}
+	colorResource       = `"#83769C"`
+	colorResourceBorder = `"#5F574F"`
+	colorDefault        = `"#83769C"`
+	colorDefaultBorder  = `"#5F574F"`
+	colorError          = `"#FF004D"`
 )
 
 func (q *Qid) GetPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
@@ -392,26 +401,24 @@ func (q *Qid) generateImage(ctx context.Context, tc string, pp *pipeline.Pipelin
 	graph.SetName(pn)
 	graph.SetStrict(true)
 	graph.AddAttr(pn, string(gographviz.RankDir), "LR")
-	graph.AddAttr(pn, string(gographviz.ColorScheme), colorscheme)
 
-	resourceColors := make(map[string]string)
+	resourceBorders := make(map[string]string)
 	// Print all the resources
 	for _, r := range pp.Resources {
 		vurl := fmt.Sprintf(`"/teams/%s/pipelines/%s/resources/%s/versions"`, tc, pp.Name, r.Canonical)
-		color := "0"
+		borderColor := colorResourceBorder
 		if r.Logs != "" {
-			color = "1"
+			borderColor = colorError
 		}
-		resourceColors[r.Canonical] = color
+		resourceBorders[r.Canonical] = borderColor
 		err = graph.AddNode(pn, fmt.Sprintf(`"%s"`, r.Canonical), map[string]string{
-			string(gographviz.Margin):      "0.1",
-			string(gographviz.Shape):       "cds",
-			string(gographviz.FillColor):   "9",
-			string(gographviz.Style):       "filled",
-			string(gographviz.FontColor):   "white",
-			string(gographviz.ColorScheme): colorscheme,
-			string(gographviz.URL):         vurl,
-			string(gographviz.Color):       color,
+			string(gographviz.Margin):    "0.2",
+			string(gographviz.Shape):     "cds",
+			string(gographviz.FillColor): colorResource,
+			string(gographviz.Style):     "filled",
+			string(gographviz.FontColor): "white",
+			string(gographviz.URL):       vurl,
+			string(gographviz.Color):     borderColor,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
@@ -426,7 +433,8 @@ func (q *Qid) generateImage(ctx context.Context, tc string, pp *pipeline.Pipelin
 			return nil, fmt.Errorf("failed to filter builds from Job %q: %w", j.Name, err)
 		}
 		slices.Reverse(builds)
-		color := "9"
+		color := colorDefault
+		borderColor := colorDefaultBorder
 		var (
 			cb *build.Build
 			pb *build.Build
@@ -438,12 +446,18 @@ func (q *Qid) generateImage(ctx context.Context, tc string, pp *pipeline.Pipelin
 				if c, ok := jobColors[pb.Status]; ok {
 					color = c
 				}
+				if c, ok := jobBorderColors[pb.Status]; ok {
+					borderColor = c
+				}
 			}
 		}
 
 		if pb == nil && cb != nil && cb.Status != build.Started {
 			if c, ok := jobColors[cb.Status]; ok {
 				color = c
+			}
+			if c, ok := jobBorderColors[cb.Status]; ok {
+				borderColor = c
 			}
 		}
 
@@ -454,20 +468,19 @@ func (q *Qid) generateImage(ctx context.Context, tc string, pp *pipeline.Pipelin
 
 		jg = fmt.Sprintf("cluster_%d", i)
 		graph.AddSubGraph(pn, jg, map[string]string{
-			string(gographviz.Style):       style,
-			string(gographviz.Color):       jobColors[build.Started],
-			string(gographviz.ColorScheme): colorscheme,
+			string(gographviz.Style): style,
+			string(gographviz.Color): jobBorderColors[build.Started],
 		})
 
 		burl := fmt.Sprintf(`"/teams/%s/pipelines/%s/jobs/%s/builds"`, tc, pp.Name, j.Name)
 		err = graph.AddNode(jg, j.Name, map[string]string{
-			string(gographviz.Margin):      "0.5",
-			string(gographviz.Shape):       "rectangle",
-			string(gographviz.FillColor):   color,
-			string(gographviz.Style):       "filled",
-			string(gographviz.FontColor):   "white",
-			string(gographviz.ColorScheme): colorscheme,
-			string(gographviz.URL):         burl,
+			string(gographviz.Margin):    "0.5",
+			string(gographviz.Shape):     "rectangle",
+			string(gographviz.FillColor): color,
+			string(gographviz.Style):     "filled",
+			string(gographviz.FontColor): "white",
+			string(gographviz.Color):     borderColor,
+			string(gographviz.URL):       burl,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
@@ -497,17 +510,16 @@ func (q *Qid) generateImage(ctx context.Context, tc string, pp *pipeline.Pipelin
 					nn := fmt.Sprintf(`"%s-%s-%s"`, p, g.Name, j.Name)
 					rCan := fmt.Sprintf("%s.%s", g.Type, g.Name)
 					vurl := fmt.Sprintf(`"/teams/%s/pipelines/%s/resources/%s/versions"`, tc, pp.Name, rCan)
-					color := resourceColors[rCan]
+					border := resourceBorders[rCan]
 					err = graph.AddNode(pn, nn, map[string]string{
-						string(gographviz.Label):       fmt.Sprintf(`"%s"`, rCan),
-						string(gographviz.Margin):      "0.1",
-						string(gographviz.Shape):       "cds",
-						string(gographviz.FillColor):   "9",
-						string(gographviz.Style):       "filled",
-						string(gographviz.FontColor):   "white",
-						string(gographviz.ColorScheme): colorscheme,
-						string(gographviz.URL):         vurl,
-						string(gographviz.Color):       color,
+						string(gographviz.Label):     fmt.Sprintf(`"%s"`, rCan),
+						string(gographviz.Margin):    "0.2",
+						string(gographviz.Shape):     "cds",
+						string(gographviz.FillColor): colorResource,
+						string(gographviz.Style):     "filled",
+						string(gographviz.FontColor): "white",
+						string(gographviz.URL):       vurl,
+						string(gographviz.Color):     border,
 					})
 					if err != nil {
 						return nil, fmt.Errorf("failed to add node to Graph: %w", err)
