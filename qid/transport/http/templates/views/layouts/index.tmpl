@@ -2,6 +2,9 @@
 <html lang="en">
   <head>
     <title>QID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/css/qid.css" rel="stylesheet" />
     <link href="/images/favicon.png" rel="icon" type="image/png"/>
@@ -31,22 +34,29 @@
     </script>
 
     <script type="text/template" id="header-view">
-      <nav class="navbar bg-body-tertiary">
+      <nav class="navbar">
         <div class="container-fluid">
           <a class="navbar-brand" id="logo" href="/">
             <img src="/images/logo.png" alt="Logo" width="45" height="25" class="d-inline-block align-text-top">
             QID
           </a>
           <% if (session) { %>
-            <div class="navbar" id="navbarSupportedContent"> 
-              <div class="d-flex">
-                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  <%- session.user.full_name %>
-                </a>
-                <ul class="dropdown-menu">
-                  <li><a class="dropdown-item" id="logout" href="/logout">Logout</a></li>
-                </ul>
-              </div>
+            <div class="dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <%- session.user.full_name %>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <a class="dropdown-item d-flex align-items-center justify-content-between" href="#" onclick="event.preventDefault(); event.stopPropagation(); toggleTheme();">
+                    <span>Dark Mode</span>
+                    <span class="qid-toggle" id="theme-toggle">
+                      <span class="qid-toggle-thumb"></span>
+                    </span>
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" id="logout" href="/logout">Logout</a></li>
+              </ul>
             </div>
           <% } %>
         </div>
@@ -64,113 +74,97 @@
     </script>
 
     <script type="text/template" id="session-new-view">
-      <div class="w-100 m-auto" style="max-width: 400px;padding-top:200px">
-        <h1>Log In</h1>
-        <form>
-          <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
-            <input type="text" class="form-control" id="username" aria-describedby="username">
+      <div class="qid-login-wrapper">
+        <div class="qid-login-box">
+          <div class="text-center mb-4">
+            <img src="/images/logo.png" alt="QID" width="45" height="25" class="mb-2">
+            <h1 class="h4 fw-bold">Log In</h1>
           </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" aria-describedby="password" >
-          </div>
-          <button type="submit" id="login" class="btn btn-primary">Log In</button>
-        </form>
+          <form>
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input type="text" class="form-control" id="username" placeholder="Enter username">
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" placeholder="Enter password">
+            </div>
+            <button type="submit" id="login" class="btn btn-primary w-100">Log In</button>
+          </form>
+        </div>
       </div>
     </script>
 
     <script type="text/template" id="teams-view">
-      <div class="row">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 fw-bold mb-0">Teams</h1>
         <% if (isAdmin()) { %>
-          <div class="col">
-            <a type="button" id="team-new" class="btn btn-success float-end" href="/teams/new">New</a>
-          </div>
+          <a type="button" id="team-new" class="btn btn-success" href="/teams/new">+ New</a>
         <% } %>
       </div>
-      </br>
-      <div class="row">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th scope="col" class="col-10">Name</th>
-              <th scope="col" class="col-2">Options</th>
-            </tr>
-          </thead>
-          <tbody>
-          </tbody>
-        </table>
+      <div id="team-list">
       </div>
     </script>
 
     <script type="text/template" id="teams-new-view">
-      <h1>New Team</h1>
-      <form>
+      <div class="mb-3">
+        <h1 class="h4 fw-bold">New Team</h1>
+      </div>
+      <form style="max-width:480px;">
         <div class="mb-3">
           <label for="name" class="form-label">Name</label>
-          <input type="text" class="form-control" id="name" aria-describedby="name" value="<%- name %>" <%- id ? "disabled" : ""%>>
+          <input type="text" class="form-control" id="name" value="<%- name %>" placeholder="e.g. platform-team" <%- id ? "disabled" : ""%>>
         </div>
         <button type="submit" class="btn btn-primary">Create</button>
       </form>
     </script>
 
     <script type="text/template" id="team-row-view">
-      <td><%- name %></td>
-      <td>
-				<div class="btn-group" role="group">
-          <a id="pipelines" href="/teams/<%- canonical %>/pipelines" type="button" class="btn btn-primary">Pipelines</a>
-          <a id="manage" href="/teams/<%- canonical %>" type="button" class="btn btn-info">Manage</a>
-          <% if (isAdmin(canonical)) { %>
-					  <button id="delete" type="button" class="btn btn-danger">Delete</button>
-          <% } %>
-				</div>
-      </td>
+      <div class="qid-team-name"><%- name %></div>
+      <div class="qid-team-actions">
+        <a id="pipelines" href="/teams/<%- canonical %>/pipelines" type="button" class="btn btn-primary">Pipelines</a>
+        <a id="manage" href="/teams/<%- canonical %>" type="button" class="btn btn-info">Manage</a>
+        <% if (isAdmin(canonical)) { %>
+          <button id="delete" type="button" class="btn btn-danger">Delete</button>
+        <% } %>
+      </div>
     </script>
 
     <script type="text/template" id="team-show-view">
-      <div class="row">
-        <h1>Team: <%- name %></h1>
+      <div class="mb-3">
+        <h1 class="h4 fw-bold">Team: <%- name %></h1>
       </div>
-      <div class="row">
-        <form>
-          <div class="mb-3">
-            <label for="name" class="form-label">Name</label>
-            <input type="text" class="form-control" id="name" aria-describedby="name" value="<%- name %>"
-              <% if (!isAdmin(canonical)) { %>
-                disabled=""
-              <% } %>
-            >
-          </div>
-          <% if (isAdmin(canonical)) { %>
-            <button type="submit" class="btn btn-primary">Update</button>
-          <% } %>
-        </form>
-      </div>
-      </br>
-      </br>
-      <div class="row">
-        <div class="col">
-          <h3>Members</h3>
+      <form style="max-width:480px;">
+        <div class="mb-3">
+          <label for="name" class="form-label">Name</label>
+          <input type="text" class="form-control" id="name" value="<%- name %>"
+            <% if (!isAdmin(canonical)) { %>
+              disabled=""
+            <% } %>
+          >
         </div>
-        <div class="col">
-          <% if (isAdmin(canonical)) { %>
-            <a type="button" id="new-member" class="btn btn-success float-end">New</a>
-          <% } %>
-        </div>
+        <% if (isAdmin(canonical)) { %>
+          <button type="submit" class="btn btn-primary">Update</button>
+        <% } %>
+      </form>
+      <hr style="border-color: var(--border); margin: 1.5rem 0;">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h3 class="h5 fw-bold mb-0">Members</h3>
+        <% if (isAdmin(canonical)) { %>
+          <a type="button" id="new-member" class="btn btn-success">+ New Member</a>
+        <% } %>
       </div>
-      <div class="row">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th scope="col" class="col-5">Full Name</th>
-              <th scope="col" class="col-5">Admin</th>
-              <th scope="col" class="col-2">Options</th>
-            </tr>
-          </thead>
-          <tbody>
-          </tbody>
-        </table>
-      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col" class="col-5">Full Name</th>
+            <th scope="col" class="col-5">Admin</th>
+            <th scope="col" class="col-2">Options</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
     </script>
 
     <script type="text/template" id="team-new-member-row-view">
@@ -218,14 +212,12 @@
     </script>
 
     <script type="text/template" id="pipelines-view">
-      <div class="row">
-        <div class="col">
-          <% if (isAdmin(team.canonical)) { %>
-            <a type="button" id="pipelines-new" class="btn btn-success float-end" href="/teams/<%- team.canonical %>/pipelines/new">New</a>
-          <% } %>
-        </div>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 fw-bold mb-0">Pipelines</h1>
+        <% if (isAdmin(team.canonical)) { %>
+          <a type="button" id="pipelines-new" class="btn btn-success" href="/teams/<%- team.canonical %>/pipelines/new">+ New</a>
+        <% } %>
       </div>
-      </br>
       <div class="row row-cols-1 row-cols-md-3 g-4" id="pipelines">
       </div>
     </script>
@@ -237,22 +229,44 @@
         </div>
         <div class="card-img-top">
         </div>
+        <div class="card-footer qid-card-status">
+          <span style="color:var(--text-muted);">Loading...</span>
+        </div>
       </div>
     </script>
 
     <script type="text/template" id="pipeline-show-view">
-      <div class="row">
-        <div class="col">
-          <div class="btn-group float-end">
-          <% if (isAdmin(team.canonical)) { %>
-            <button type="button" id="edit-pipeline" class="btn btn-info float-end">Edit</button>
-            <button type="button" id="delete-pipeline" class="btn btn-danger float-end">Delete</button>
-          <% } %>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 fw-bold mb-0"><%- pipeline.name %></h1>
+        <% if (isAdmin(team.canonical)) { %>
+          <div class="btn-group">
+            <button type="button" id="edit-pipeline" class="btn btn-info">Edit</button>
+            <button type="button" id="delete-pipeline" class="btn btn-danger">Delete</button>
           </div>
-        </div>
+        <% } %>
       </div>
-      <div class="row">
-        <div id="graphviz"></div>
+      <div class="qid-graph-container" id="graphviz"></div>
+      <div class="qid-graph-legend">
+        <span class="qid-graph-legend-item">
+          <svg width="22" height="14" viewBox="0 0 22 14"><polygon points="0,0 16,0 22,7 16,14 0,14" fill="#83769C" stroke="#5F574F" stroke-width="1"/></svg>
+          Resource
+        </span>
+        <span class="qid-graph-legend-item">
+          <span class="qid-graph-legend-swatch" style="background:var(--status-succeeded);"></span>
+          Succeeded
+        </span>
+        <span class="qid-graph-legend-item">
+          <span class="qid-graph-legend-swatch" style="background:var(--status-failed);"></span>
+          Failed
+        </span>
+        <span class="qid-graph-legend-item">
+          <span class="qid-graph-legend-swatch" style="background:var(--status-started);border:1.5px dashed var(--status-started);"></span>
+          Running
+        </span>
+        <span class="qid-graph-legend-item">
+          <span class="qid-graph-legend-swatch" style="background:#83769C;"></span>
+          No builds
+        </span>
       </div>
     </script>
 
@@ -261,49 +275,45 @@
     </script>
 
     <script type="text/template" id="pipelines-new-view">
-      <h1><%- id ? "Update Pipeline":"New Pipeline" %></h1>
+      <div class="mb-3">
+        <h1 class="h4 fw-bold"><%- id ? "Update Pipeline":"New Pipeline" %></h1>
+      </div>
       <form>
-        <div class="mb-3">
+        <div class="mb-3" style="max-width:480px;">
           <label for="name" class="form-label">Name</label>
-          <input type="text" class="form-control" id="name" aria-describedby="name" value="<%- name %>" <%- id ? "disabled" : ""%>>
+          <input type="text" class="form-control" id="name" value="<%- name %>" placeholder="e.g. deploy-production" <%- id ? "disabled" : ""%>>
         </div>
-        <div class="mb-3">
-          <div class="row">
-            <div class="col">
-              <div class="mb-3">
-                <label for="pipeline" class="form-label">Pipeline</label>
-                <textarea type="text" rows="20" class="form-control" id="pipeline" aria-describedby="pipeline"><%- raw %></textarea>
-              </div>
-
-              <div class="mb-3">
-                <label for="vars" class="form-label">Vars</label>
-                <textarea type="text" rows="10" class="form-control" id="vars" aria-describedby="vars"></textarea>
-              </div>
+        <div class="row g-4">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="pipeline" class="form-label">Pipeline Definition</label>
+              <textarea type="text" rows="20" class="form-control" id="pipeline"><%- raw %></textarea>
             </div>
-            <div class="col">
-              <div id="graph">
+            <div class="mb-3">
+              <label for="vars" class="form-label">Vars</label>
+              <textarea type="text" rows="10" class="form-control" id="vars"></textarea>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Graph Preview</label>
+            <div id="graph" style="background: var(--bg-muted); border: 1px solid var(--border); border-radius: var(--radius); min-height: 200px;">
             </div>
           </div>
         </div>
-        <button type="submit" class="btn btn-primary"><%- id ? "Update":"Create" %></button>
+        <button type="submit" class="btn btn-primary mt-2"><%- id ? "Update":"Create" %></button>
       </form>
     </script>
 
     <script type="text/template" id="job-builds-view">
-      <div class="row">
-        <div class="col">
-          <% if (isMember(team.canonical)) { %>
-            <button type="button" id="trigger-job" class="btn btn-warning float-end">Trigger Job</button>
-          <% } %>
-        </div>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 fw-bold mb-0"><%- job.name %></h1>
+        <% if (isMember(team.canonical)) { %>
+          <button type="button" id="trigger-job" class="btn btn-warning">Trigger Job</button>
+        <% } %>
       </div>
-      <div class="">
-        <div class="overflow-x-auto">
-          <div class="btn-group" id="builds-tabs" role="group">
-          </div>
-        </div>
-        <div class="tab-content" id="builds-content">
-        </div>
+      <div class="qid-build-tabs" id="builds-tabs">
+      </div>
+      <div id="builds-content">
       </div>
     </script>
 
@@ -343,123 +353,166 @@
     </script>
 
     <script type="text/template" id="job-builds-tab-view">
-      <%- id %>
+      #<%- id %>
+      <span class="qid-tab-status"></span>
     </script>
 
     <script type="text/template" id="job-builds-content-view">
-      <div id="c-<%- id %>">
-        <div class="accordion <%- active ? '':'d-none' %>" id="<%- id %>-build-steps">
-          <% if (error) { %>
-            <div class="alert alert-danger" role="alert">
-              <%- error %>
-            </div>
-          <% } %>
-          <div>
-            <p>Started At: <%- new Date(started_at).toLocaleString() %></p>
-            <% if (duration !== 0 ) { %>
-              <p>Duration: <%- duration %></p>
-            <% } %>
+      <div class="qid-build-content-inner">
+        <% if (error) { %>
+          <div class="alert alert-danger" role="alert">
+            <%- error %>
           </div>
-          <% _.each(get, function(g, i) { %>
-            <div class="accordion-item">
-              <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#g-<%- i %>" aria-controls="collapseOne">
-                  get: <%- g.name %> (<%- g.duration %>)
-                </button>
-              </h2>
-              <div id="g-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
-                <div class="accordion-body">
+        <% } %>
+        <div class="qid-build-meta">
+          <span><span class="qid-build-label">Started</span> <%- new Date(started_at).toLocaleString() %></span>
+          <% if (duration !== 0 ) { %>
+            <span><span class="qid-build-label">Duration</span> <%- duration %></span>
+          <% } %>
+          <% if (status === "succeeded") { %>
+            <span class="qid-badge qid-badge-succeeded">Succeeded</span>
+          <% } else if (status === "failed") { %>
+            <span class="qid-badge qid-badge-failed">Failed</span>
+          <% } else if (status === "started") { %>
+            <span class="qid-badge qid-badge-started">Running</span>
+          <% } %>
+        </div>
+        <% _.each(get || [], function(g, i) { %>
+          <div class="qid-step-row">
+            <div class="qid-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+              <span><span class="qid-step-label">get</span> <%- g.name %> <span style="color:var(--text-muted);">(<%- g.duration %>)</span></span>
+              <% if (status === "succeeded" || g.logs) { %>
+                <span class="qid-badge qid-badge-succeeded">ok</span>
+              <% } %>
+            </div>
+            <div class="qid-step-row-body" style="display:none;">
 <pre>
 <%- g.logs %>
 </pre>
-                </div>
-              </div>
             </div>
-          <% }) %>
-          <% _.each(task, function(t, i) { %>
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#t-<%- i %>" aria-controls="collapseOne">
-                    task: <%- t.name %> 
-                    (<%- t.duration %>)
-                  </button>
-                </h2>
-                <div id="t-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
-                  <div class="accordion-body">
+          </div>
+        <% }) %>
+        <% var _task = task || []; %>
+        <% var _job = job || []; %>
+        <% var lastTask = _task.length > 0 ? _task[_task.length-1] : null; %>
+        <% _.each(_task, function(t, i) { %>
+          <div class="qid-step-row">
+            <div class="qid-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+              <span><span class="qid-step-label">task</span> <%- t.name %> <span style="color:var(--text-muted);">(<%- t.duration %>)</span></span>
+              <% if (status === "failed" && t === lastTask && _job.length === 0) { %>
+                <span class="qid-badge qid-badge-failed">fail</span>
+              <% } else if (status === "started" && t === lastTask && _job.length === 0) { %>
+                <span class="qid-badge qid-badge-started">running</span>
+              <% } else if (t.logs) { %>
+                <span class="qid-badge qid-badge-succeeded">ok</span>
+              <% } %>
+            </div>
+            <div class="qid-step-row-body" style="display:none;">
 <pre>
 <%- t.logs %>
 </pre>
-                  </div>
-                </div>
-              </div>
-          <% }) %>
-          <% _.each(job, function(j, i) { %>
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#j-<%- i %>" aria-controls="collapseOne">
-                    job: <%- j.name %> (<%- j.duration %>)
-                  </button>
-                </h2>
-                <div id="j-<%- i %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
-                  <div class="accordion-body">
+            </div>
+          </div>
+        <% }) %>
+        <% var lastJob = _job.length > 0 ? _job[_job.length-1] : null; %>
+        <% _.each(_job, function(j, i) { %>
+          <div class="qid-step-row">
+            <div class="qid-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+              <span><span class="qid-step-label">job</span> <%- j.name %> <span style="color:var(--text-muted);">(<%- j.duration %>)</span></span>
+              <% if (status === "failed" && j === lastJob) { %>
+                <span class="qid-badge qid-badge-failed">fail</span>
+              <% } else if (status === "started" && j === lastJob) { %>
+                <span class="qid-badge qid-badge-started">running</span>
+              <% } else if (j.logs) { %>
+                <span class="qid-badge qid-badge-succeeded">ok</span>
+              <% } %>
+            </div>
+            <div class="qid-step-row-body" style="display:none;">
 <pre>
 <%- j.logs %>
 </pre>
-                  </div>
-                </div>
-              </div>
-          <% }) %>
-        </div>
+            </div>
+          </div>
+        <% }) %>
       </div>
     </script>
 
     <script type="text/template" id="resource-versions-view">
       <% if (resource.logs) { %>
-        <div class="row">
-          <div class="alert alert-danger" role="alert">
-            <%- resource.logs %>
-          </div>
+        <div class="alert alert-danger" role="alert">
+          <%- resource.logs %>
         </div>
       <% } %>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 fw-bold mb-0"><%- resource.canonical %></h1>
+        <% if (isMember(team.canonical)) { %>
+          <button type="button" id="trigger-resource" class="btn btn-warning">Trigger Resource</button>
+        <% } %>
       </div>
-      <div class="row">
-        <div class="col">
-          <% if (isMember(team.canonical)) { %>
-            <button type="button" id="trigger-resource" class="btn btn-warning float-end">Trigger Resource</button>
-          <% } %>
-          <p class="float-end">Last checked (<%- resource.check_interval||"@every 1m" %>) at: <%- new Date(resource.last_check).toLocaleString() %></p>
-        </div>
+      <div class="qid-resource-info">
+        <span class="qid-build-label">Last checked</span> (<%- resource.check_interval||"@every 1m" %>) at: <span style="color: var(--text-primary);"><%- new Date(resource.last_check).toLocaleString() %></span>
       </div>
-      <div class="row" id="resource-versions">
+      <div id="resource-versions">
       </div>
     </script>
 
     <script type="text/template" id="resource-version-view">
-      <div class="">
-        <div class="accordion" id="<%- id %>-build-steps">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#v-<%- id %>" aria-controls="collapseOne">
-                <% _.mapObject(version, function(v, k) { %>
-                  <%- k %>: <%- v %>
-                <% }) %>
-              </button>
-            </h2>
-            <div id="v-<%- id %>" class="accordion-collapse collapse" data-bs-parent="#<%- id %>-build-steps">
-              <div class="accordion-body">
-                <p>ID: <%- id %></p>
-                <% _.mapObject(version, function(v, k) { %>
-                  <%- k %>: <%- v %>
-                <% }) %>
-              </div>
-            </div>
-          </div>
+      <div class="qid-version-row">
+        <div class="qid-version-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+          <span style="display:flex;align-items:center;gap:8px;">
+            <% if (isFirst) { %>
+              <span class="qid-badge qid-badge-succeeded">latest</span>
+            <% } %>
+            <span class="qid-version-kv">
+              <% _.mapObject(version, function(v, k) { %>
+                <%- k %>: <span><%- v %></span>
+              <% }) %>
+            </span>
+          </span>
+        </div>
+        <div class="qid-version-row-body" style="display:none;">
+          <table class="qid-version-table">
+            <tr><td class="qid-version-key">ID</td><td><%- id %></td></tr>
+            <% _.mapObject(version, function(v, k) { %>
+              <tr><td class="qid-version-key"><%- k %></td><td><%- v %></td></tr>
+            <% }) %>
+          </table>
         </div>
       </div>
     </script>
 
     <script type = "text/javascript">
       'use strict';
+
+      // Theme toggle — persisted in localStorage
+      (function() {
+        var saved = localStorage.getItem('qid-theme');
+        if (saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+      function toggleTheme() {
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('qid-theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          localStorage.setItem('qid-theme', 'dark');
+        }
+        syncThemeSwitch();
+      }
+      function syncThemeSwitch() {
+        var t = document.getElementById('theme-toggle');
+        if (t) {
+          if (document.documentElement.getAttribute('data-theme') === 'dark') {
+            t.classList.add('on');
+          } else {
+            t.classList.remove('on');
+          }
+        }
+      }
+
       var app = {};
       var fetchInterval = 2000
       var isLogin = true
@@ -830,6 +883,7 @@
             sjson = app.session.toJSON()
           }
           this.$el.html(this.template({session: sjson}));
+          syncThemeSwitch();
           return this; // enable chained calls
         }
       })
@@ -914,7 +968,7 @@
         },
         addTeam: function(t) {
           var view = new app.TeamRowView({model: t});
-          this.$el.find('tbody').append(view.render().el);
+          this.$el.find('#team-list').append(view.render().el);
         },
         render: function () {
           this.$el.html(this.template(addSessionFunctions({})));
@@ -933,7 +987,8 @@
       })
       app.TeamRowView = Backbone.View.extend({
         template: _.template($('#team-row-view').html()),
-        tagName: "tr",
+        tagName: "div",
+        className: "qid-team-row",
         events: {
           'click': 'clickLink',
           'click #pipelines':   'clickLink',
@@ -1141,11 +1196,42 @@
         initialize: function() {
           this.image = new app.PipelineImage(null, {pipeline: this.model})
           this.image.fetch()
+          this.listenTo(this.image, "change", this.updateStatus)
         },
         render: function () {
           this.$el.html(this.template(this.model.toJSON()));
           this.$el.find(".card-img-top").html(new app.PipelineGraphView({model: this.image, noLinks: true}).render().el)
           return this; // enable chained calls
+        },
+        updateStatus: function() {
+          var that = this
+          var attempts = 0
+          function checkSvg() {
+            var svg = that.$el.find("svg")[0]
+            if (!svg) {
+              if (attempts++ < 20) setTimeout(checkSvg, 200)
+              return
+            }
+            var hasFailed = false, hasRunning = false, hasSucceeded = false
+            svg.querySelectorAll('polygon, rect, ellipse, path').forEach(function(el) {
+              var fill = (el.getAttribute("fill")||"").toLowerCase()
+              if (fill === "#ff004d") hasFailed = true
+              if (fill === "#ffa300") hasRunning = true
+              if (fill === "#00a83a") hasSucceeded = true
+            })
+            var html = ''
+            if (hasFailed) {
+              html = '<span class="qid-card-status-dot" style="background:#FF004D;"></span> Last build failed'
+            } else if (hasRunning) {
+              html = '<span class="qid-card-status-dot" style="background:#FFA300;"></span> Running'
+            } else if (hasSucceeded) {
+              html = '<span class="qid-card-status-dot" style="background:#00A83A;"></span> Last build passed'
+            } else {
+              html = '<span style="color:var(--text-muted);">No builds</span>'
+            }
+            that.$el.find(".qid-card-status").html(html)
+          }
+          setTimeout(checkSvg, 300)
         },
         clickCard: function(event) {
           event.preventDefault();
@@ -1211,7 +1297,47 @@
             window.Viz.instance().then(viz =>{
               let svg = viz.renderSVGElement(this.model.get("image"))
               svg.setAttribute("width","100%")
-              svg.setAttribute("height","100%")
+              svg.removeAttribute("height")
+              svg.style.maxHeight = "400px"
+              svg.style.background = "transparent"
+              // Post-process SVG for cleaner look
+              svg.querySelectorAll('polygon, rect').forEach(function(el, i) {
+                var f = (el.getAttribute('fill')||'').toLowerCase()
+                // Transparent background
+                if (i === 0 || f === 'white' || f === '#ffffff') {
+                  el.setAttribute('fill', 'transparent')
+                  el.setAttribute('stroke', 'transparent')
+                  return
+                }
+                // Convert job rectangle polygons to rounded rects
+                if (el.tagName === 'polygon' && f && f !== 'none' && f !== 'transparent') {
+                  var points = el.getAttribute('points')
+                  if (!points) return
+                  var pts = points.trim().split(/\s+/).map(function(p) {
+                    var xy = p.split(','); return {x: parseFloat(xy[0]), y: parseFloat(xy[1])}
+                  })
+                  // Detect rectangles (4 points) vs cds shapes (5+ points)
+                  if (pts.length === 4 || pts.length === 5 && pts[0].x === pts[4].x && pts[0].y === pts[4].y) {
+                    var xs = pts.map(function(p){return p.x}), ys = pts.map(function(p){return p.y})
+                    var minX = Math.min.apply(null,xs), maxX = Math.max.apply(null,xs)
+                    var minY = Math.min.apply(null,ys), maxY = Math.max.apply(null,ys)
+                    var rect = document.createElementNS('http://www.w3.org/2000/svg','rect')
+                    rect.setAttribute('x', minX)
+                    rect.setAttribute('y', minY)
+                    rect.setAttribute('width', maxX - minX)
+                    rect.setAttribute('height', maxY - minY)
+                    rect.setAttribute('rx', '4')
+                    rect.setAttribute('ry', '4')
+                    rect.setAttribute('fill', el.getAttribute('fill'))
+                    rect.setAttribute('stroke', el.getAttribute('stroke')||'none')
+                    el.parentNode.replaceChild(rect, el)
+                  }
+                }
+              })
+              // Clean up text styling
+              svg.querySelectorAll('text').forEach(function(t) {
+                t.style.fontFamily = "'Plus Jakarta Sans', system-ui, sans-serif"
+              })
               this.$el.html(this.template());
               this.$el.find("#pipeline-graph").html(svg);
               if (this.noLinks) {
@@ -1316,7 +1442,8 @@
             success: function(){
               var bid = that.collection.setActive(opts.currentBuildID)
               that.currentBuildID = bid
-              var url = new URL(location.origin+"/pipelines/"+that.pipeline.get("name")+"/jobs/"+that.job.get("name")+"/builds/"+bid)
+              var tc = that.collection.job.collection.pipeline.collection.team.get("canonical")
+              var url = new URL(location.origin+"/teams/"+tc+"/pipelines/"+that.pipeline.get("name")+"/jobs/"+that.job.get("name")+"/builds/"+bid)
               app.router.navigate(url.pathname, { trigger: false });
             },
           })
@@ -1328,7 +1455,7 @@
         },
         events: {
           'click #trigger-job': 'clickTriggerJob',
-          'click button.build-tab': 'clickOnTab',
+          'click .qid-build-tab': 'clickOnTab',
         },
         addBuilds: function() {
           var that = this
@@ -1366,19 +1493,20 @@
         },
         clickOnTab: function(event) {
           event.preventDefault();
-          var bid = event.target.id.split("-")[1]
+          var el = event.currentTarget || event.target
+          var bid = el.id.split("-")[1]
           this.collection.setActive(bid)
           this.currentBuildID = bid
-          var url = new URL(location.origin+"/pipelines/"+this.pipeline.get("name")+"/jobs/"+this.job.get("name")+"/builds/"+bid)
+          var tc = this.collection.job.collection.pipeline.collection.team.get("canonical")
+          var url = new URL(location.origin+"/teams/"+tc+"/pipelines/"+this.pipeline.get("name")+"/jobs/"+this.job.get("name")+"/builds/"+bid)
           app.router.navigate(url.pathname, { trigger: false });
         }
       })
       app.JobBuildsTabView = Backbone.View.extend({
-        tagName: "button",
+        tagName: "div",
         attributes: function() {
           return {
-            type: "button",
-            class: "btn btn-"+this.statusToClass()+" build-tab",
+            class: "qid-build-tab",
             id: "t-"+this.model.get("id"),
           }
         },
@@ -1392,28 +1520,20 @@
           } else {
             this.$el.removeClass("active")
           }
-          this.$el.removeClass("btn-success")
-          this.$el.removeClass("btn-danger")
-          this.$el.removeClass("btn-warning")
-          this.$el.addClass("btn-"+this.statusToClass())
-
           var data = this.model.toJSON()
           this.$el.html(this.template(data));
+          // Set the status stripe color
+          var stripe = this.$el.find(".qid-tab-status")
+          stripe.removeClass("status-succeeded status-failed status-started")
+          stripe.addClass("status-"+this.model.get("status"))
           return this; // enable chained calls
-        },
-        statusToClass: function() {
-          switch(this.model.get("status")){
-            case "succeeded":
-              return "success"
-            case "failed":
-              return "danger"
-            case "started":
-              return "warning"
-          }
         },
       })
       app.JobBuildsContentView = Backbone.View.extend({
-        // TODO: Check to set the attributes
+        className: "qid-build-content",
+        attributes: function() {
+          return { id: "c-"+this.model.get("id") }
+        },
         template: _.template($('#job-builds-content-view').html()),
         initialize: function() {
           this.listenTo(this.model, "change", this.render)
@@ -1421,6 +1541,11 @@
         render: function () {
           var data = this.model.toJSON()
           data.active = this.model.get("active")
+          if (data.active) {
+            this.$el.removeClass("d-none")
+          } else {
+            this.$el.addClass("d-none")
+          }
           this.$el.html(this.template(data));
           return this; // enable chained calls
         },
@@ -1457,7 +1582,8 @@
           return this; // enable chained calls
         },
         addVersion: function(m) {
-          var ver = new app.ResourceVersionView({model: m})
+          var isFirst = $('#resource-versions').children().length === 0
+          var ver = new app.ResourceVersionView({model: m, isFirst: isFirst})
           $('#resource-versions').append(ver.render().el);
         },
         remove: function() {
@@ -1472,8 +1598,13 @@
       app.ResourceVersionView = Backbone.View.extend({
         // TODO: Check to set the attributes
         template: _.template($('#resource-version-view').html()),
+        initialize: function(opts) {
+          this.isFirst = opts.isFirst || false
+        },
         render: function () {
-          this.$el.html(this.template(this.model.toJSON()));
+          var data = this.model.toJSON()
+          data.isFirst = this.isFirst
+          this.$el.html(this.template(data));
           return this; // enable chained calls
         },
       })
