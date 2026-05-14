@@ -1,7 +1,7 @@
 package config
 
 type Config struct {
-	QIDURL    string `koanf:"qid-url"`
+	PikoCIURL string `koanf:"pikoci-url"`
 	JWTSecret []byte `koanf:"jwt-secret"`
 
 	Concurrency  int    `koanf:"concurrency"`

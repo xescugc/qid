@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/cycloidio/sqlr"
-	"github.com/xescugc/qid/qid/mysql"
-	"github.com/xescugc/qid/qid/mysql/migrate"
+	"github.com/xescugc/pikoci/pikoci/mysql"
+	"github.com/xescugc/pikoci/pikoci/mysql/migrate"
 
 	_ "gocloud.dev/pubsub/kafkapubsub"
 	_ "gocloud.dev/pubsub/mempubsub"
@@ -26,12 +26,12 @@ func envOr(key, def string) string {
 }
 
 func dbSystems() []string {
-	v := envOr("QID_TEST_DB_SYSTEMS", "mem")
+	v := envOr("PIKOCI_TEST_DB_SYSTEMS", "mem")
 	return strings.Split(v, ",")
 }
 
 func pubsubSystems() []string {
-	v := envOr("QID_TEST_PUBSUB_SYSTEMS", "mem")
+	v := envOr("PIKOCI_TEST_PUBSUB_SYSTEMS", "mem")
 	return strings.Split(v, ",")
 }
 
@@ -55,23 +55,23 @@ func openDB(t *testing.T, system string) *dbSetup {
 	case "sqlite":
 		// Use temp file
 	case "mysql":
-		hp := envOr("QID_TEST_MYSQL_HOST", "127.0.0.1:3306")
+		hp := envOr("PIKOCI_TEST_MYSQL_HOST", "127.0.0.1:3306")
 		parts := strings.Split(hp, ":")
 		host = parts[0]
 		port, _ = strconv.Atoi(parts[1])
-		user = envOr("QID_TEST_MYSQL_USER", "root")
-		password = envOr("QID_TEST_MYSQL_PASSWORD", "root123")
+		user = envOr("PIKOCI_TEST_MYSQL_USER", "root")
+		password = envOr("PIKOCI_TEST_MYSQL_PASSWORD", "root123")
 		dbName = fmt.Sprintf("qid_test_%s_%d", system, os.Getpid())
 	case "postgresql":
-		hp := envOr("QID_TEST_PG_HOST", "127.0.0.1:5432")
+		hp := envOr("PIKOCI_TEST_PG_HOST", "127.0.0.1:5432")
 		parts := strings.Split(hp, ":")
 		host = parts[0]
 		port, _ = strconv.Atoi(parts[1])
-		user = envOr("QID_TEST_PG_USER", "postgres")
-		password = envOr("QID_TEST_PG_PASSWORD", "postgres123")
+		user = envOr("PIKOCI_TEST_PG_USER", "postgres")
+		password = envOr("PIKOCI_TEST_PG_PASSWORD", "postgres123")
 		dbName = fmt.Sprintf("qid_test_%s_%d", system, os.Getpid())
 	case "cockroachdb":
-		hp := envOr("QID_TEST_COCKROACH_HOST", "127.0.0.1:26257")
+		hp := envOr("PIKOCI_TEST_COCKROACH_HOST", "127.0.0.1:26257")
 		parts := strings.Split(hp, ":")
 		host = parts[0]
 		port, _ = strconv.Atoi(parts[1])
@@ -79,7 +79,7 @@ func openDB(t *testing.T, system string) *dbSetup {
 		password = ""
 		dbName = fmt.Sprintf("qid_test_%s_%d", system, os.Getpid())
 	case "tidb":
-		hp := envOr("QID_TEST_TIDB_HOST", "127.0.0.1:4001")
+		hp := envOr("PIKOCI_TEST_TIDB_HOST", "127.0.0.1:4001")
 		parts := strings.Split(hp, ":")
 		host = parts[0]
 		port, _ = strconv.Atoi(parts[1])

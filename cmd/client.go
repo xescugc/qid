@@ -11,20 +11,20 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/urfave/cli/v3"
-	"github.com/xescugc/qid/qid"
-	"github.com/xescugc/qid/qid/transport/http/client"
+	"github.com/xescugc/pikoci/pikoci"
+	"github.com/xescugc/pikoci/pikoci/transport/http/client"
 )
 
 var (
-	configAuthenticationPath = "qid/authentication"
+	configAuthenticationPath = "pikoci/authentication"
 )
 
 var (
 	clientCmd = &cli.Command{
 		Name:  "client",
-		Usage: "Interacts with the QID server",
+		Usage: "Interacts with the PikoCI server",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the QID server", Required: true, Local: true},
+			&cli.StringFlag{Name: "url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the PikoCI server", Required: true, Local: true},
 			&cli.StringFlag{Name: "jwt", Usage: "Provide the JWT to authenticate on the API, if not provided will read it from the FS", Local: true},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
@@ -80,14 +80,14 @@ var (
 			},
 			{
 				Name:  "pipelines",
-				Usage: "Interacts with the QID Pipelines",
+				Usage: "Interacts with the PikoCI Pipelines",
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Value: "main", Usage: "Team Canonical to scope the action", Required: true, Local: true},
 				},
 				Commands: []*cli.Command{
 					{
 						Name:  "create",
-						Usage: "Creates a new QID Pipeline",
+						Usage: "Creates a new PikoCI Pipeline",
 						Flags: []cli.Flag{
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 							&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true, Required: true},
@@ -134,7 +134,7 @@ var (
 					},
 					{
 						Name:  "update",
-						Usage: "Updates a QID Pipeline",
+						Usage: "Updates a PikoCI Pipeline",
 						Flags: []cli.Flag{
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 							&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true, Required: true},
@@ -150,7 +150,7 @@ var (
 					},
 					{
 						Name:  "list",
-						Usage: "Lists the QID Pipelines",
+						Usage: "Lists the PikoCI Pipelines",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
@@ -169,7 +169,7 @@ var (
 					},
 					{
 						Name:  "get",
-						Usage: "Get's a QID Pipeline",
+						Usage: "Get's a PikoCI Pipeline",
 						Flags: []cli.Flag{
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 						},
@@ -191,7 +191,7 @@ var (
 					},
 					{
 						Name:  "delete",
-						Usage: "Deletes a QID Pipeline",
+						Usage: "Deletes a PikoCI Pipeline",
 						Flags: []cli.Flag{
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 						},
@@ -213,7 +213,7 @@ var (
 			},
 			{
 				Name:  "jobs",
-				Usage: "Interacts with the QID Jobs",
+				Usage: "Interacts with the PikoCI Jobs",
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Usage: "Team Canonical to scope the action", Required: true, Local: true},
 					&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"pn"}, Usage: "Name of the Pipeline", Required: true, Local: true},
@@ -221,7 +221,7 @@ var (
 				Commands: []*cli.Command{
 					{
 						Name:  "get",
-						Usage: "Get's a QID Pipeline Job",
+						Usage: "Get's a PikoCI Pipeline Job",
 						Flags: []cli.Flag{
 							&cli.StringFlag{Name: "job-name", Aliases: []string{"n", "jn"}, Usage: "Name of the Job", Required: true},
 						},
@@ -243,7 +243,7 @@ var (
 					},
 					{
 						Name:  "trigger",
-						Usage: "Triggers a new QID Pipeline Job",
+						Usage: "Triggers a new PikoCI Pipeline Job",
 						Flags: []cli.Flag{
 							&cli.StringFlag{Name: "job-name", Aliases: []string{"n", "jn"}, Usage: "Name of the Job", Required: true},
 						},
@@ -279,7 +279,7 @@ func newClientWithConfig(url, jwt string) (*client.Client, error) {
 	return c, nil
 }
 
-func createPipeline(ctx context.Context, svc qid.Service, tc, name, config, vars string) error {
+func createPipeline(ctx context.Context, svc pikoci.Service, tc, name, config, vars string) error {
 
 	f, err := os.Open(config)
 	if err != nil {

@@ -1,4 +1,4 @@
-* [QID](documentation.md#qid)
+* [PikoCI](documentation.md#pikoci)
   * [Basic architecture](documentation.md#basic-architecture)
   * [How it works](documentation.md#how-it-works)
   * [Authentication and Authorization](documentation.md#authentication-and-authorization)

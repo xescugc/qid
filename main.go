@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/xescugc/qid/cmd"
+	"github.com/xescugc/pikoci/cmd"
 )
 
 func main() {
