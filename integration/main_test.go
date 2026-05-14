@@ -9,14 +9,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/xescugc/qid/qid"
-	"github.com/xescugc/qid/qid/mysql"
-	"github.com/xescugc/qid/qid/mysql/migrate"
-	"github.com/xescugc/qid/qid/queue"
-	tshttp "github.com/xescugc/qid/qid/transport/http"
-	"github.com/xescugc/qid/qid/unitwork"
-	"github.com/xescugc/qid/qid/user"
-	"github.com/xescugc/qid/worker"
+	"github.com/xescugc/pikoci/pikoci"
+	"github.com/xescugc/pikoci/pikoci/mysql"
+	"github.com/xescugc/pikoci/pikoci/mysql/migrate"
+	"github.com/xescugc/pikoci/pikoci/queue"
+	tshttp "github.com/xescugc/pikoci/pikoci/transport/http"
+	"github.com/xescugc/pikoci/pikoci/unitwork"
+	"github.com/xescugc/pikoci/pikoci/user"
+	"github.com/xescugc/pikoci/worker"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
 	"gocloud.dev/pubsub/natspubsub"
@@ -32,7 +32,7 @@ func runTests(m *testing.M) int {
 	jwtSecret := []byte("secret")
 	ctx := context.Background()
 
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})).With("service", "qid")
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})).With("service", "pikoci")
 
 	db, err := mysql.New("", 0, "", "", mysql.Options{
 		MultiStatements: true,
@@ -60,7 +60,7 @@ func runTests(m *testing.M) int {
 	br := mysql.NewBuildRepository(db)
 	rur := mysql.NewRunnerRepository(db)
 	suow := unitwork.NewStartUnitOfWork(db)
-	var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, jwtSecret, logger)
+	var svc = pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, jwtSecret, logger)
 	var handler = tshttp.Handler(svc, jwtSecret, logger.With("component", "HTTP"))
 	server := httptest.NewServer(handler)
 	qidURL = server.URL
@@ -77,7 +77,7 @@ func runTests(m *testing.M) int {
 }
 
 func getTopicURL(s string) string {
-	u := fmt.Sprintf("%s://qid", s)
+	u := fmt.Sprintf("%s://pikoci", s)
 	switch s {
 	case natspubsub.Scheme:
 		u += "?natsv2"
@@ -86,15 +86,15 @@ func getTopicURL(s string) string {
 }
 
 func getSubscriptionURL(s string) string {
-	u := fmt.Sprintf("%s://qid", s)
+	u := fmt.Sprintf("%s://pikoci", s)
 	switch s {
 	case natspubsub.Scheme:
-		u += "?queue=qid&natsv2"
+		u += "?queue=pikoci&natsv2"
 	}
 	return u
 }
 
-func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int, llvl string) error {
+func runWorker(ctx context.Context, sy string, t queue.Topic, s pikoci.Service, c int, llvl string) error {
 	var lvl slog.Level
 	switch llvl {
 	case "DEBUG":

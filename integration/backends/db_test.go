@@ -6,13 +6,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xescugc/qid/qid/build"
-	"github.com/xescugc/qid/qid/job"
-	"github.com/xescugc/qid/qid/mysql"
-	"github.com/xescugc/qid/qid/pipeline"
-	"github.com/xescugc/qid/qid/resource"
-	"github.com/xescugc/qid/qid/team"
-	"github.com/xescugc/qid/qid/user"
+	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
+	"github.com/xescugc/pikoci/pikoci/mysql"
+	"github.com/xescugc/pikoci/pikoci/pipeline"
+	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/team"
+	"github.com/xescugc/pikoci/pikoci/user"
 )
 
 func TestDBBackends(t *testing.T) {

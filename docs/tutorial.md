@@ -1,6 +1,6 @@
 # Tutorial
 
-For this tutorial we assume QID is [installed](https://github.com/xescugc/qid/releases) and we'll use local everything (the default behavior) so we can focus on how it works.
+For this tutorial we assume PikoCI is [installed](https://github.com/xescugc/pikoci/releases) and we'll use local everything (the default behavior) so we can focus on how it works.
 
 We'll create an easy pipeline that will test your code once a new change is detected on the main branch
 
@@ -9,15 +9,15 @@ We'll create an easy pipeline that will test your code once a new change is dete
 Run the server with a JWT secret and an initial user:
 
 ```
-qid server --jwt-secret mysecret --users 'admin:$2a$14$...'
+pikoci server --jwt-secret mysecret --users 'admin:$2a$14$...'
 ```
 
-To generate the hashed password use `qid user-password --username admin --password admin123` and pass the output to `--users`.
+To generate the hashed password use `pikoci user-password --username admin --password admin123` and pass the output to `--users`.
 
 For a quick test with in-memory storage (the default), you can run:
 
 ```
-qid server --jwt-secret mysecret --users 'admin:$2a$14$rwQk8Qvc2rij7qhFO4P1W.OiSF6AkgVU1RCrLaY2wawJcpkPEKwbm'
+pikoci server --jwt-secret mysecret --users 'admin:$2a$14$rwQk8Qvc2rij7qhFO4P1W.OiSF6AkgVU1RCrLaY2wawJcpkPEKwbm'
 ```
 
 This creates an `admin` user with password `admin123`. Then go to `localhost:8080`.
@@ -44,7 +44,7 @@ job "echo" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = ["Hello QID"]
+      args = ["Hello PikoCI"]
     }
   }
 }
@@ -72,7 +72,7 @@ As there is no resource linked to it it'll never be triggered automatically, but
 Click on the Job `echo` (the box) and you'll be redirected to the Builds view, which shows all the builds that the Job
 has had, which is now empty. To run one manually, click on `Trigger Job`.
 
-You'll see the Build appear and if you click on it you'll see the output of the `task: echo` which is the `Hello QID`.
+You'll see the Build appear and if you click on it you'll see the output of the `task: echo` which is the `Hello PikoCI`.
 
 <p align="center">
     <img src="images/pipeline_echo_job_builds.png" width=50% height=50%>
@@ -174,7 +174,7 @@ To set them paste this JSON onto the `Vars`:
 
 ```json
 {
-    "repo_url": "https://github.com/xescugc/qid-tests.git",
+    "repo_url": "https://github.com/xescugc/pikoci-tests.git",
     "repo_name":"qid_test"
 }
 ```
@@ -196,4 +196,4 @@ Now click `Create` and you'll see the first build run — since there is nothing
     <img src="images/pipeline_git_reference_job_builds.png" width=50% height=50%>
 </p>
 
-And this would be all for the small Tutorial in how to use QID
+And this would be all for the small Tutorial in how to use PikoCI

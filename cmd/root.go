@@ -5,13 +5,13 @@ import (
 )
 
 var (
-	AppName = "qid"
+	AppName = "pikoci"
 )
 
 var (
 	Cmd = &cli.Command{
 		Name:  AppName,
-		Usage: "QID is a small CI/CD build on top of a Queue(Pub/Sub) system",
+		Usage: "PikoCI is a small CI/CD build on top of a Queue(Pub/Sub) system",
 		Commands: []*cli.Command{
 			serverCmd,
 			clientCmd,
