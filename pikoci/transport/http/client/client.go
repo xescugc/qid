@@ -1,0 +1,536 @@
+package client
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
+	"github.com/xescugc/pikoci/pikoci/pipeline"
+	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/team"
+	thttp "github.com/xescugc/pikoci/pikoci/transport/http"
+	"github.com/xescugc/pikoci/pikoci/user"
+)
+
+type Client struct {
+	url        string
+	jwt        string
+	configPath string
+}
+
+// New returns a new HTTP Client for QID
+func New(host, jwt string) (*Client, error) {
+	if host == "" {
+		return nil, fmt.Errorf("can't initialize the %q with an empty host", "qid")
+	}
+	if !strings.HasPrefix(host, "http") {
+		host = fmt.Sprintf("http://%s", host)
+	}
+	_, err := url.Parse(host)
+	if err != nil {
+		return nil, err
+	}
+
+	cl := &Client{
+		url: host,
+		jwt: jwt,
+	}
+
+	return cl, nil
+}
+
+// SetConfigPath sets the path where the JWT will be persisted on refresh.
+// When empty (default), JWT refresh will not be written to disk.
+func (cl *Client) SetConfigPath(path string) {
+	cl.configPath = path
+}
+
+func (cl *Client) UserLogin(ctx context.Context, un, pass string) (*user.WithMemberships, string, error) {
+	var resp thttp.UserLoginResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/login", cl.url), thttp.UserLoginRequest{
+		Username: un,
+		Password: pass,
+	}, &resp)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, "", fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Data.User, resp.Data.JWT, nil
+}
+
+func (cl *Client) RefreshToken(ctx context.Context, un string) (*user.WithMemberships, string, error) {
+	var resp thttp.RefreshTokenResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/refresh-token", cl.url), nil, &resp)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, "", fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Data.User, resp.Data.JWT, nil
+}
+
+func (cl *Client) GetUser(ctx context.Context, un string) (*user.WithMemberships, error) {
+	// No server-side endpoint for GetUser; it's only used internally for authorization
+	return nil, fmt.Errorf("GetUser is not exposed via HTTP")
+}
+
+func (cl *Client) CreateUser(ctx context.Context, u user.User, isHash bool) (*user.User, error) {
+	var resp thttp.CreateUserResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/users", cl.url), thttp.CreateUserRequest{
+		Username: u.Username,
+		Password: u.Password,
+		IsHash:   isHash,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.User, nil
+}
+
+func (cl *Client) ListUsers(ctx context.Context) ([]*user.User, error) {
+	var resp thttp.ListUsersResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/users", cl.url), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Users, nil
+}
+
+func (cl *Client) CreateTeam(ctx context.Context, un string, t team.Team) (*team.WithMembers, error) {
+	var resp thttp.CreateTeamResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams", cl.url), thttp.CreateTeamRequest{
+		Name: t.Name,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Team, nil
+}
+
+func (cl *Client) ListTeams(ctx context.Context, un string) ([]*team.WithMembers, error) {
+	var resp thttp.ListTeamsResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams", cl.url), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Teams, nil
+}
+
+func (cl *Client) GetTeam(ctx context.Context, tc string) (*team.WithMembers, error) {
+	var resp thttp.GetTeamResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s", cl.url, tc), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Team, nil
+}
+
+func (cl *Client) UpdateTeam(ctx context.Context, tc string, t team.Team) (*team.WithMembers, error) {
+	var resp thttp.UpdateTeamResponse
+
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s", cl.url, tc), thttp.UpdateTeamRequest{
+		Name: t.Name,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Team, nil
+}
+
+func (cl *Client) DeleteTeam(ctx context.Context, tc string) error {
+	var resp thttp.DeleteTeamResponse
+
+	err := cl.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/teams/%s", cl.url, tc), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) CreateTeamMember(ctx context.Context, tc string, tm team.Member) (*team.Member, error) {
+	var resp thttp.CreateTeamMemberResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/members", cl.url, tc), tm, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Member, nil
+}
+
+func (cl *Client) UpdateTeamMember(ctx context.Context, tc, mu string, tm team.Member) (*team.Member, error) {
+	var resp thttp.UpdateTeamMemberResponse
+
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/members/%s", cl.url, tc, mu), thttp.UpdateTeamMemberRequest{
+		Admin: tm.Admin,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Member, nil
+}
+
+func (cl *Client) DeleteTeamMember(ctx context.Context, tc, mu string) error {
+	var resp thttp.DeleteTeamMemberResponse
+
+	err := cl.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/teams/%s/members/%s", cl.url, tc, mu), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) CreatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error) {
+	var resp thttp.CreatePipelineResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines", cl.url, tc), thttp.CreatePipelineRequest{
+		Name:   pn,
+		Config: pp,
+		Vars:   vars,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Pipeline, nil
+}
+
+func (cl *Client) UpdatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error) {
+	var resp thttp.UpdatePipelineResponse
+
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/pipelines/%s", cl.url, tc, pn), thttp.UpdatePipelineRequest{
+		Config: pp,
+		Vars:   vars,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Pipeline, nil
+}
+
+func (cl *Client) GetPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
+	var resp thttp.GetPipelineResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s", cl.url, tc, pn), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Pipeline, nil
+}
+
+func (cl *Client) GetPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
+	var resp thttp.GetPipelineImageResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/image.%s", cl.url, tc, pn, format), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return []byte(resp.Image), nil
+}
+
+func (cl *Client) CreatePipelineImage(ctx context.Context, tc string, pp []byte, vars map[string]interface{}, format string) ([]byte, error) {
+	var resp thttp.CreatePipelineImageResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/image.%s", cl.url, tc, format), thttp.CreatePipelineRequest{
+		Config: pp,
+		Vars:   vars,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return []byte(resp.Image), nil
+}
+
+func (cl *Client) ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipeline, error) {
+	var resp thttp.ListPipelinesResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines", cl.url, tc), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Pipelines, nil
+}
+
+func (cl *Client) DeletePipeline(ctx context.Context, tc, pn string) error {
+	var resp thttp.DeletePipelineResponse
+
+	err := cl.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/teams/%s/pipelines/%s", cl.url, tc, pn), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) TriggerPipelineJob(ctx context.Context, tc, pn, jn string) error {
+	var resp thttp.TriggerPipelineJobResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/trigger", cl.url, tc, pn, jn), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) GetPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
+	var resp thttp.GetPipelineJobResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s", cl.url, tc, pn, jn), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Job, nil
+}
+
+func (cl *Client) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error) {
+	var resp thttp.CreateJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds", cl.url, tc, pn, jn), thttp.CreateJobBuildRequest{
+		Build: b,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Build, nil
+}
+
+func (cl *Client) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+	var resp thttp.UpdateJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d", cl.url, tc, pn, jn, bID), thttp.UpdateJobBuildRequest{
+		Build: b,
+	}, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+	var resp thttp.DeleteJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d", cl.url, tc, pn, jn, bID), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
+	var resp thttp.ListJobBuildsResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds", cl.url, tc, pn, jn), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Builds, nil
+}
+
+func (cl *Client) CreateResourceVersion(ctx context.Context, tc, pn, rCan string, rv resource.Version) (*resource.Version, error) {
+	var resp thttp.CreateResourceVersionResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/resources/%s/versions", cl.url, tc, pn, rCan), thttp.CreateResourceVersionRequest{
+		Version: rv,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Version, nil
+}
+
+func (cl *Client) ListResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
+	var resp thttp.ListResourceVersionsResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/resources/%s/versions", cl.url, tc, pn, rCan), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Versions, nil
+}
+
+func (cl *Client) GetPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
+	var resp thttp.GetPipelineResourceResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/resources/%s", cl.url, tc, pn, rCan), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Resource, nil
+}
+
+func (cl *Client) UpdatePipelineResource(ctx context.Context, tc, pn, rCan string, r resource.Resource) error {
+	var resp thttp.UpdatePipelineResourceResponse
+
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/pipelines/%s/resources/%s", cl.url, tc, pn, rCan), thttp.UpdatePipelineResourceRequest{
+		Resource: r,
+	}, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) TriggerPipelineResource(ctx context.Context, tc, pn, rCan string) error {
+	var resp thttp.TriggerPipelineResourceResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/resources/%s", cl.url, tc, pn, rCan), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}

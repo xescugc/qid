@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/urfave/cli/v3"
-	"github.com/xescugc/qid/qid/utils"
+	"github.com/xescugc/pikoci/pikoci/utils"
 )
 
 const (

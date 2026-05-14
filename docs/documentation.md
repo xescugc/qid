@@ -1,13 +1,13 @@
-# QID
+# PikoCI
 
-QID is a CI/CD based on Queues, meaning that the ones running the Jobs are basically queue workers.
+PikoCI is a CI/CD based on Queues, meaning that the ones running the Jobs are basically queue workers.
 
 :warning: This is still a PoC and under heavy development which may cause breaking changes on the API or configuration :warning:
 
 ## Basic architecture
 
-QID has a simple architecture, you have the main service which is the brain of operations and then you have the workers which
-run the Jobs tasks and interact with the QID server to make any operations.
+PikoCI has a simple architecture, you have the main service which is the brain of operations and then you have the workers which
+run the Jobs tasks and interact with the PikoCI server to make any operations.
 
 ## How it works
 
@@ -15,13 +15,13 @@ Pipeline Resources are checked with the [`check_interval`](#check_interval) to s
 Job that depends on that Resource that changed. If there is, then the new job(s) will be queued for a Worker to do.
 Then when it finishes it checks if another job depends on it and queues that job(s) to be triggered.
 
-When a job/resource is executed in a worker it creates a `$WORKDIR` `$XDG_CACHE_HOME/qid/{UUID}/` in which everything is executed.
+When a job/resource is executed in a worker it creates a `$WORKDIR` `$XDG_CACHE_HOME/pikoci/{UUID}/` in which everything is executed.
 
 The execution of any action is done on a [`runner`](#runner)
 
 ## Authentication and Authorization
 
-QID uses JWT-based authentication with a role-based access control (RBAC) model.
+PikoCI uses JWT-based authentication with a role-based access control (RBAC) model.
 
 ### Users
 
@@ -30,14 +30,14 @@ Users are created either via the `--users` server flag or through the API (by a 
 To generate the hashed password value for the `--users` flag, use the helper command:
 
 ```
-qid user-password --username myuser --password mypassword
+pikoci user-password --username myuser --password mypassword
 ```
 
 This outputs `myuser:$2a$14$...` which can be passed to `--users`.
 
 ### Teams
 
-Everything in QID is scoped under a Team. A default `main` team is used when not specified. Teams have a canonical name (lowercase, URL-safe) derived from their display name.
+Everything in PikoCI is scoped under a Team. A default `main` team is used when not specified. Teams have a canonical name (lowercase, URL-safe) derived from their display name.
 
 ### Roles
 
@@ -54,19 +54,19 @@ On the web UI, users are presented with a login screen. After login, the JWT is 
 On the CLI, use:
 
 ```
-qid client login --url localhost:4000 --username myuser --password mypassword
+pikoci client login --url localhost:4000 --username myuser --password mypassword
 ```
 
-The JWT is stored at `$XDG_CONFIG_HOME/qid/authentication` and automatically used for subsequent CLI commands.
+The JWT is stored at `$XDG_CONFIG_HOME/pikoci/authentication` and automatically used for subsequent CLI commands.
 
 ## Server Configuration
 
 * `port`: The port to expose for the web server and API
 * `jwt-secret` (REQUIRED): The secret used to sign JWT tokens for authentication
-* `users`: List of initial users to create on startup, format: `USERNAME:HASH-PASSWORD` (use `qid user-password` to generate)
+* `users`: List of initial users to create on startup, format: `USERNAME:HASH-PASSWORD` (use `pikoci user-password` to generate)
 * `db-system`: Which type of DB to use. Each system has its own required flags:
   * `mem`: Run the DB in memory (default). Uses SQLite's in-memory mode
-  * `sqlite`: Uses SQLite. The file will be at `$XDG_DATA_HOME/qid/qid.db`
+  * `sqlite`: Uses SQLite. The file will be at `$XDG_DATA_HOME/pikoci/pikoci.db`
   * `mysql`: Uses a MySQL/MariaDB DB. Requires: `db-host`, `db-port`, `db-user`, `db-password`, `db-name`
   * `postgresql`: Uses a PostgreSQL DB (also compatible with CockroachDB). Requires: `db-host`, `db-port`, `db-user`, `db-password`, `db-name`
 * `db-host`: Database host
@@ -90,7 +90,7 @@ The JWT is stored at `$XDG_CONFIG_HOME/qid/authentication` and automatically use
 
 ## Worker Configuration
 
-* `qid-url`: Used to make all the interactions with the DB through it
+* `pikoci-url`: Used to make all the interactions with the DB through it
 * `jwt-secret` (REQUIRED): Must match the server's JWT secret — used to generate a worker token that bypasses authorization
 * `concurrency`: How many parallel instances has the worker
 * `pubsub-system`: Which PubSub system to use (`mem`, `nats`, `rabbit`, `kafka`). See Server Configuration for env var details per system
@@ -158,7 +158,7 @@ Blocks can sometimes be defined multiple times, like the root ones: `job`, `reso
 
 You can define variables to the pipeline configuration for reusability purpose (same Pipeline for different usecases).
 
-Another usecase for the Variables is to pass secrets to the Pipeline. On the future I may implement a dedicated element [`secret_type` and `secret`](https://github.com/xescugc/qid/issues/12) that would make it more simpler and declarative to use secrets.
+Another usecase for the Variables is to pass secrets to the Pipeline. On the future I may implement a dedicated element [`secret_type` and `secret`](https://github.com/xescugc/pikoci/issues/12) that would make it more simpler and declarative to use secrets.
 
 When creating a Pipeline, one of the options is `vars`, which is a JSON with the overridden values of the Variables
 
@@ -179,7 +179,7 @@ The default value of the variable
 ```hcl
 variable "repo_url" {
   type = string
-  default = "https://github.com/xescugc/qid.git"
+  default = "https://github.com/xescugc/pikoci.git"
 }
 
 variable "repo_name" {
@@ -196,7 +196,7 @@ To define which `runner` to use, the blocks that have that will declare it, for 
 
 ```hcl
 job "build" {
-  get "git" "qid" {
+  get "git" "pikoci" {
     passed  = ["test"]
     trigger = true
   }
@@ -227,7 +227,7 @@ So to use it you need to pass a `path` and `args` to the block. If you want to p
 
 ```hcl
 job "build" {
-  get "git" "qid" {
+  get "git" "pikoci" {
     passed  = ["test"]
     trigger = true
   }
@@ -277,9 +277,9 @@ runner "docker" {
 
 ### Resource Type
 
-Resource Types are the core of QID CI/CD as they are the ones that automate all the Jobs by listening to external resource changes.
+Resource Types are the core of PikoCI CI/CD as they are the ones that automate all the Jobs by listening to external resource changes.
 
-For now you always have to define the `resource_type`, but ideally they are reusable between different pipelines so in the future this will [change](https://github.com/xescugc/qid/issues/11) so you can reuse them
+For now you always have to define the `resource_type`, but ideally they are reusable between different pipelines so in the future this will [change](https://github.com/xescugc/pikoci/issues/11) so you can reuse them
 
 #### Internals
 
@@ -410,8 +410,8 @@ Interval in which to check the resource. By default the value is `@every 1m` and
 ```hcl
 resource "git" "my_repo" {
   params {
-    url = "https://github.com/xescugc/qid.git"
-    name = "qid"
+    url = "https://github.com/xescugc/pikoci.git"
+    name = "pikoci"
   }
   check_interval = "@every 3s"
 }
@@ -545,23 +545,23 @@ job "test" {
 
 ## CLI
 
-Not all the API is ported to the CLI [yet](https://github.com/xescugc/qid/issues/58). A Go client is available at `qid/transport/http/client` if needed.
+Not all the API is ported to the CLI [yet](https://github.com/xescugc/pikoci/issues/58). A Go client is available at `pikoci/transport/http/client` if needed.
 
 First, log in to get a JWT stored locally:
 
 ```
-qid client login --url localhost:4000 --username myuser --password mypassword
+pikoci client login --url localhost:4000 --username myuser --password mypassword
 ```
 
 Then you can interact with the API. All pipeline and job commands require `--team-canonical` (`-tc`) to scope the operation to a team (defaults to `main`):
 
 ```
-qid client pipelines --tc main list
-qid client pipelines --tc main create --name my-pipeline --config pipeline.hcl
-qid client pipelines --tc main get --name my-pipeline
-qid client pipelines --tc main update --name my-pipeline --config pipeline.hcl
-qid client pipelines --tc main delete --name my-pipeline
+pikoci client pipelines --tc main list
+pikoci client pipelines --tc main create --name my-pipeline --config pipeline.hcl
+pikoci client pipelines --tc main get --name my-pipeline
+pikoci client pipelines --tc main update --name my-pipeline --config pipeline.hcl
+pikoci client pipelines --tc main delete --name my-pipeline
 
-qid client jobs --tc main --pn my-pipeline get --jn my-job
-qid client jobs --tc main --pn my-pipeline trigger --jn my-job
+pikoci client jobs --tc main --pn my-pipeline get --jn my-job
+pikoci client jobs --tc main --pn my-pipeline trigger --jn my-job
 ```

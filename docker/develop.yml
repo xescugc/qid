@@ -1,13 +1,13 @@
 services:
-  qid:
+  pikoci:
     image: golang:1.25.1
     ports:
       - '4000:4000'
     volumes:
-      - ..:/go/src/qid
+      - ..:/go/src/pikoci
       - $GOPATH/pkg/mod:/go/pkg/mod
       - $GOCACHE:/root/.cache/go-build
-    working_dir: /go/src/qid
+    working_dir: /go/src/pikoci
     environment:
       - PORT=4000
       - DB_HOST=mariadb
@@ -17,17 +17,17 @@ services:
       - DB_NAME=qid_develop
       - NATS_SERVER_URL=nats:4222
       - DB_SYSTEM=sqlite
-      - DB_FILE=qid.db
+      - DB_FILE=pikoci.db
 
   worker:
     image: golang:1.25.1
     volumes:
-      - ..:/go/src/qid
+      - ..:/go/src/pikoci
       - $GOPATH/pkg/mod:/go/pkg/mod
       - $GOCACHE:/root/.cache/go-build
-    working_dir: /go/src/qid
+    working_dir: /go/src/pikoci
     environment:
-      - QID_URL=qid:4000
+      - QID_URL=pikoci:4000
       - NATS_SERVER_URL=nats:4222
 
 

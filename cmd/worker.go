@@ -14,11 +14,11 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 	"github.com/urfave/cli/v3"
-	"github.com/xescugc/qid/qid"
-	"github.com/xescugc/qid/qid/queue"
-	"github.com/xescugc/qid/qid/transport/http/client"
-	"github.com/xescugc/qid/worker"
-	"github.com/xescugc/qid/worker/config"
+	"github.com/xescugc/pikoci/pikoci"
+	"github.com/xescugc/pikoci/pikoci/queue"
+	"github.com/xescugc/pikoci/pikoci/transport/http/client"
+	"github.com/xescugc/pikoci/worker"
+	"github.com/xescugc/pikoci/worker/config"
 
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
@@ -31,11 +31,11 @@ import (
 var (
 	workerCmd = &cli.Command{
 		Name:  "worker",
-		Usage: "Starts a QID Worker",
+		Usage: "Starts a PikoCI Worker",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the config file"},
 
-			&cli.StringFlag{Name: "qid-url", Aliases: []string{"u"}, Value: "localhost:8080", Usage: "URL to the QID server"},
+			&cli.StringFlag{Name: "pikoci-url", Aliases: []string{"u"}, Value: "localhost:8080", Usage: "URL to the PikoCI server"},
 
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS"},
 
@@ -55,7 +55,7 @@ var (
 					return fmt.Errorf("error loading file: %v", err)
 				}
 			}
-			if err := k.Load(cliflagv3.Provider(cmd, "qid.worker"), nil); err != nil {
+			if err := k.Load(cliflagv3.Provider(cmd, "pikoci.worker"), nil); err != nil {
 				return fmt.Errorf("error loading flags: %v", err)
 			}
 			if err := k.Load(env.Provider(".", env.Opt{
@@ -71,19 +71,19 @@ var (
 						return k, strings.Split(v, " ")
 					}
 
-					return fmt.Sprintf("qid.worker.%s", k), v
+					return fmt.Sprintf("pikoci.worker.%s", k), v
 				},
 			}), nil); err != nil {
 				return fmt.Errorf("error loading environments: %v", err)
 			}
 
 			var cfg config.Config
-			k.Unmarshal("qid.worker", &cfg)
+			k.Unmarshal("pikoci.worker", &cfg)
 
 			workerToken := generateWorkerJWT(cfg.JWTSecret)
-			c, err := client.New(cfg.QIDURL, workerToken)
+			c, err := client.New(cfg.PikoCIURL, workerToken)
 			if err != nil {
-				return fmt.Errorf("failed to initialize client with url %q: %w", cfg.QIDURL, err)
+				return fmt.Errorf("failed to initialize client with url %q: %w", cfg.PikoCIURL, err)
 			}
 
 			topic, err := pubsub.OpenTopic(ctx, getTopicURL(cfg.PubSubSystem))
@@ -99,7 +99,7 @@ var (
 	}
 )
 
-func runWorker(ctx context.Context, sy string, t queue.Topic, s qid.Service, c int, llvl string) error {
+func runWorker(ctx context.Context, sy string, t queue.Topic, s pikoci.Service, c int, llvl string) error {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseSlogLevel(llvl)}))
 	logger = logger.With("service", "worker")
 	// Create a subscription connected to that topic.

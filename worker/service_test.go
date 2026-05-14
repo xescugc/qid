@@ -10,15 +10,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xescugc/qid/qid/build"
-	"github.com/xescugc/qid/qid/job"
-	"github.com/xescugc/qid/qid/mock"
-	"github.com/xescugc/qid/qid/pipeline"
-	"github.com/xescugc/qid/qid/queue"
-	"github.com/xescugc/qid/qid/resource"
-	"github.com/xescugc/qid/qid/restype"
-	"github.com/xescugc/qid/qid/runner"
-	"github.com/xescugc/qid/qid/utils"
+	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
+	"github.com/xescugc/pikoci/pikoci/mock"
+	"github.com/xescugc/pikoci/pikoci/pipeline"
+	"github.com/xescugc/pikoci/pikoci/queue"
+	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/restype"
+	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/utils"
 	"go.uber.org/mock/gomock"
 	"gocloud.dev/pubsub"
 )
@@ -29,7 +29,7 @@ func newTestWorker(ctrl *gomock.Controller) (*Worker, *mock.Service, *mock.Topic
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	w := &Worker{
-		qid:    svc,
+		pikoci:        svc,
 		topic:  topic,
 		logger: logger,
 	}

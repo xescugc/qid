@@ -15,13 +15,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli/v3"
-	"github.com/xescugc/qid/qid"
-	"github.com/xescugc/qid/qid/config"
-	"github.com/xescugc/qid/qid/mysql"
-	"github.com/xescugc/qid/qid/mysql/migrate"
-	tshttp "github.com/xescugc/qid/qid/transport/http"
-	"github.com/xescugc/qid/qid/unitwork"
-	"github.com/xescugc/qid/qid/user"
+	"github.com/xescugc/pikoci/pikoci"
+	"github.com/xescugc/pikoci/pikoci/config"
+	"github.com/xescugc/pikoci/pikoci/mysql"
+	"github.com/xescugc/pikoci/pikoci/mysql/migrate"
+	tshttp "github.com/xescugc/pikoci/pikoci/transport/http"
+	"github.com/xescugc/pikoci/pikoci/unitwork"
+	"github.com/xescugc/pikoci/pikoci/user"
 	"gocloud.dev/pubsub"
 
 	"github.com/knadh/koanf/parsers/json"
@@ -44,7 +44,7 @@ var mainTeamCanonical = "main"
 var (
 	serverCmd = &cli.Command{
 		Name:  "server",
-		Usage: "Starts the QID server",
+		Usage: "Starts the PikoCI server",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the config file"},
 
@@ -62,7 +62,7 @@ var (
 			&cli.StringFlag{Name: "db-name", Usage: "Database Name"},
 			&cli.BoolFlag{Name: "run-migrations", Value: true, Usage: "Flag to know if migrations should be ran"},
 
-			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with QID server"},
+			&cli.BoolFlag{Name: "run-worker", Value: true, Usage: "Runs a worker with PikoCI server"},
 			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
 
 			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS"},
@@ -85,7 +85,7 @@ var (
 				}
 			}
 
-			if err := k.Load(cliflagv3.Provider(cmd, "qid.server"), nil); err != nil {
+			if err := k.Load(cliflagv3.Provider(cmd, "pikoci.server"), nil); err != nil {
 				return fmt.Errorf("error loading flags: %v", err)
 			}
 			if err := k.Load(env.Provider(".", env.Opt{
@@ -101,17 +101,17 @@ var (
 						return k, strings.Split(v, " ")
 					}
 
-					return fmt.Sprintf("qid.server.%s", k), v
+					return fmt.Sprintf("pikoci.server.%s", k), v
 				},
 			}), nil); err != nil {
 				return fmt.Errorf("error loading environments: %v", err)
 			}
 
 			var cfg config.Config
-			k.Unmarshal("qid.server", &cfg)
+			k.Unmarshal("pikoci.server", &cfg)
 
 			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseSlogLevel(cfg.LogLevel)}))
-			logger = logger.With("service", "qid")
+			logger = logger.With("service", "pikoci")
 
 			if cfg.DBSystem != mysql.Mem && cfg.DBSystem != mysql.MySQL && cfg.DBSystem != mysql.SQLite && cfg.DBSystem != mysql.PostgreSQL {
 				return fmt.Errorf("invalid DBSystem %q, should be one of: %s, %s, %s or %s", cfg.DBSystem, mysql.Mem, mysql.MySQL, mysql.SQLite, mysql.PostgreSQL)
@@ -165,7 +165,7 @@ var (
 			suow := unitwork.NewStartUnitOfWork(db)
 
 			logger.Info("initializing service")
-			var svc = qid.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, cfg.JWTSecret, logger)
+			var svc = pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, cfg.JWTSecret, logger)
 			logger.Info("initialized service")
 
 			logger.Info("initializing http handlers")
@@ -226,27 +226,27 @@ var (
 )
 
 func getSubscriptionURL(s string) string {
-	u := fmt.Sprintf("%s://qid", s)
+	u := fmt.Sprintf("%s://pikoci", s)
 	switch s {
 	case natspubsub.Scheme:
-		u += "?queue=qid&natsv2"
+		u += "?queue=pikoci&natsv2"
 	case "rabbit":
-		// rabbit://qid — uses RABBIT_SERVER_URL env var
+		// rabbit://pikoci — uses RABBIT_SERVER_URL env var
 	case "kafka":
-		u = "kafka://qid-group?topic=qid"
+		u = "kafka://pikoci-group?topic=pikoci"
 	}
 	return u
 }
 
 func getTopicURL(s string) string {
-	u := fmt.Sprintf("%s://qid", s)
+	u := fmt.Sprintf("%s://pikoci", s)
 	switch s {
 	case natspubsub.Scheme:
 		u += "?natsv2"
 	case "rabbit":
-		// rabbit://qid — uses RABBIT_SERVER_URL env var
+		// rabbit://pikoci — uses RABBIT_SERVER_URL env var
 	case "kafka":
-		// kafka://qid — uses KAFKA_BROKERS env var
+		// kafka://pikoci — uses KAFKA_BROKERS env var
 	}
 	return u
 }

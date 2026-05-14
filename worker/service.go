@@ -16,15 +16,15 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/google/uuid"
 	"github.com/kballard/go-shellquote"
-	"github.com/xescugc/qid/qid"
-	"github.com/xescugc/qid/qid/build"
-	"github.com/xescugc/qid/qid/job"
-	"github.com/xescugc/qid/qid/pipeline"
-	"github.com/xescugc/qid/qid/queue"
-	"github.com/xescugc/qid/qid/resource"
-	"github.com/xescugc/qid/qid/restype"
-	"github.com/xescugc/qid/qid/runner"
-	"github.com/xescugc/qid/qid/utils"
+	"github.com/xescugc/pikoci/pikoci"
+	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
+	"github.com/xescugc/pikoci/pikoci/pipeline"
+	"github.com/xescugc/pikoci/pikoci/queue"
+	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/restype"
+	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/utils"
 	"gocloud.dev/pubsub"
 )
 
@@ -34,15 +34,15 @@ type Service interface {
 
 type Worker struct {
 	topic        queue.Topic
-	qid          qid.Service
+	pikoci        pikoci.Service
 	subscription queue.Subscription
 
 	logger *slog.Logger
 }
 
-func New(s qid.Service, t queue.Topic, ss queue.Subscription, l *slog.Logger) *Worker {
+func New(s pikoci.Service, t queue.Topic, ss queue.Subscription, l *slog.Logger) *Worker {
 	return &Worker{
-		qid:          s,
+		pikoci:        s,
 		topic:        t,
 		subscription: ss,
 		logger:       l,
@@ -80,9 +80,9 @@ func (w *Worker) createWorkDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create UUID: %w", err)
 	}
-	// We append a file "qid" just so CacheFile creates the full dir,
+	// We append a file "pikoci" just so CacheFile creates the full dir,
 	// afterward we just get the Dir of the cwd
-	cwd, err := xdg.CacheFile(filepath.Join("qid", id.String(), "qid"))
+	cwd, err := xdg.CacheFile(filepath.Join("pikoci", id.String(), "pikoci"))
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -90,7 +90,7 @@ func (w *Worker) createWorkDir() (string, error) {
 }
 
 func (w *Worker) processMessage(ctx context.Context, m queue.Body, cwd string) {
-	pp, err := w.qid.GetPipeline(ctx, m.TeamCanonical, m.PipelineName)
+	pp, err := w.pikoci.GetPipeline(ctx, m.TeamCanonical, m.PipelineName)
 	if err != nil {
 		w.logger.Error("failed GetPipeline", "error", err)
 		return
@@ -112,14 +112,14 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		Task:      []build.Step{},
 		StartedAt: time.Now(),
 	}
-	nb, err := w.qid.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
+	nb, err := w.pikoci.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
 	if err != nil {
 		w.logger.Error("failed create build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 		return
 	}
 	b.ID = nb.ID
 
-	j, err := w.qid.GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName)
+	j, err := w.pikoci.GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName)
 	if err != nil {
 		w.failBuild(ctx, m, b, fmt.Errorf("failed to get job: %w", err))
 		return
@@ -151,7 +151,7 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *build.Build, j *job.Job) bool {
 	for _, g := range j.Get {
 		for _, p := range g.Passed {
-			builds, err := w.qid.ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, p)
+			builds, err := w.pikoci.ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, p)
 			if err != nil {
 				w.failBuild(ctx, m, *b, fmt.Errorf("failed to list builds for passed job %q: %w", p, err))
 				return false
@@ -230,7 +230,7 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 		params = make(map[string]string)
 	}
 
-	dbvers, err := w.qid.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
+	dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 	if err != nil {
 		w.failBuild(ctx, m, *b, fmt.Errorf("failed to list resource versions: %w", err))
 		return nil
@@ -369,7 +369,7 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 
 	params := rt.Check.Params
 
-	dbvers, err := w.qid.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
+	dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 	if err != nil {
 		w.logger.Error("failed to list resource versions", "error", err)
 		return
@@ -393,7 +393,7 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 	out, _, err := w.runRunner(ctx, ru, cwd, params)
 	if err != nil {
 		r.Logs = out
-		if nerr := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); nerr != nil {
+		if nerr := w.pikoci.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); nerr != nil {
 			w.logger.Error("failed update resource", "resource", r.Canonical, "pipeline", m.PipelineName, "error", nerr)
 		}
 		w.logger.Error("failed to run resource check", "error", err)
@@ -402,7 +402,7 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 
 	if r.Logs != "" {
 		r.Logs = ""
-		if err := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); err != nil {
+		if err := w.pikoci.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); err != nil {
 			w.logger.Error("failed update resource", "resource", r.Canonical, "pipeline", m.PipelineName, "error", err)
 			return
 		}
@@ -418,14 +418,14 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 	if err := json.Unmarshal([]byte(rawVers), &vers); err != nil {
 		w.logger.Error("failed to unmarshal versions", "raw", rawVers, "error", err)
 		r.Logs = fmt.Sprintf("failed to Unmarshal versions(%s): %v", rawVers, err)
-		if nerr := w.qid.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); nerr != nil {
+		if nerr := w.pikoci.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); nerr != nil {
 			w.logger.Error("failed update resource", "resource", r.Canonical, "pipeline", m.PipelineName, "error", nerr)
 		}
 		return
 	}
 
 	for _, v := range vers {
-		cv, err := w.qid.CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, resource.Version{
+		cv, err := w.pikoci.CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, resource.Version{
 			Version: v,
 		})
 		if err != nil {
@@ -463,7 +463,7 @@ func (w *Worker) triggerResourceJobs(ctx context.Context, m queue.Body, pp *pipe
 
 // updateBuild persists the current build state to the DB.
 func (w *Worker) updateBuild(ctx context.Context, m queue.Body, b build.Build) error {
-	err := w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
+	err := w.pikoci.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
 	if err != nil {
 		w.logger.Error("failed update build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 	}
@@ -476,13 +476,13 @@ func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err
 		b.Error = err.Error()
 		w.logger.Error(err.Error())
 	}
-	if uerr := w.qid.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b); uerr != nil {
+	if uerr := w.pikoci.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b); uerr != nil {
 		w.logger.Error("failed update build", "pipeline", m.PipelineName, "job", m.JobName, "error", uerr)
 	}
 }
 
 func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
-	if err := w.qid.DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID); err != nil {
+	if err := w.pikoci.DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID); err != nil {
 		w.logger.Error("failed delete build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 	}
 }

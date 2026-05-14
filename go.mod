@@ -1,4 +1,4 @@
-module github.com/xescugc/qid
+module github.com/xescugc/pikoci
 
 go 1.25.1
 

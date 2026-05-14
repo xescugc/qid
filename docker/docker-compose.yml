@@ -1,9 +1,9 @@
 services:
-  qid:
+  pikoci:
     #depends_on:
       #- mariadb
     networks:
-      - qid
+      - pikoci
     volumes:
       - cache:/go
 
@@ -11,45 +11,45 @@ services:
     volumes:
       - cache:/go
     networks:
-      - qid
+      - pikoci
 
   mariadb:
     image: mariadb:11.4.2
     networks:
-      - qid
+      - pikoci
 
   nats:
     image: nats:2.12.0
     networks:
-      - qid
+      - pikoci
 
   postgresql:
     image: postgres:17
     networks:
-      - qid
+      - pikoci
 
   rabbitmq:
     image: rabbitmq:3-management
     networks:
-      - qid
+      - pikoci
 
   kafka:
     image: bitnami/kafka
     networks:
-      - qid
+      - pikoci
 
   cockroachdb:
     image: cockroachdb/cockroach
     networks:
-      - qid
+      - pikoci
 
   tidb:
     image: pingcap/tidb
     networks:
-      - qid
+      - pikoci
 
 volumes:
   cache:
 
 networks:
-  qid:
+  pikoci:
