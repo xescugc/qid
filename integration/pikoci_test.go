@@ -52,7 +52,7 @@ func TestPikoCI(t *testing.T) {
 		})
 
 		t.Run("New Team", func(t *testing.T) {
-			teams, err := wd.FindElements(selenium.ByCSSSelector, "tbody>tr")
+			teams, err := wd.FindElements(selenium.ByCSSSelector, ".piko-team-row")
 			require.NoError(t, err)
 			require.Equal(t, 1, len(teams))
 
@@ -85,7 +85,7 @@ func TestPikoCI(t *testing.T) {
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams"), 5*time.Second)
 
-			teams, err := wd.FindElements(selenium.ByCSSSelector, "tbody>tr")
+			teams, err := wd.FindElements(selenium.ByCSSSelector, ".piko-team-row")
 			require.NoError(t, err)
 			require.Equal(t, 2, len(teams))
 
@@ -215,7 +215,7 @@ func TestPikoCI(t *testing.T) {
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams"), 5*time.Second)
 
-			teams, err := wd.FindElements(selenium.ByCSSSelector, "tbody>tr")
+			teams, err := wd.FindElements(selenium.ByCSSSelector, ".piko-team-row")
 			require.NoError(t, err)
 			require.Equal(t, 2, len(teams))
 
@@ -226,7 +226,7 @@ func TestPikoCI(t *testing.T) {
 			err = dBtns[1].Click()
 			require.NoError(t, err)
 
-			teams, err = wd.FindElements(selenium.ByCSSSelector, "tbody>tr")
+			teams, err = wd.FindElements(selenium.ByCSSSelector, ".piko-team-row")
 			require.NoError(t, err)
 			require.Equal(t, 1, len(teams))
 		})
@@ -388,7 +388,7 @@ job "gen" {
 
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines\ncron\nJobs\ngen\nBuilds"), 5*time.Second)
 
-			builds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>button")
+			builds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>.piko-build-tab")
 			require.NoError(t, err)
 			require.Equal(t, 1, len(builds))
 
@@ -399,7 +399,7 @@ job "gen" {
 			require.NoError(t, err)
 
 			waitFor(t, wd, func(t *testing.T, wd selenium.WebDriver) bool {
-				builds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>button")
+				builds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>.piko-build-tab")
 				require.NoError(t, err)
 
 				return len(builds) == 2
@@ -574,7 +574,7 @@ job "gen" {
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams"), 5*time.Second)
 		})
 		t.Run("Teams", func(t *testing.T) {
-			teams, err := wd.FindElements(selenium.ByCSSSelector, "tbody>tr")
+			teams, err := wd.FindElements(selenium.ByCSSSelector, ".piko-team-row")
 			require.NoError(t, err)
 			require.Equal(t, 1, len(teams))
 
@@ -747,7 +747,7 @@ job "gen" {
 			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines\ncron\nJobs\ngen\nBuilds"), 5*time.Second)
 
 			// Members can trigger jobs
-			initialBuilds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>button")
+			initialBuilds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>.piko-build-tab")
 			require.NoError(t, err)
 			initialCount := len(initialBuilds)
 
@@ -758,7 +758,7 @@ job "gen" {
 			require.NoError(t, err)
 
 			waitFor(t, wd, func(t *testing.T, wd selenium.WebDriver) bool {
-				builds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>button")
+				builds, err := wd.FindElements(selenium.ByCSSSelector, "#builds-tabs>.piko-build-tab")
 				require.NoError(t, err)
 
 				return len(builds) > initialCount
