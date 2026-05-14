@@ -766,7 +766,6 @@ job "gen" {
 		})
 	})
 	t.Run("RefreshToken", func(t *testing.T) {
-		t.Skip("Skipped: SPA catch-all intercepts /refresh-token.json re-dispatch — see #140")
 		// Pepito is still logged in as a non-admin member of "main".
 		// We promote pepito to team admin via a direct HTTP call (as admin),
 		// then navigate in the browser. The next Backbone.sync fetch should
