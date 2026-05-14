@@ -22,7 +22,7 @@ import (
 	"gocloud.dev/pubsub/natspubsub"
 )
 
-var qidURL string
+var pikoURL string
 
 func TestMain(m *testing.M) {
 	os.Exit(runTests(m))
@@ -63,7 +63,7 @@ func runTests(m *testing.M) int {
 	var svc = pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, jwtSecret, logger)
 	var handler = tshttp.Handler(svc, jwtSecret, logger.With("component", "HTTP"))
 	server := httptest.NewServer(handler)
-	qidURL = server.URL
+	pikoURL = server.URL
 	defer server.Close()
 
 	isHash := true
