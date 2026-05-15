@@ -23,23 +23,20 @@ func NewJobRepository(db sqlr.Querier) *JobRepository {
 type dbJob struct {
 	ID        sql.NullInt64
 	Name      sql.NullString
-	Get       sql.NullString
-	Task      sql.NullString
+	Plan      sql.NullString
 	OnSuccess sql.NullString
 	OnFailure sql.NullString
 	Ensure    sql.NullString
 }
 
 func newDBJob(p job.Job) dbJob {
-	g, _ := json.Marshal(p.Get)
-	t, _ := json.Marshal(p.Task)
+	pl, _ := json.Marshal(p.Plan)
 	s, _ := json.Marshal(p.OnSuccess)
 	f, _ := json.Marshal(p.OnFailure)
 	e, _ := json.Marshal(p.Ensure)
 	return dbJob{
 		Name:      toNullString(p.Name),
-		Get:       toNullString(string(g)),
-		Task:      toNullString(string(t)),
+		Plan:      toNullString(string(pl)),
 		OnSuccess: toNullString(string(s)),
 		OnFailure: toNullString(string(f)),
 		Ensure:    toNullString(string(e)),
@@ -52,8 +49,7 @@ func (dbp *dbJob) toDomainEntity() *job.Job {
 		Name: dbp.Name.String,
 	}
 
-	_ = json.Unmarshal([]byte(dbp.Get.String), &j.Get)
-	_ = json.Unmarshal([]byte(dbp.Task.String), &j.Task)
+	_ = json.Unmarshal([]byte(dbp.Plan.String), &j.Plan)
 	_ = json.Unmarshal([]byte(dbp.OnSuccess.String), &j.OnSuccess)
 	_ = json.Unmarshal([]byte(dbp.OnFailure.String), &j.OnFailure)
 	_ = json.Unmarshal([]byte(dbp.Ensure.String), &j.Ensure)
@@ -64,8 +60,8 @@ func (dbp *dbJob) toDomainEntity() *job.Job {
 func (r *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO jobs(name, get, task, on_success, on_failure, ensure, pipeline_id)
-		VALUES (?, ?, ?, ?, ?, ?,
+		INSERT INTO jobs(name, plan, on_success, on_failure, ensure, pipeline_id)
+		VALUES (?, ?, ?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
@@ -73,7 +69,7 @@ func (r *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (u
 				JOIN teams AS t
 					ON p.team_id = t.id
 				WHERE t.canonical = ? AND p.name = ?
-			))`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn)
+			))`, dbj.Name, dbj.Plan, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -90,7 +86,7 @@ func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE jobs AS j
-		SET name = ?, get = ?, task = ?, on_success = ?, on_failure = ?, ensure = ?
+		SET name = ?, plan = ?, on_success = ?, on_failure = ?, ensure = ?
 		FROM (
 			SELECT j.id
 			FROM jobs AS j
@@ -101,7 +97,7 @@ func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job
 			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
 		) AS jj
 		WHERE jj.id = j.id
-	`, dbj.Name, dbj.Get, dbj.Task, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn, jn)
+	`, dbj.Name, dbj.Plan, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -116,7 +112,7 @@ func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job
 
 func (r *JobRepository) Find(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT j.id, j.name, j.get, j.task, j.on_success, j.on_failure, j.ensure
+		SELECT j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
@@ -135,7 +131,7 @@ func (r *JobRepository) Find(ctx context.Context, tc, pn, jn string) (*job.Job, 
 
 func (r *JobRepository) Filter(ctx context.Context, tc, pn string) ([]*job.Job, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT j.id, j.name, j.get, j.task, j.on_success, j.on_failure, j.ensure
+		SELECT j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
@@ -187,8 +183,7 @@ func scanJob(s sqlr.Scanner) (*job.Job, error) {
 	err := s.Scan(
 		&j.ID,
 		&j.Name,
-		&j.Get,
-		&j.Task,
+		&j.Plan,
 		&j.OnSuccess,
 		&j.OnFailure,
 		&j.Ensure,

@@ -23,8 +23,7 @@ func NewBuildRepository(db sqlr.Querier) *BuildRepository {
 
 type dbBuild struct {
 	ID        sql.NullInt64
-	Get       sql.NullString
-	Task      sql.NullString
+	Steps     sql.NullString
 	Job       sql.NullString
 	Status    sql.NullString
 	Error     sql.NullString
@@ -33,12 +32,10 @@ type dbBuild struct {
 }
 
 func newDBBuild(b build.Build) dbBuild {
-	g, _ := json.Marshal(b.Get)
-	t, _ := json.Marshal(b.Task)
+	s, _ := json.Marshal(b.Steps)
 	j, _ := json.Marshal(b.Job)
 	return dbBuild{
-		Get:       toNullString(string(g)),
-		Task:      toNullString(string(t)),
+		Steps:     toNullString(string(s)),
 		Job:       toNullString(string(j)),
 		Status:    toNullString(b.Status.String()),
 		Error:     toNullString(b.Error),
@@ -57,8 +54,7 @@ func (dbb *dbBuild) toDomainEntity() *build.Build {
 		Duration:  time.Duration(dbb.Duration.Int64),
 	}
 
-	_ = json.Unmarshal([]byte(dbb.Get.String), &b.Get)
-	_ = json.Unmarshal([]byte(dbb.Task.String), &b.Task)
+	_ = json.Unmarshal([]byte(dbb.Steps.String), &b.Steps)
 	_ = json.Unmarshal([]byte(dbb.Job.String), &b.Job)
 
 	return b
@@ -67,8 +63,8 @@ func (dbb *dbBuild) toDomainEntity() *build.Build {
 func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, error) {
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO builds( get, task, job, status, error, started_at, duration, job_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?,
+		INSERT INTO builds(steps, job, status, error, started_at, duration, job_id)
+		VALUES (?, ?, ?, ?, ?, ?,
 			-- job_id
 			(
 				SELECT j.id
@@ -78,7 +74,7 @@ func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build
 				JOIN teams AS t
 					ON p.team_id = t.id
 				WHERE t.canonical = ? AND p.name = ? AND j.name = ?
-			))`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn)
+			))`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -93,7 +89,7 @@ func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build
 
 func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT b.id, b.get, b.task, b.job, b.status, b.error, b.started_at, b.duration
+		SELECT b.id, b.steps, b.job, b.status, b.error, b.started_at, b.duration
 		FROM builds AS b
 		JOIN jobs AS j
 			ON b.job_id = j.id
@@ -114,7 +110,7 @@ func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint3
 
 func (r *BuildRepository) Filter(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT b.id, b.get, b.task, b.job, b.status, b.error, b.started_at, b.duration
+		SELECT b.id, b.steps, b.job, b.status, b.error, b.started_at, b.duration
 		FROM builds AS b
 		JOIN jobs AS j
 			ON b.job_id = j.id
@@ -140,7 +136,7 @@ func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uin
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE builds AS b
-		SET get = ?, task = ?, job = ?, status = ?, error = ?, started_at = ?, duration = ?
+		SET steps = ?, job = ?, status = ?, error = ?, started_at = ?, duration = ?
 		FROM (
 			SELECT b.id
 			FROM builds AS b
@@ -153,7 +149,7 @@ func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uin
 			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
 		) AS bb
 		WHERE bb.id = b.id
-	`, dbb.Get, dbb.Task, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn, bID, bID)
+	`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn, bID, bID)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -199,8 +195,7 @@ func scanBuild(s sqlr.Scanner) (*build.Build, error) {
 
 	err := s.Scan(
 		&b.ID,
-		&b.Get,
-		&b.Task,
+		&b.Steps,
 		&b.Job,
 		&b.Status,
 		&b.Error,

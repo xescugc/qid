@@ -485,7 +485,8 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 		if err != nil {
 			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
 		}
-		for _, g := range j.Get {
+		// Draw resource→job edges for get steps without passed constraints
+		for _, g := range j.GetSteps() {
 			if len(g.Passed) == 0 {
 				rCan := fmt.Sprintf(`"%s.%s"`, g.Type, g.Name)
 				opt := make(map[string]string)
@@ -500,11 +501,23 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 				}
 			}
 		}
+		// Draw job→resource edges for put steps
+		for _, ps := range j.Plan {
+			if ps.Type == "put" && ps.Put != nil {
+				rCan := fmt.Sprintf(`"%s.%s"`, ps.Put.Type, ps.Put.Name)
+				err = graph.AddEdge(j.Name, rCan, false, map[string]string{
+					string(gographviz.Style): "solid",
+				})
+				if err != nil {
+					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
+				}
+			}
+		}
 	}
 
 	// Now we print all the jobs interconnections depending on resources
 	for _, j := range pp.Jobs {
-		for _, g := range j.Get {
+		for _, g := range j.GetSteps() {
 			if len(g.Passed) != 0 {
 				for _, p := range g.Passed {
 					nn := fmt.Sprintf(`"%s-%s-%s"`, p, g.Name, j.Name)

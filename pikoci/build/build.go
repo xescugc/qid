@@ -15,8 +15,7 @@ const (
 // Build represents a run of a Job
 type Build struct {
 	ID     uint32 `json:"id"`
-	Get    []Step `json:"get"`
-	Task   []Step `json:"task"`
+	Steps  []Step `json:"steps"`
 	Status Status `json:"status"`
 	Error  string `json:"error"`
 	// Job are the general logs printed at the end
@@ -27,6 +26,7 @@ type Build struct {
 }
 
 type Step struct {
+	Type      string        `json:"type"`
 	Name      string        `json:"name"`
 	VersionID uint32        `json:"version_id"`
 	Logs      string        `json:"logs"`

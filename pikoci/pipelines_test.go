@@ -92,3 +92,115 @@ func TestDeletePipeline_InvalidCanonical(t *testing.T) {
 	err = s.S.DeletePipeline(ctx, "main", "INVALID")
 	require.Error(t, err)
 }
+
+func TestCreatePipeline_OrderedPlanWithPut(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource_type "git" {
+  params = ["url"]
+  check "exec" {
+    path = "echo"
+    args = "check"
+  }
+  pull "exec" {
+    path = "echo"
+    args = "pull"
+  }
+  push "exec" {
+    path = "echo"
+    args = "push"
+  }
+}
+
+resource "git" "repo" {
+  params {
+    url = "http://example.com"
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "deploy" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "build" {
+    run "exec" {
+      path = "echo"
+      args = "building"
+    }
+  }
+  put "git" "repo" {
+    tag = "latest"
+  }
+}
+`)
+
+	// Expect all the create calls
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "test-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			// Verify the plan is ordered: get, task, put
+			require.Len(t, j.Plan, 3)
+			assert.Equal(t, job.StepTypeGet, j.Plan[0].Type)
+			assert.Equal(t, "timer", j.Plan[0].Get.Name)
+			assert.Equal(t, job.StepTypeTask, j.Plan[1].Type)
+			assert.Equal(t, "build", j.Plan[1].Task.Name)
+			assert.Equal(t, job.StepTypePut, j.Plan[2].Type)
+			assert.Equal(t, "repo", j.Plan[2].Put.Name)
+			assert.Equal(t, "latest", j.Plan[2].Put.Params["tag"])
+			return uint32(1), nil
+		})
+	s.ResourceTypes.EXPECT().Create(ctx, "main", "test-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "test-pipeline", gomock.Any()).Return(uint32(1), nil).Times(2)
+	s.Pipelines.EXPECT().Find(ctx, "main", "test-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "test-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "test-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_BackwardsCompat_GetThenTask(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = "hello"
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "compat-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			// Verify backwards compat: get before task
+			require.Len(t, j.Plan, 2)
+			assert.Equal(t, job.StepTypeGet, j.Plan[0].Type)
+			assert.Equal(t, job.StepTypeTask, j.Plan[1].Type)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "compat-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "compat-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "compat-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "compat-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
