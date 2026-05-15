@@ -49,6 +49,7 @@ func (j *Job) PlanGetSteps() []PlanStep {
 type PlanStep struct {
 	Type      StepType              `json:"type"`
 	Timeout   time.Duration         `json:"timeout,omitempty"`
+	Attempts  int                   `json:"attempts,omitempty"`
 	Get       *GetStep              `json:"get,omitempty"`
 	Task      *TaskStep             `json:"task,omitempty"`
 	Put       *PutStep              `json:"put,omitempty"`

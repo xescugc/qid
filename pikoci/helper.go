@@ -28,8 +28,9 @@ type hclGetStep struct {
 	Type    string   `json:"type" hcl:"type,label"`
 	Name    string   `json:"name" hcl:"name,label"`
 	Passed  []string `json:"passed" hcl:"passed,optional"`
-	Trigger bool     `json:"trigger" hcl:"trigger,optional"`
-	Timeout string   `json:"timeout" hcl:"timeout,optional"`
+	Trigger  bool     `json:"trigger" hcl:"trigger,optional"`
+	Timeout  string   `json:"timeout" hcl:"timeout,optional"`
+	Attempts int      `json:"attempts" hcl:"attempts,optional"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -38,9 +39,10 @@ type hclGetStep struct {
 
 // hclTaskStep is the HCL-decoded task step with per-step hooks.
 type hclTaskStep struct {
-	Name    string              `json:"name" hcl:"name,label"`
-	Timeout string              `json:"timeout" hcl:"timeout,optional"`
-	Run     utils.RunnerCommand `json:"run" hcl:"run,block"`
+	Name     string              `json:"name" hcl:"name,label"`
+	Timeout  string              `json:"timeout" hcl:"timeout,optional"`
+	Attempts int                 `json:"attempts" hcl:"attempts,optional"`
+	Run      utils.RunnerCommand `json:"run" hcl:"run,block"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -49,9 +51,10 @@ type hclTaskStep struct {
 
 // hclPutStep is the HCL-decoded put step.
 type hclPutStep struct {
-	Type    string `hcl:"type,label"`
-	Name    string `hcl:"name,label"`
-	Timeout string `hcl:"timeout,optional"`
+	Type     string `hcl:"type,label"`
+	Name     string `hcl:"name,label"`
+	Timeout  string `hcl:"timeout,optional"`
+	Attempts int    `hcl:"attempts,optional"`
 
 	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
@@ -384,9 +387,13 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 						return nil, fmt.Errorf("invalid timeout %q on get step %q: %w", g.Timeout, g.Name, err)
 					}
 				}
+				if g.Attempts < 0 {
+					return nil, fmt.Errorf("invalid attempts %d on get step %q: must be >= 0", g.Attempts, g.Name)
+				}
 				plan = append(plan, job.PlanStep{
-					Type:    job.StepTypeGet,
-					Timeout: timeout,
+					Type:     job.StepTypeGet,
+					Timeout:  timeout,
+					Attempts: g.Attempts,
 					Get: &job.GetStep{
 						Type:    g.Type,
 						Name:    g.Name,
@@ -411,9 +418,13 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 						return nil, fmt.Errorf("invalid timeout %q on task step %q: %w", t.Timeout, t.Name, err)
 					}
 				}
+				if t.Attempts < 0 {
+					return nil, fmt.Errorf("invalid attempts %d on task step %q: must be >= 0", t.Attempts, t.Name)
+				}
 				plan = append(plan, job.PlanStep{
-					Type:    job.StepTypeTask,
-					Timeout: timeout,
+					Type:     job.StepTypeTask,
+					Timeout:  timeout,
+					Attempts: t.Attempts,
 					Task: &job.TaskStep{
 						Name: t.Name,
 						Run:  t.Run,
@@ -436,9 +447,13 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 						return nil, fmt.Errorf("invalid timeout %q on put step %q: %w", p.Timeout, p.Name, err)
 					}
 				}
+				if p.Attempts < 0 {
+					return nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
+				}
 				plan = append(plan, job.PlanStep{
-					Type:    job.StepTypePut,
-					Timeout: timeout,
+					Type:     job.StepTypePut,
+					Timeout:  timeout,
+					Attempts: p.Attempts,
 					Put: &job.PutStep{
 						Type:   p.Type,
 						Name:   p.Name,

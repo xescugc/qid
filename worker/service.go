@@ -207,13 +207,6 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 // runGetStep runs a single get step (resource pull).
 // Returns true if the step failed.
 func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, g job.GetStep, ps job.PlanStep) bool {
-	runCtx := ctx
-	if ps.Timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
-		defer cancel()
-	}
-
 	r, ok := pp.Resource(utils.ResourceCanonical(g.Type, g.Name))
 	if !ok {
 		return false
@@ -238,11 +231,42 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		Args:   rt.Pull.Args,
 		Params: params,
 	}
-	out, d, err := w.runRunner(runCtx, ru, cwd, rc)
-	if err != nil {
+
+	maxAttempts := ps.Attempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	var out string
+	var d time.Duration
+	var err error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if attempt > 1 && maxAttempts > 1 {
+			out += fmt.Sprintf("\n--- attempt %d/%d ---\n", attempt, maxAttempts)
+		}
+
+		runCtx := ctx
+		if ps.Timeout > 0 {
+			var cancel context.CancelFunc
+			runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
+			defer cancel()
+		}
+
+		var attemptOut string
+		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc)
+		out += attemptOut
+
+		if err == nil {
+			break
+		}
+
 		if runCtx.Err() == context.DeadlineExceeded {
 			out += fmt.Sprintf("\nstep timed out after %s", ps.Timeout)
 		}
+	}
+
+	if err != nil {
 		b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d})
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
@@ -270,23 +294,46 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 // runTaskStep runs a single task step.
 // Returns true if the step failed.
 func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, t job.TaskStep, ps job.PlanStep) bool {
-	runCtx := ctx
-	if ps.Timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
-		defer cancel()
-	}
-
 	ru, ok := pp.Runner(t.Run.Runner)
 	if !ok {
 		return false
 	}
 
-	out, d, err := w.runRunner(runCtx, ru, cwd, t.Run)
-	if err != nil {
+	maxAttempts := ps.Attempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	var out string
+	var d time.Duration
+	var err error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if attempt > 1 && maxAttempts > 1 {
+			out += fmt.Sprintf("\n--- attempt %d/%d ---\n", attempt, maxAttempts)
+		}
+
+		runCtx := ctx
+		if ps.Timeout > 0 {
+			var cancel context.CancelFunc
+			runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
+			defer cancel()
+		}
+
+		var attemptOut string
+		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, t.Run)
+		out += attemptOut
+
+		if err == nil {
+			break
+		}
+
 		if runCtx.Err() == context.DeadlineExceeded {
 			out += fmt.Sprintf("\nstep timed out after %s", ps.Timeout)
 		}
+	}
+
+	if err != nil {
 		b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d})
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
@@ -307,13 +354,6 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 // runPutStep runs a single put step (resource push).
 // Returns true if the step failed.
 func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, p job.PutStep, ps job.PlanStep) bool {
-	runCtx := ctx
-	if ps.Timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
-		defer cancel()
-	}
-
 	rCan := utils.ResourceCanonical(p.Type, p.Name)
 	r, ok := pp.Resource(rCan)
 	if !ok {
@@ -349,11 +389,42 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		Args:   rt.Push.Args,
 		Params: params,
 	}
-	out, d, err := w.runRunner(runCtx, ru, cwd, rc)
-	if err != nil {
+
+	maxAttempts := ps.Attempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	var out string
+	var d time.Duration
+	var err error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if attempt > 1 && maxAttempts > 1 {
+			out += fmt.Sprintf("\n--- attempt %d/%d ---\n", attempt, maxAttempts)
+		}
+
+		runCtx := ctx
+		if ps.Timeout > 0 {
+			var cancel context.CancelFunc
+			runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
+			defer cancel()
+		}
+
+		var attemptOut string
+		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc)
+		out += attemptOut
+
+		if err == nil {
+			break
+		}
+
 		if runCtx.Err() == context.DeadlineExceeded {
 			out += fmt.Sprintf("\nstep timed out after %s", ps.Timeout)
 		}
+	}
+
+	if err != nil {
 		b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d})
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)

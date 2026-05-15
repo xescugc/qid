@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"testing"
@@ -1189,6 +1190,209 @@ func TestProcessJob_NoTimeout_Succeeds(t *testing.T) {
 	w.processJob(ctx, m, cwd, pp)
 
 	assert.Equal(t, build.Succeeded, lastBuild.Status)
+}
+
+func TestProcessJob_TaskRetry_SucceedsOnSecondAttempt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "retry-job",
+	}
+
+	// Script that fails on first run (no marker file) and succeeds on second (marker exists).
+	script := fmt.Sprintf(`#!/bin/sh
+if [ -f "%s/marker" ]; then
+  echo "success"
+  exit 0
+else
+  touch "%s/marker"
+  echo "fail"
+  exit 1
+fi
+`, cwd, cwd)
+	scriptPath := cwd + "/retry.sh"
+	os.WriteFile(scriptPath, []byte(script), 0755)
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "retry-job",
+				Plan: []job.PlanStep{
+					{
+						Type:     job.StepTypeTask,
+						Attempts: 2,
+						Task: &job.TaskStep{
+							Name: "flaky",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{"path": scriptPath},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 200}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// UpdateJobBuild: after task step (success) + after marking succeeded
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(200), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).Times(2)
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Succeeded, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Contains(t, capturedBuild.Steps[0].Logs, "attempt 2/2")
+	assert.Contains(t, capturedBuild.Steps[0].Logs, "success")
+}
+
+func TestProcessJob_TaskRetry_ExhaustsAttempts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "exhaust-job",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "exhaust-job",
+				Plan: []job.PlanStep{
+					{
+						Type:     job.StepTypeTask,
+						Attempts: 2,
+						Task: &job.TaskStep{
+							Name: "always-fail",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{"path": "false"},
+							},
+						},
+						OnFailure: []utils.RunnerCommand{
+							{
+								Runner: "exec",
+								Args:   []string{"failed after retries"},
+								Params: map[string]string{"path": "echo"},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 201}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// failBuild + on_failure hook = 2 updates
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(201), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).Times(2)
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Contains(t, capturedBuild.Steps[0].Logs, "attempt 2/2")
+}
+
+func TestProcessJob_TaskRetry_WithTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "timeout-retry-job",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "timeout-retry-job",
+				Plan: []job.PlanStep{
+					{
+						Type:     job.StepTypeTask,
+						Attempts: 2,
+						Timeout:  1 * time.Second,
+						Task: &job.TaskStep{
+							Name: "slow-task",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"10"},
+								Params: map[string]string{"path": "sleep"},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 202}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// failBuild = 1 update
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(202), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		})
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	logs := capturedBuild.Steps[0].Logs
+	assert.Contains(t, logs, "attempt 2/2")
+	assert.Contains(t, logs, "timed out after 1s")
 }
 
 // Silence the unused import warnings
