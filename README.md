@@ -155,6 +155,11 @@ Full documentation is in the [wiki](https://github.com/xescugc/pikoci/wiki):
 - [Variables and secrets](https://github.com/xescugc/pikoci/wiki/Variables)
 - [Database backends](https://github.com/xescugc/pikoci/wiki/Database)
 - [Queue backends](https://github.com/xescugc/pikoci/wiki/Queue)
+- [CLI reference](https://github.com/xescugc/pikoci/wiki/CLI)
+- [Public pipelines](https://github.com/xescugc/pikoci/wiki/Public-Pipelines)
+- [Running workers separately](https://github.com/xescugc/pikoci/wiki/Workers)
+- [Portability and bundling](https://github.com/xescugc/pikoci/wiki/Portability)
+- [Coming from Concourse](https://github.com/xescugc/pikoci/wiki/Concourse)
 
 
 ## Contributing

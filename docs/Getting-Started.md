@@ -1,0 +1,83 @@
+# Getting Started
+
+## Install
+
+Download the latest release for your platform:
+
+```bash
+# Linux (amd64)
+curl -L https://github.com/xescugc/pikoci/releases/latest/download/linux-amd64 -o pikoci
+chmod +x pikoci
+
+# macOS (amd64)
+curl -L https://github.com/xescugc/pikoci/releases/latest/download/darwin-amd64 -o pikoci
+chmod +x pikoci
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/xescugc/pikoci.git
+cd pikoci
+go build -o pikoci .
+```
+
+## Run with a pipeline
+
+The fastest way to start. Pass a pipeline config at launch and it's ready immediately:
+
+```bash
+./pikoci server \
+  --db-system mem \
+  --pubsub-system mem \
+  --jwt-secret my-secret \
+  --run-worker \
+  --pipeline-name my-pipeline \
+  --pipeline-config pipeline.hcl
+```
+
+Open [http://localhost:8080](http://localhost:8080) and log in with `admin` / `admin123`.
+
+## Example pipeline
+
+A cron resource checks for new versions every 10 seconds. When detected, it triggers the `echo` job:
+
+```hcl
+resource "cron" "my_cron" {
+  check_interval = "@every 10s"
+  params {}
+}
+
+job "echo" {
+  get "cron" "my_cron" {
+    trigger = true
+  }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = ["hello from PikoCI"]
+    }
+  }
+}
+```
+
+Save as `pipeline.hcl` and start the server with the command above.
+
+## Add users
+
+The default user is `admin` / `admin123` (created by the initial database migration). To add more users:
+
+```bash
+# Generate a hashed password
+./pikoci user-password -u myuser -p mypassword
+# Output: myuser:$2a$10$...
+
+# Pass it to the server
+./pikoci server --jwt-secret my-secret --users 'myuser:$2a$10$...'
+```
+
+## Next steps
+
+- [Pipeline Reference](Pipeline) - Full HCL syntax
+- [Server Configuration](Server) - All server flags
+- [CLI Reference](CLI) - Manage pipelines from the command line

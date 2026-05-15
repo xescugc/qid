@@ -1,0 +1,100 @@
+# Server Configuration
+
+Start the PikoCI server with:
+
+```bash
+pikoci server [flags]
+```
+
+## Flags
+
+| Flag | Alias | Default | Required | Description |
+|------|-------|---------|----------|-------------|
+| `--port` | `-p` | `8080` | no | HTTP port |
+| `--jwt-secret` | | | **yes** | Secret used to sign JWT tokens |
+| `--users` | | | no | List of `USERNAME:HASHED_PASSWORD` pairs |
+| `--db-system` | | `mem` | no | Database backend: `mem`, `sqlite`, `mysql`, `postgresql` |
+| `--db-host` | | | no | Database host |
+| `--db-port` | | | no | Database port |
+| `--db-user` | | | no | Database user |
+| `--db-password` | | | no | Database password |
+| `--db-name` | | | no | Database name |
+| `--run-migrations` | | `true` | no | Run database migrations on startup |
+| `--run-worker` | | `true` | no | Run an embedded worker |
+| `--concurrency` | | `1` | no | Number of worker goroutines |
+| `--pubsub-system` | | `mem` | no | Queue backend: `mem`, `nats`, `rabbit`, `kafka` |
+| `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
+| `--config` | `-c` | | no | Path to a config file |
+| `--team-canonical` | `-tc` | `main` | no | Team to use for `--pipeline-*` flags |
+| `--pipeline-config` | | | no | Load a pipeline config file at startup |
+| `--pipeline-vars` | `-v` | | no | Path to a JSON vars file for the startup pipeline |
+| `--pipeline-name` | `-n`, `-pn` | | no | Name for the startup pipeline |
+
+## Environment variables
+
+All flags can be set via environment variables. The naming convention is:
+
+```
+PIKOCI_SERVER_<FLAG_NAME_UPPERCASED_WITH_UNDERSCORES>
+```
+
+Examples:
+
+```bash
+export PIKOCI_SERVER_PORT=9090
+export PIKOCI_SERVER_JWT_SECRET=my-secret
+export PIKOCI_SERVER_DB_SYSTEM=sqlite
+export PIKOCI_SERVER_PUBSUB_SYSTEM=nats
+```
+
+## Default user
+
+The initial database migration seeds a default user: `admin` / `admin123`. To add additional users, use the `user-password` command to generate hashed passwords and pass them with `--users`:
+
+```bash
+./pikoci user-password -u deploy -p s3cret
+# Output: deploy:$2a$10$...
+
+./pikoci server --jwt-secret my-secret --users 'deploy:$2a$10$...'
+```
+
+## Examples
+
+### In-memory (development)
+
+```bash
+pikoci server --jwt-secret dev-secret --db-system mem --pubsub-system mem
+```
+
+### SQLite (single node)
+
+```bash
+pikoci server --jwt-secret prod-secret --db-system sqlite --db-name pikoci.db
+```
+
+### PostgreSQL + NATS (production)
+
+```bash
+pikoci server \
+  --jwt-secret prod-secret \
+  --db-system postgresql \
+  --db-host db.example.com \
+  --db-port 5432 \
+  --db-user pikoci \
+  --db-password secret \
+  --db-name pikoci \
+  --pubsub-system nats \
+  --run-worker=false
+```
+
+### Load a pipeline at startup
+
+```bash
+pikoci server \
+  --jwt-secret my-secret \
+  --pipeline-name my-pipeline \
+  --pipeline-config pipeline.hcl \
+  --pipeline-vars vars.json
+```
+
+See also: [Database Backends](Database) · [Queue Backends](Queue) · [Running Workers Separately](Workers)
