@@ -433,13 +433,7 @@ resource "git" "my_repo" {
 
 By default, PikoCI discovers new resource versions by polling at the `check_interval` (default: every 1 minute). Webhooks let external services (GitHub, GitLab, etc.) push notifications to PikoCI, triggering a resource check immediately.
 
-Each resource is automatically assigned a webhook token (UUID) on creation. The webhook endpoint is:
-
-```
-POST /webhooks/{webhook_token}
-```
-
-This endpoint is **public** (no JWT required) — the token itself acts as authentication. It accepts any POST request and ignores the body, making it compatible with any service that can send HTTP POST requests (GitHub webhooks, GitLab webhooks, curl scripts, etc.).
+Each resource is automatically assigned a webhook token (UUID) on creation. The webhook endpoint is **public** (no JWT required) — the token itself acts as authentication. It accepts any POST request and ignores the body, making it compatible with any service that can send HTTP POST requests (GitHub webhooks, GitLab webhooks, curl scripts, etc.).
 
 #### Viewing the Webhook URL
 
@@ -449,13 +443,7 @@ Non-admin users cannot see the webhook token — it is stripped from API respons
 
 #### Regenerating the Token
 
-Admins can regenerate the webhook token from the same panel by clicking "Regenerate Token". This invalidates the previous URL immediately. The API endpoint for programmatic regeneration is:
-
-```
-POST /teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/webhook_token
-```
-
-This endpoint requires admin authorization.
+Admins can regenerate the webhook token from the same panel by clicking "Regenerate Token". This invalidates the previous URL immediately.
 
 #### Example: GitHub Webhook
 
