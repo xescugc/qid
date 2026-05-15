@@ -104,6 +104,17 @@ func getPipelineResource(s pikoci.Service) http.HandlerFunc {
 		if err != nil {
 			errs = err.Error()
 		}
+		if res != nil {
+			un, _ := ctx.Value(UsernameContextKey).(string)
+			if un != "" {
+				um, uerr := s.GetUser(ctx, un)
+				if uerr != nil || !um.IsAdmin(req.TeamCanonical) {
+					res.WebhookToken = ""
+				}
+			} else {
+				res.WebhookToken = ""
+			}
+		}
 		encodeResponse(GetPipelineResourceResponse{Resource: res, Err: errs}, w)
 	}
 }
@@ -154,6 +165,47 @@ type TriggerPipelineResourceResponse struct {
 }
 
 func (r TriggerPipelineResourceResponse) Error() string { return r.Err }
+
+type WebhookTriggerResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r WebhookTriggerResponse) Error() string { return r.Err }
+
+func webhookTrigger(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		token := vars["webhook_token"]
+		err := s.WebhookTrigger(r.Context(), token)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(WebhookTriggerResponse{Err: errs}, w)
+	}
+}
+
+type RegenerateWebhookTokenResponse struct {
+	Token string `json:"token,omitempty"`
+	Err   string `json:"error,omitempty"`
+}
+
+func (r RegenerateWebhookTokenResponse) Error() string { return r.Err }
+
+func regenerateWebhookToken(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		tc := vars["team_canonical"]
+		pn := vars["pipeline_name"]
+		rCan := vars["resource_canonical"]
+		token, err := s.RegenerateWebhookToken(r.Context(), tc, pn, rCan)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(RegenerateWebhookTokenResponse{Token: token, Err: errs}, w)
+	}
+}
 
 func triggerPipelineResource(s pikoci.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

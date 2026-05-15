@@ -431,8 +431,29 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h1 class="h4 fw-bold mb-0"><%- resource.canonical %></h1>
         <% if (isMember(team.canonical)) { %>
-          <button type="button" id="trigger-resource" class="btn btn-warning">Trigger Resource</button>
+          <div class="btn-group">
+            <button type="button" id="trigger-resource" class="btn btn-warning">Trigger Resource</button>
+            <% if (isAdmin(team.canonical)) { %>
+              <button type="button" class="btn btn-warning dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
+                <span class="visually-hidden">Toggle Dropdown</span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" id="toggle-webhook-panel">Webhook URL</a></li>
+              </ul>
+            <% } %>
+          </div>
         <% } %>
+      </div>
+      <div id="webhook-panel" style="display:none;" class="piko-webhook-panel">
+        <label class="fw-bold">Webhook URL</label>
+        <div class="d-flex gap-2 align-items-center">
+          <code id="webhook-url" class="text-break"></code>
+          <button id="copy-webhook" class="btn btn-sm btn-info">Copy</button>
+        </div>
+        <div class="mt-2 d-flex justify-content-between align-items-center">
+          <small class="text-muted">Regenerating invalidates the current URL</small>
+          <button id="regenerate-webhook" class="btn btn-sm btn-outline-danger">Regenerate Token</button>
+        </div>
       </div>
       <div class="piko-resource-info">
         <span class="piko-build-label">Last checked</span> (<%- resource.check_interval||"@every 1m" %>) at: <span style="color: var(--text-primary);"><%- new Date(resource.last_check).toLocaleString() %></span>
@@ -1536,6 +1557,9 @@
         template: _.template($('#resource-versions-view').html()),
         events: {
           'click #trigger-resource': 'clickTriggerResource',
+          'click #toggle-webhook-panel': 'clickToggleWebhookPanel',
+          'click #copy-webhook': 'clickCopyWebhook',
+          'click #regenerate-webhook': 'clickRegenerateWebhook',
         },
         initialize: function() {
           this.listenTo(this.collection, "add", this.addVersion)
@@ -1552,11 +1576,18 @@
           }, fetchInterval);
         },
         render: function () {
+          var webhookPanelOpen = this.$('#webhook-panel').is(':visible');
           this.$el.html(this.template(addSessionFunctions({
             team: this.collection.resource.collection.pipeline.collection.team.toJSON(),
             pipeline: this.collection.resource.collection.pipeline.toJSON(),
             resource: this.collection.resource.toJSON(),
           })));
+          if (webhookPanelOpen) {
+            var token = this.collection.resource.get('webhook_token');
+            var url = window.location.origin + '/webhooks/' + token + '.json';
+            this.$('#webhook-url').text(url);
+            this.$('#webhook-panel').show();
+          }
           var that = this;
           this.collection.each(function(m) {
             that.addVersion(m)
@@ -1575,6 +1606,44 @@
         clickTriggerResource: function(event) {
           event.preventDefault();
           this.collection.resource.fetchTrigger()
+        },
+        clickToggleWebhookPanel: function(event) {
+          event.preventDefault();
+          var panel = this.$('#webhook-panel');
+          if (panel.is(':visible')) {
+            panel.hide();
+          } else {
+            var token = this.collection.resource.get('webhook_token');
+            var url = window.location.origin + '/webhooks/' + token + '.json';
+            this.$('#webhook-url').text(url);
+            panel.show();
+          }
+        },
+        clickCopyWebhook: function(event) {
+          event.preventDefault();
+          var url = this.$('#webhook-url').text();
+          navigator.clipboard.writeText(url);
+        },
+        clickRegenerateWebhook: function(event) {
+          event.preventDefault();
+          var that = this;
+          var rs = this.collection.resource;
+          var tc = rs.collection.pipeline.collection.team.get('canonical');
+          var pn = rs.collection.pipeline.get('name');
+          var rCan = rs.get('canonical');
+          $.ajax({
+            url: '/teams/' + tc + '/pipelines/' + pn + '/resources/' + rCan + '/webhook_token.json',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'Authorization': 'Bearer ' + app.session.get('jwt') },
+            success: function(resp) {
+              if (resp.token) {
+                rs.set('webhook_token', resp.token);
+                var url = window.location.origin + '/webhooks/' + resp.token + '.json';
+                that.$('#webhook-url').text(url);
+              }
+            }
+          });
         },
       })
       app.ResourceVersionView = Backbone.View.extend({

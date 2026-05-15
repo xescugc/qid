@@ -534,3 +534,33 @@ func (cl *Client) TriggerPipelineResource(ctx context.Context, tc, pn, rCan stri
 
 	return nil
 }
+
+func (cl *Client) WebhookTrigger(ctx context.Context, token string) error {
+	var resp thttp.WebhookTriggerResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/webhooks/%s", cl.url, token), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) RegenerateWebhookToken(ctx context.Context, tc, pn, rCan string) (string, error) {
+	var resp thttp.RegenerateWebhookTokenResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/resources/%s/webhook_token", cl.url, tc, pn, rCan), nil, &resp)
+	if err != nil {
+		return "", fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return "", fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Token, nil
+}

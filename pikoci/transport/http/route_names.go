@@ -43,4 +43,7 @@ const (
 	TriggerPipelineResource
 	CreateResourceVersion
 	ListResourceVersions
+
+	WebhookTrigger
+	RegenerateWebhookToken
 )

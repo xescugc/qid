@@ -49,6 +49,9 @@ var (
 		TriggerPipelineResource: member,
 		CreateResourceVersion:   admin,
 		ListResourceVersions:    member,
+
+		WebhookTrigger:         nothing,
+		RegenerateWebhookToken: admin,
 	}
 )
 

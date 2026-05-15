@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/utils"
@@ -118,4 +119,36 @@ func (q *PikoCI) TriggerPipelineResource(ctx context.Context, tc, pn, rCan strin
 	_ = q.UpdatePipelineResource(ctx, tc, pn, r.Canonical, *r)
 
 	return nil
+}
+
+func (q *PikoCI) WebhookTrigger(ctx context.Context, token string) error {
+	r, tc, pn, err := q.Resources.FindByWebhookToken(ctx, token)
+	if err != nil {
+		return fmt.Errorf("failed to find Resource by webhook token: %w", err)
+	}
+
+	return q.TriggerPipelineResource(ctx, tc, pn, r.Canonical)
+}
+
+func (q *PikoCI) RegenerateWebhookToken(ctx context.Context, tc, pn, rCan string) (string, error) {
+	if !utils.ValidateCanonical(tc) {
+		return "", fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
+		return "", fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateResourceCanonical(rCan) {
+		return "", fmt.Errorf("invalid Resource Canonical format %q", rCan)
+	}
+
+	r, err := q.Resources.Find(ctx, tc, pn, rCan)
+	if err != nil {
+		return "", fmt.Errorf("failed to find Resource: %w", err)
+	}
+
+	r.WebhookToken = uuid.New().String()
+	err = q.UpdatePipelineResource(ctx, tc, pn, rCan, *r)
+	if err != nil {
+		return "", fmt.Errorf("failed to update Resource: %w", err)
+	}
+
+	return r.WebhookToken, nil
 }
