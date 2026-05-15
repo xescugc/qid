@@ -166,6 +166,7 @@ get "git" "my_repo" {
 | `name`    | yes      | Label, resource name                           |
 | `trigger` | no       | Auto-run the job on new versions (default `false`) |
 | `passed`  | no       | List of job names that must have run with this version first |
+| `timeout` | no       | Maximum duration for the step (e.g. `"2m"`, `"30s"`) |
 
 ### task
 
@@ -180,6 +181,11 @@ task "test" {
 }
 ```
 
+| Field     | Required | Description                                    |
+|-----------|----------|------------------------------------------------|
+| `name`    | yes      | Label on the block                             |
+| `timeout` | no       | Maximum duration for the step (e.g. `"10m"`, `"1h"`) |
+
 ### put
 
 Pushes to a resource, running its `push` command.
@@ -191,6 +197,12 @@ put "git" "my_repo" {
   }
 }
 ```
+
+| Field     | Required | Description                                    |
+|-----------|----------|------------------------------------------------|
+| `type`    | yes      | Label, resource type name                      |
+| `name`    | yes      | Label, resource name                           |
+| `timeout` | no       | Maximum duration for the step (e.g. `"5m"`, `"30s"`) |
 
 ### Step hooks
 
@@ -209,6 +221,24 @@ task "deploy" {
   on_failure "exec" {
     path = "echo"
     args = ["deploy failed"]
+  }
+}
+```
+
+### Step timeout
+
+Any step can set a `timeout` to limit how long its runner execution takes. The value is a Go duration string (e.g. `"30s"`, `"5m"`, `"1h30m"`). If the step exceeds the timeout, the process is killed, the step is marked as failed with a "step timed out after ..." message in the logs, and `on_failure`/`ensure` hooks still run normally. If no timeout is set, the step runs with no time limit.
+
+```hcl
+task "long-build" {
+  timeout = "10m"
+  run "exec" {
+    path = "make"
+    args = ["build"]
+  }
+  on_failure "exec" {
+    path = "echo"
+    args = ["build timed out or failed"]
   }
 }
 ```
