@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/awalterschulze/gographviz"
+	"github.com/google/uuid"
 	cron "github.com/netresearch/go-cron"
 	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
@@ -106,6 +107,7 @@ func (q *PikoCI) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 			}
 			cronEntries = append(cronEntries, eid)
 			r.CronID = uint64(eid)
+			r.WebhookToken = uuid.New().String()
 			_, err = uow.Resources().Create(ctx, tc, pn, r)
 			if err != nil {
 				q.cron.Remove(eid)
@@ -244,6 +246,7 @@ func (q *PikoCI) UpdatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 					}
 					r.CronID = uint64(eid)
 				}
+				r.WebhookToken = dbr.WebhookToken
 				err = uow.Resources().Update(ctx, tc, pn, r.Canonical, r)
 				if err != nil {
 					return fmt.Errorf("failed to update Resource %q: %w", r.Canonical, err)
@@ -258,6 +261,7 @@ func (q *PikoCI) UpdatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 					return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
 				}
 				r.CronID = uint64(eid)
+				r.WebhookToken = uuid.New().String()
 				_, err = uow.Resources().Create(ctx, tc, pn, r)
 				if err != nil {
 					return fmt.Errorf("failed to create Resource %q: %w", r.Canonical, err)

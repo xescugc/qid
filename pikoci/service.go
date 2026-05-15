@@ -18,7 +18,7 @@ import (
 	"log/slog"
 )
 
-//go:generate go tool mockgen -destination=mock/service.go -mock_names=Service=Service -package mock github.com/xescugc/pikoci/qid Service
+//go:generate go tool mockgen -destination=mock/service.go -mock_names=Service=Service -package mock github.com/xescugc/pikoci/pikoci Service
 
 type Service interface {
 	UserLogin(ctx context.Context, un, pass string) (*user.WithMemberships, string, error)
@@ -60,6 +60,9 @@ type Service interface {
 	TriggerPipelineResource(ctx context.Context, tc, pn, rCan string) error
 	CreateResourceVersion(ctx context.Context, tc, pn, rCan string, v resource.Version) (*resource.Version, error)
 	ListResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error)
+
+	WebhookTrigger(ctx context.Context, token string) error
+	RegenerateWebhookToken(ctx context.Context, tc, pn, rCan string) (string, error)
 }
 
 type PikoCI struct {

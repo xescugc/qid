@@ -129,6 +129,8 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 		})
 	}
 
+	r.Methods(http.MethodPost).Path("/webhooks/{webhook_token}").Name(WebhookTrigger.String()).Handler(webhookTrigger(s))
+
 	jsonr := r.Headers("Content-Type", "application/json").Subrouter()
 
 	jsonr.Methods(http.MethodPost).Path("/login").Handler(userLogin(s))
@@ -169,6 +171,7 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 	api.Methods(http.MethodGet).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}").Name(GetPipelineResource.String()).Handler(getPipelineResource(s))
 	api.Methods(http.MethodPut).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}").Name(UpdatePipelineResource.String()).Handler(updatePipelineResource(s))
 	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/trigger").Name(TriggerPipelineResource.String()).Handler(triggerPipelineResource(s))
+	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/webhook_token").Name(RegenerateWebhookToken.String()).Handler(regenerateWebhookToken(s))
 
 	api.Methods(http.MethodGet).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/image{ext}").Name(GetPipelineImage.String()).Handler(getPipelineImage(s))
 

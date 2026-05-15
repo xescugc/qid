@@ -13,7 +13,8 @@ type Resource struct {
 	CronID    uint64    `json:"cron_id"`
 	Canonical string    `json:"canonical"`
 	Logs      string    `json:"logs"`
-	LastCheck time.Time `json:"last_check"`
+	LastCheck     time.Time `json:"last_check"`
+	WebhookToken  string    `json:"webhook_token"`
 }
 
 type Params struct {
