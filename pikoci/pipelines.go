@@ -591,8 +591,9 @@ func sanitizePipelineForPublic(pp *pipeline.Pipeline) *pipeline.Pipeline {
 	rts := make([]restype.ResourceType, len(cp.ResourceTypes))
 	for i, rt := range cp.ResourceTypes {
 		rts[i] = restype.ResourceType{
-			ID:   rt.ID,
-			Name: rt.Name,
+			ID:     rt.ID,
+			Name:   rt.Name,
+			Source: rt.Source,
 		}
 	}
 	cp.ResourceTypes = rts

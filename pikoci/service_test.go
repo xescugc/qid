@@ -31,9 +31,7 @@ func TestCreatePipeline(t *testing.T) {
 
 	s.Pipelines.EXPECT().Create(ctx, tc, gomock.Any()).Return(uint32(1), nil)
 	s.Jobs.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(3)
-	s.ResourceTypes.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
 	s.Resources.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
-	s.Runners.EXPECT().Create(ctx, tc, ppn, gomock.Any()).Return(uint32(1), nil).Times(1)
 	// GetPipeline uses Find which now does a single JOIN query
 	s.Pipelines.EXPECT().Find(ctx, tc, ppn).Return(&pipeline.Pipeline{Name: ppn}, nil)
 

@@ -204,3 +204,128 @@ job "test" {
 	_, err := s.S.CreatePipeline(ctx, "main", "compat-pipeline", hclConfig, nil)
 	require.NoError(t, err)
 }
+
+func TestCreatePipeline_HCLFunctions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+variable "greeting" {
+  type    = string
+  default = "hello"
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = [upper(var.greeting), join(",", ["a", "b", "c"])]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "func-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 2)
+			assert.Equal(t, job.StepTypeTask, j.Plan[1].Type)
+			require.Len(t, j.Plan[1].Task.Run.Args, 2)
+			assert.Equal(t, "HELLO", j.Plan[1].Task.Run.Args[0])
+			assert.Equal(t, "a,b,c", j.Plan[1].Task.Run.Args[1])
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "func-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "func-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "func-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "func-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_SourceAndInlineConflict(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource_type "my-git" {
+  source = "pikoci://git"
+  params = ["url"]
+  check "exec" {
+    path = "echo"
+    args = ["check"]
+  }
+  pull "exec" { }
+  push "exec" { }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" { trigger = true }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = ["hello"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "conflict-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "both source and inline commands")
+}
+
+func TestCreatePipeline_SourceResolution(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource_type "my-git" {
+  source = "pikoci://git"
+}
+
+resource "my-git" "repo" {
+  params {
+    url  = "https://example.com/repo.git"
+    name = "repo"
+  }
+}
+
+job "test" {
+  get "my-git" "repo" { trigger = true }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = ["hello"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "source-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.ResourceTypes.EXPECT().Create(ctx, "main", "source-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, rt interface{}) (uint32, error) {
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "source-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "source-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "source-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "source-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
