@@ -986,5 +986,210 @@ func TestProcessJob_OrderedPlan_GetTaskPut(t *testing.T) {
 	w.processJob(ctx, m, cwd, pp)
 }
 
+func TestProcessJob_TaskTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "timeout-job",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "timeout-job",
+				Plan: []job.PlanStep{
+					{
+						Type:    job.StepTypeTask,
+						Timeout: 2 * time.Second,
+						Task: &job.TaskStep{
+							Name: "slow-task",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"10"},
+								Params: map[string]string{
+									"path": "sleep",
+								},
+							},
+						},
+						OnFailure: []utils.RunnerCommand{
+							{
+								Runner: "exec",
+								Args:   []string{"task failed due to timeout"},
+								Params: map[string]string{"path": "echo"},
+							},
+						},
+						Ensure: []utils.RunnerCommand{
+							{
+								Runner: "exec",
+								Args:   []string{"ensure runs"},
+								Params: map[string]string{"path": "echo"},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 100}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// failBuild + on_failure hook + ensure hook = 3 updates
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(100), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).Times(3)
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	// The first step should contain the timeout message
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Contains(t, capturedBuild.Steps[0].Logs, "timed out after 2s")
+}
+
+func TestProcessJob_GetTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "get-timeout-job",
+		VersionID:     1,
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "get-timeout-job",
+				Plan: []job.PlanStep{
+					{
+						Type:    job.StepTypeGet,
+						Timeout: 1 * time.Second,
+						Get:     &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-cron", Type: "cron", Canonical: "cron.my-cron"},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "cron",
+				Pull: utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"10"},
+					Params: map[string]string{"path": "sleep"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 101}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
+		Return([]*resource.Version{
+			{ID: 1, Version: map[string]interface{}{"date": "now"}},
+		}, nil)
+
+	// failBuild = 1 update
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(101), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		})
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Contains(t, capturedBuild.Steps[0].Logs, "timed out after 1s")
+}
+
+func TestProcessJob_NoTimeout_Succeeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "no-timeout-job",
+	}
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "no-timeout-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						// Timeout is zero (not set)
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"hello"},
+								Params: map[string]string{"path": "echo"},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 102}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// UpdateJobBuild: after task step + after marking succeeded
+	var lastBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(102), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			lastBuild = b
+			return nil
+		}).Times(2)
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Succeeded, lastBuild.Status)
+}
+
 // Silence the unused import warnings
 var _ = time.Now

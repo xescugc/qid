@@ -3,6 +3,7 @@ package pikoci_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -284,6 +285,77 @@ job "test" {
 	_, err := s.S.CreatePipeline(ctx, "main", "conflict-pipeline", hclConfig, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "both source and inline commands")
+}
+
+func TestCreatePipeline_WithTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger = true
+    timeout = "2m"
+  }
+  task "build" {
+    timeout = "10m"
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "timeout-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 2)
+			assert.Equal(t, 2*time.Minute, j.Plan[0].Timeout)
+			assert.Equal(t, 10*time.Minute, j.Plan[1].Timeout)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "timeout-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "timeout-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "timeout-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "timeout-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_InvalidTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "build" {
+    timeout = "invalid"
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "invalid-timeout-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid timeout")
 }
 
 func TestCreatePipeline_SourceResolution(t *testing.T) {
