@@ -141,7 +141,7 @@ func TestDBBackends(t *testing.T) {
 			})
 
 			t.Run("ResourceRepository", func(t *testing.T) {
-				rr := mysql.NewResourceRepository(setup.querier)
+				rr := mysql.NewResourceRepository(setup.querier, system)
 
 				// Create a resource
 				rID, err := rr.Create(ctx, "main", "test-pipeline", resource.Resource{

@@ -161,6 +161,10 @@ The `check_interval` field accepts:
 - `@every <duration>`, e.g. `@every 10s`, `@every 5m`, `@every 1h`
 - Standard cron expressions, e.g. `0 */5 * * *`
 
+The minimum `check_interval` is 10 seconds. Intervals shorter than 10s will be rejected on pipeline create/update.
+
+Manual triggers (via the UI or API) and webhook triggers reset the check timer, so the next automatic check happens one full interval after the trigger.
+
 ## Built-in: git
 
 The `git` resource type is built in with API-aware check support for GitHub and GitLab. You do not need to define it, just use it directly:

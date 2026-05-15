@@ -618,7 +618,13 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, os.Expand(ru.Run.Path, envFn), args...)
+	cmdPath := os.Expand(ru.Run.Path, envFn)
+	if cmdPath == "" {
+		// Empty command path (e.g. cron pull/push with empty block), skip execution.
+		return "", 0, nil
+	}
+
+	cmd := exec.CommandContext(ctx, cmdPath, args...)
 	cmd.Dir = cwd
 	for k, v := range envs {
 		cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", k, v))

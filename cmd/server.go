@@ -157,15 +157,16 @@ var (
 			tr := mysql.NewTeamRepository(querier)
 			ppr := mysql.NewPipelineRepository(querier)
 			jr := mysql.NewJobRepository(querier)
-			rr := mysql.NewResourceRepository(querier)
+			rr := mysql.NewResourceRepository(querier, cfg.DBSystem)
 			rt := mysql.NewResourceTypeRepository(querier)
 			br := mysql.NewBuildRepository(querier)
 			rur := mysql.NewRunnerRepository(querier)
 
-			suow := unitwork.NewStartUnitOfWork(db)
+			suow := unitwork.NewStartUnitOfWork(db, cfg.DBSystem)
 
 			logger.Info("initializing service")
 			var svc = pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, suow, cfg.JWTSecret, logger)
+			svc.StartScheduler(ctx)
 			logger.Info("initialized service")
 
 			logger.Info("initializing http handlers")

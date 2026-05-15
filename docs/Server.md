@@ -97,4 +97,10 @@ pikoci server \
   --pipeline-vars vars.json
 ```
 
+## Horizontal scaling
+
+PikoCI supports running multiple server instances concurrently when using PostgreSQL or MySQL as the database backend. The scheduler uses `SELECT ... FOR UPDATE SKIP LOCKED` to ensure each resource check is processed by only one instance.
+
+SQLite and in-memory backends are single-instance only (no locking support).
+
 See also: [Database Backends](Database) · [Queue Backends](Queue) · [Running Workers Separately](Workers)

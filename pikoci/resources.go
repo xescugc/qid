@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/scheduler"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"gocloud.dev/pubsub"
 )
@@ -115,7 +116,16 @@ func (q *PikoCI) TriggerPipelineResource(ctx context.Context, tc, pn, rCan strin
 	if err != nil {
 		return fmt.Errorf("failed to Trigger Queue on Pipeline %q: %w", pn, err)
 	}
-	r.LastCheck = time.Now()
+	now := time.Now()
+	r.LastCheck = now
+	spec := r.CheckInterval
+	if spec == "" {
+		spec = "@every 1m"
+	}
+	nextCheck, err := scheduler.ComputeNextCheck(spec, now)
+	if err == nil {
+		r.NextCheck = nextCheck
+	}
 	_ = q.UpdatePipelineResource(ctx, tc, pn, r.Canonical, *r)
 
 	return nil

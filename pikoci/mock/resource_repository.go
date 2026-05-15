@@ -100,6 +100,21 @@ func (mr *ResourceRepositoryMockRecorder) Filter(ctx, tc, pn any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*ResourceRepository)(nil).Filter), ctx, tc, pn)
 }
 
+// FilterDueResources mocks base method.
+func (m *ResourceRepository) FilterDueResources(ctx context.Context) ([]*resource.ResourceWithPipeline, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterDueResources", ctx)
+	ret0, _ := ret[0].([]*resource.ResourceWithPipeline)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterDueResources indicates an expected call of FilterDueResources.
+func (mr *ResourceRepositoryMockRecorder) FilterDueResources(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterDueResources", reflect.TypeOf((*ResourceRepository)(nil).FilterDueResources), ctx)
+}
+
 // FilterVersions mocks base method.
 func (m *ResourceRepository) FilterVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
 	m.ctrl.T.Helper()

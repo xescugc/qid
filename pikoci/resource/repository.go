@@ -10,8 +10,15 @@ type Repository interface {
 	Find(ctx context.Context, tc, pn, rCan string) (*Resource, error)
 	FindByWebhookToken(ctx context.Context, token string) (*Resource, string, string, error)
 	Filter(ctx context.Context, tc, pn string) ([]*Resource, error)
+	FilterDueResources(ctx context.Context) ([]*ResourceWithPipeline, error)
 	Delete(ctx context.Context, tc, pn, rCan string) error
 
 	CreateVersion(ctx context.Context, tc, pn, rCan string, v Version) (uint32, error)
 	FilterVersions(ctx context.Context, tc, pn, rCan string) ([]*Version, error)
+}
+
+type ResourceWithPipeline struct {
+	Resource
+	TeamCanonical string
+	PipelineName  string
 }
