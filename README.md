@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="aseprite/logo.png" width=25% height=25%>
+    <img src="pikoci/transport/http/assets/images/logo.svg" width="100">
 </p>
 
 ![](docs/images/pikoci.gif)
