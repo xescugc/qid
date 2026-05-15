@@ -266,6 +266,47 @@ func (cl *Client) CreatePipeline(ctx context.Context, tc, pn string, pp []byte, 
 	return resp.Pipeline, nil
 }
 
+func (cl *Client) SetPipelinePublic(ctx context.Context, tc, pn string, public bool) error {
+	var resp thttp.UpdatePipelineResponse
+
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/pipelines/%s", cl.url, tc, pn), thttp.UpdatePipelineRequest{
+		Public: &public,
+	}, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) GetPublicPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
+	return cl.GetPipeline(ctx, tc, pn)
+}
+
+func (cl *Client) GetPublicPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
+	return cl.GetPipelineImage(ctx, tc, pn, format)
+}
+
+func (cl *Client) GetPublicPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
+	return cl.GetPipelineJob(ctx, tc, pn, jn)
+}
+
+func (cl *Client) ListPublicJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
+	return cl.ListJobBuilds(ctx, tc, pn, jn)
+}
+
+func (cl *Client) GetPublicPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
+	return cl.GetPipelineResource(ctx, tc, pn, rCan)
+}
+
+func (cl *Client) ListPublicResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
+	return cl.ListResourceVersions(ctx, tc, pn, rCan)
+}
+
 func (cl *Client) UpdatePipeline(ctx context.Context, tc, pn string, pp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error) {
 	var resp thttp.UpdatePipelineResponse
 

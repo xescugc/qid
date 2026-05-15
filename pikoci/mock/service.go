@@ -267,6 +267,66 @@ func (mr *ServiceMockRecorder) GetPipelineResource(ctx, tc, pn, rCan any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPipelineResource", reflect.TypeOf((*Service)(nil).GetPipelineResource), ctx, tc, pn, rCan)
 }
 
+// GetPublicPipeline mocks base method.
+func (m *Service) GetPublicPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublicPipeline", ctx, tc, pn)
+	ret0, _ := ret[0].(*pipeline.Pipeline)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPublicPipeline indicates an expected call of GetPublicPipeline.
+func (mr *ServiceMockRecorder) GetPublicPipeline(ctx, tc, pn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublicPipeline", reflect.TypeOf((*Service)(nil).GetPublicPipeline), ctx, tc, pn)
+}
+
+// GetPublicPipelineImage mocks base method.
+func (m *Service) GetPublicPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublicPipelineImage", ctx, tc, pn, format)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPublicPipelineImage indicates an expected call of GetPublicPipelineImage.
+func (mr *ServiceMockRecorder) GetPublicPipelineImage(ctx, tc, pn, format any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublicPipelineImage", reflect.TypeOf((*Service)(nil).GetPublicPipelineImage), ctx, tc, pn, format)
+}
+
+// GetPublicPipelineJob mocks base method.
+func (m *Service) GetPublicPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublicPipelineJob", ctx, tc, pn, jn)
+	ret0, _ := ret[0].(*job.Job)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPublicPipelineJob indicates an expected call of GetPublicPipelineJob.
+func (mr *ServiceMockRecorder) GetPublicPipelineJob(ctx, tc, pn, jn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublicPipelineJob", reflect.TypeOf((*Service)(nil).GetPublicPipelineJob), ctx, tc, pn, jn)
+}
+
+// GetPublicPipelineResource mocks base method.
+func (m *Service) GetPublicPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublicPipelineResource", ctx, tc, pn, rCan)
+	ret0, _ := ret[0].(*resource.Resource)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPublicPipelineResource indicates an expected call of GetPublicPipelineResource.
+func (mr *ServiceMockRecorder) GetPublicPipelineResource(ctx, tc, pn, rCan any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublicPipelineResource", reflect.TypeOf((*Service)(nil).GetPublicPipelineResource), ctx, tc, pn, rCan)
+}
+
 // GetTeam mocks base method.
 func (m *Service) GetTeam(ctx context.Context, tc string) (*team.WithMembers, error) {
 	m.ctrl.T.Helper()
@@ -325,6 +385,36 @@ func (m *Service) ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pip
 func (mr *ServiceMockRecorder) ListPipelines(ctx, tc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPipelines", reflect.TypeOf((*Service)(nil).ListPipelines), ctx, tc)
+}
+
+// ListPublicJobBuilds mocks base method.
+func (m *Service) ListPublicJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPublicJobBuilds", ctx, tc, pn, jn)
+	ret0, _ := ret[0].([]*build.Build)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPublicJobBuilds indicates an expected call of ListPublicJobBuilds.
+func (mr *ServiceMockRecorder) ListPublicJobBuilds(ctx, tc, pn, jn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPublicJobBuilds", reflect.TypeOf((*Service)(nil).ListPublicJobBuilds), ctx, tc, pn, jn)
+}
+
+// ListPublicResourceVersions mocks base method.
+func (m *Service) ListPublicResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPublicResourceVersions", ctx, tc, pn, rCan)
+	ret0, _ := ret[0].([]*resource.Version)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPublicResourceVersions indicates an expected call of ListPublicResourceVersions.
+func (mr *ServiceMockRecorder) ListPublicResourceVersions(ctx, tc, pn, rCan any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPublicResourceVersions", reflect.TypeOf((*Service)(nil).ListPublicResourceVersions), ctx, tc, pn, rCan)
 }
 
 // ListResourceVersions mocks base method.
@@ -401,6 +491,20 @@ func (m *Service) RegenerateWebhookToken(ctx context.Context, tc, pn, rCan strin
 func (mr *ServiceMockRecorder) RegenerateWebhookToken(ctx, tc, pn, rCan any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegenerateWebhookToken", reflect.TypeOf((*Service)(nil).RegenerateWebhookToken), ctx, tc, pn, rCan)
+}
+
+// SetPipelinePublic mocks base method.
+func (m *Service) SetPipelinePublic(ctx context.Context, tc, pn string, public bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetPipelinePublic", ctx, tc, pn, public)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetPipelinePublic indicates an expected call of SetPipelinePublic.
+func (mr *ServiceMockRecorder) SetPipelinePublic(ctx, tc, pn, public any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPipelinePublic", reflect.TypeOf((*Service)(nil).SetPipelinePublic), ctx, tc, pn, public)
 }
 
 // TriggerPipelineJob mocks base method.

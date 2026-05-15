@@ -20,37 +20,40 @@ func NewPipelineRepository(db sqlr.Querier) *PipelineRepository {
 }
 
 type dbPipeline struct {
-	ID   sql.NullInt64
-	Name sql.NullString
-	Raw  sql.NullString
+	ID     sql.NullInt64
+	Name   sql.NullString
+	Raw    sql.NullString
+	Public sql.NullBool
 }
 
 func newDBPipeline(p pipeline.Pipeline) dbPipeline {
 	return dbPipeline{
-		Name: toNullString(p.Name),
-		Raw:  toNullString(string(p.Raw)),
+		Name:   toNullString(p.Name),
+		Raw:    toNullString(string(p.Raw)),
+		Public: sql.NullBool{Bool: p.Public, Valid: true},
 	}
 }
 
 func (dbp *dbPipeline) toDomainEntity() *pipeline.Pipeline {
 	return &pipeline.Pipeline{
-		ID:   uint32(dbp.ID.Int64),
-		Name: dbp.Name.String,
-		Raw:  []byte(dbp.Raw.String),
+		ID:     uint32(dbp.ID.Int64),
+		Name:   dbp.Name.String,
+		Raw:    []byte(dbp.Raw.String),
+		Public: dbp.Public.Bool,
 	}
 }
 
 func (r *PipelineRepository) Create(ctx context.Context, tc string, p pipeline.Pipeline) (uint32, error) {
 	dbp := newDBPipeline(p)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO pipelines(name, raw, team_id)
-		VALUES (?, ?,
+		INSERT INTO pipelines(name, raw, public, team_id)
+		VALUES (?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT t.id
 				FROM teams AS t
 				WHERE t.canonical = ?
-			))`, dbp.Name, dbp.Raw, tc)
+			))`, dbp.Name, dbp.Raw, dbp.Public, tc)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -67,7 +70,7 @@ func (r *PipelineRepository) Update(ctx context.Context, tc, pn string, p pipeli
 	dbp := newDBPipeline(p)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE pipelines AS p
-		SET name = ?, raw = ?
+		SET name = ?, raw = ?, public = ?
 		FROM (
 			SELECT p.id
 			FROM pipelines AS p
@@ -76,7 +79,7 @@ func (r *PipelineRepository) Update(ctx context.Context, tc, pn string, p pipeli
 			WHERE t.canonical = ? AND p.name = ?
 		) AS pp
 		WHERE p.id = pp.id
-	`, dbp.Name, dbp.Raw, tc, pn)
+	`, dbp.Name, dbp.Raw, dbp.Public, tc, pn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -107,6 +110,51 @@ func (r *PipelineRepository) Find(ctx context.Context, tc, pn string) (*pipeline
 	}
 
 	return pps[0], nil
+}
+
+func (r *PipelineRepository) FindPublic(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
+	rows, err := r.querier.QueryContext(ctx, pipelineQuery+`
+		WHERE t.canonical = ? AND p.name = ? AND p.public = TRUE
+	`, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query Pipeline: %w", err)
+	}
+
+	pps, err := scanPipelines(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan Pipeline: %w", err)
+	}
+
+	if len(pps) == 0 {
+		return nil, fmt.Errorf("not found")
+	}
+
+	return pps[0], nil
+}
+
+func (r *PipelineRepository) SetPublic(ctx context.Context, tc, pn string, public bool) error {
+	res, err := r.querier.ExecContext(ctx, `
+		UPDATE pipelines AS p
+		SET public = ?
+		FROM (
+			SELECT p.id
+			FROM pipelines AS p
+			JOIN teams AS t
+				ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ?
+		) AS pp
+		WHERE p.id = pp.id
+	`, public, tc, pn)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	err = isEntityFound(res)
+	if err != nil {
+		return fmt.Errorf("failed to set public on Pipeline: %w", err)
+	}
+
+	return nil
 }
 
 func (r *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline.Pipeline, error) {
@@ -151,7 +199,7 @@ func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 
 const pipelineQuery = `
 	SELECT
-		p.id, p.name, p.raw,
+		p.id, p.name, p.raw, p.public,
 		j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure,
 		r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check,
 		rt.id, rt.name, rt.` + "`check`" + `, rt.pull, rt.push, rt.params,
@@ -186,7 +234,7 @@ func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
 		)
 
 		err := rows.Scan(
-			&pp.ID, &pp.Name, &pp.Raw,
+			&pp.ID, &pp.Name, &pp.Raw, &pp.Public,
 			&j.ID, &j.Name, &j.Plan, &j.OnSuccess, &j.OnFailure, &j.Ensure,
 			&r.ID, &r.Name, &r.Type, &r.Canonical, &r.Params, &r.CheckInterval, &r.CronID, &r.Logs, &r.LastCheck,
 			&rt.ID, &rt.Name, &rt.Check, &rt.Pull, &rt.Push, &rt.Params,

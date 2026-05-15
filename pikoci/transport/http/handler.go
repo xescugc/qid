@@ -17,81 +17,116 @@ import (
 )
 
 const (
-	UsernameContextKey string = "username_context_key"
+	UsernameContextKey   string = "username_context_key"
+	IsPublicAccessKey    string = "is_public_access_key"
 )
+
+var publicFallbackRoutes = map[RouteName]bool{
+	GetPipeline:          true,
+	GetPipelineImage:     true,
+	GetPipelineJob:       true,
+	ListJobBuilds:        true,
+	GetPipelineResource:  true,
+	ListResourceVersions: true,
+}
 
 func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	auth := func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, rr *http.Request) {
+			// Determine route name early for public fallback check
+			cr := mux.CurrentRoute(rr)
+			var crn RouteName
+			var hasRouteName bool
+			if cr != nil {
+				crns := cr.GetName()
+				if crns != "" {
+					var err error
+					crn, err = RouteNameString(crns)
+					if err == nil {
+						hasRouteName = true
+					}
+				}
+			}
+
 			// Authentication
 			reqToken := rr.Header.Get("Authorization")
 			splitToken := strings.Split(reqToken, " ")
-			if len(splitToken) != 2 {
-				encodeError("Authentication required", rw)
-				return
-			}
-			tokenString := splitToken[1]
-			if reqToken == "" {
-				encodeError("Authentication required", rw)
-				return
-			}
-			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-				return ts, nil
-			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
-			if err != nil {
-				l.Error("authentication error", "error", err)
-				encodeError("Authentication required", rw)
-				return
-			}
+			authFailed := len(splitToken) != 2 || reqToken == ""
 
 			var (
 				un           string
 				isFromWorker bool
+				userClaim    map[string]interface{}
 			)
-			claims, ok := token.Claims.(jwt.MapClaims)
-			if !ok {
-				l.Error("invalid token claims")
+
+			if !authFailed {
+				tokenString := splitToken[1]
+				token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+					return ts, nil
+				}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+				if err != nil {
+					l.Error("authentication error", "error", err)
+					authFailed = true
+				} else {
+					claims, ok := token.Claims.(jwt.MapClaims)
+					if !ok {
+						l.Error("invalid token claims")
+						authFailed = true
+					} else {
+						userClaim, ok = claims["user"].(map[string]interface{})
+						if !ok {
+							isFromWorker, _ = claims["is_from_worker"].(bool)
+							if !isFromWorker {
+								l.Error("missing user claim in token")
+								authFailed = true
+							}
+						} else {
+							un, ok = userClaim["username"].(string)
+							if !ok {
+								l.Error("missing username in token")
+								authFailed = true
+							} else {
+								rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, un))
+								isFromWorker, _ = claims["is_from_worker"].(bool)
+							}
+						}
+					}
+				}
+			}
+
+			// If authentication failed, check for public pipeline fallback
+			if authFailed {
+				if hasRouteName && publicFallbackRoutes[crn] {
+					vars := mux.Vars(rr)
+					tc := vars["team_canonical"]
+					pn := vars["pipeline_name"]
+					if tc != "" && pn != "" {
+						_, err := s.GetPublicPipeline(rr.Context(), tc, pn)
+						if err == nil {
+							rr = rr.WithContext(context.WithValue(rr.Context(), IsPublicAccessKey, true))
+							h.ServeHTTP(rw, rr)
+							return
+						}
+					}
+				}
 				encodeError("Authentication required", rw)
 				return
 			}
-			userClaim, ok := claims["user"].(map[string]interface{})
-			if !ok {
-				// Worker tokens don't have a "user" claim
-				isFromWorker, _ = claims["is_from_worker"].(bool)
-				if !isFromWorker {
-					l.Error("missing user claim in token")
-					encodeError("Authentication required", rw)
-					return
-				}
-			} else {
-				un, ok = userClaim["username"].(string)
-				if !ok {
-					l.Error("missing username in token")
-					encodeError("Authentication required", rw)
-					return
-				}
-				rr = rr.WithContext(context.WithValue(rr.Context(), UsernameContextKey, un))
-				isFromWorker, _ = claims["is_from_worker"].(bool)
-			}
 
 			// Authorization
-
-			cr := mux.CurrentRoute(rr)
 			if cr == nil {
 				encodeError("Route not found", rw)
 				return
 			}
-			crns := cr.GetName()
-			if crns == "" {
-				pt, _ := cr.GetPathTemplate()
-				encodeError(fmt.Sprintf("Route %s has no name", pt), rw)
-				return
-			}
-
-			crn, err := RouteNameString(crns)
-			if err != nil {
+			if !hasRouteName {
+				crns := cr.GetName()
+				if crns == "" {
+					pt, _ := cr.GetPathTemplate()
+					encodeError(fmt.Sprintf("Route %s has no name", pt), rw)
+					return
+				}
 				pt, _ := cr.GetPathTemplate()
 				encodeError(fmt.Sprintf("Route %s has no name conversion(%s)", pt, crns), rw)
 				return
@@ -109,8 +144,20 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 			if !isFromWorker {
 				vars := mux.Vars(rr)
 				tc := vars["team_canonical"]
-				err = afn(rr.Context(), s, un, tc)
+				err := afn(rr.Context(), s, un, tc)
 				if err != nil {
+					// If authorization fails but route supports public fallback, try it
+					if publicFallbackRoutes[crn] {
+						pn := vars["pipeline_name"]
+						if tc != "" && pn != "" {
+							_, perr := s.GetPublicPipeline(rr.Context(), tc, pn)
+							if perr == nil {
+								rr = rr.WithContext(context.WithValue(rr.Context(), IsPublicAccessKey, true))
+								h.ServeHTTP(rw, rr)
+								return
+							}
+						}
+					}
 					l.Error("authorization error", "error", err)
 					encodeError("Authentication required", rw)
 					return

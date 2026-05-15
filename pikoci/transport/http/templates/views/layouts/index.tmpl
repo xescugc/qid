@@ -224,8 +224,11 @@
 
     <script type="text/template" id="pipelines-card-view">
       <div class="card h-100">
-        <div class="card-header">
-          <%- name %>
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <span><%- name %></span>
+          <% if (public) { %>
+            <span class="badge bg-info">Public</span>
+          <% } %>
         </div>
         <div class="card-img-top">
         </div>
@@ -237,7 +240,12 @@
 
     <script type="text/template" id="pipeline-show-view">
       <div class="d-flex align-items-center justify-content-between mb-3">
-        <h1 class="h4 fw-bold mb-0"><%- pipeline.name %></h1>
+        <h1 class="h4 fw-bold mb-0">
+          <%- pipeline.name %>
+          <% if (pipeline.public) { %>
+            <span class="badge bg-info fs-6 ms-2">Public</span>
+          <% } %>
+        </h1>
         <% if (isAdmin(team.canonical)) { %>
           <div class="btn-group">
             <button type="button" id="edit-pipeline" class="btn btn-info">Edit</button>
@@ -292,6 +300,11 @@
             <div class="mb-3">
               <label for="vars" class="form-label">Vars</label>
               <textarea type="text" rows="10" class="form-control" id="vars"></textarea>
+            </div>
+            <div class="mb-3 form-check">
+              <input type="checkbox" class="form-check-input" id="public" <%- public ? "checked" : "" %>>
+              <label class="form-check-label" for="public">Public</label>
+              <div class="form-text">Allow unauthenticated users to view this pipeline, builds, and logs.</div>
             </div>
           </div>
           <div class="col-md-6">
@@ -574,12 +587,14 @@
           return !this.get("jwt")
         },
         isAdmin: function(tc) {
-          if (this.get("user").admin){
+          var u = this.get("user")
+          if (!u) return false
+          if (u.admin){
             return true
           }
           var admin = false
           if (tc !== "") {
-            _.each(this.get("user").memberships, function(m) {
+            _.each(u.memberships, function(m) {
               if (m.admin && m.team_canonical === tc) {
                 admin = true
               }
@@ -588,14 +603,16 @@
           return admin
         },
         isMember: function(tc) {
-          if (this.get("user").admin) {
+          var u = this.get("user")
+          if (!u) return false
+          if (u.admin) {
             return true
           }
           if (tc === "") {
             return true
           }
           var member = false
-          _.each(this.get("user").memberships, function(m) {
+          _.each(u.memberships, function(m) {
             if (m.team_canonical === tc) {
               member = true
             }
@@ -659,6 +676,7 @@
           id: null,
           raw: null,
           name: null,
+          public: false,
         },
         parse: function(response) {
           if (response.data){
@@ -1379,6 +1397,7 @@
           var name = this.$el.find("#name").get(0).value
           var pp = this.$el.find("#pipeline").get(0).value
           var rvars = this.$el.find("#vars").get(0).value||"{}"
+          var isPublic = this.$el.find("#public").is(":checked")
           try{
             var vars = JSON.parse(rvars)
           } catch (error){
@@ -1391,7 +1410,7 @@
             data.push(pp.charCodeAt(i));
           }
           if (this.model.get("id")){
-            this.collection.create({name: name, config: data, vars: vars}, {
+            this.collection.create({name: name, config: data, vars: vars, public: isPublic}, {
               wait: true,
               url: this.model.url(),
               success: function(m) {
@@ -1813,14 +1832,16 @@
           })
         },
         pipelinesShow: function(tc, pn) {
-          if (!this.setup(!isLogin)) {
+          if (!this.setup(!isLogin, true)) {
             return
           }
           var promises = []
           var t = app.teams.get(tc)
           if (t === undefined) {
             t = new app.Team({canonical: tc}, {collection: app.teams})
-            promises.push(t)
+            if (!app.session.isEmpty()) {
+              promises.push(t)
+            }
           }
           var pps = new app.Pipelines(null, {team: t})
           var pp = new app.Pipeline({name: pn},{collection: pps})
@@ -1834,17 +1855,23 @@
               team: t.toJSON(),
               pipeline: pp.toJSON(),
             }).render().el)
+          }).fail(function() {
+            if (app.session.isEmpty()) {
+              app.router.navigate("login", { trigger: true });
+            }
           })
         },
         jobBuilds: function(tc, pn, jn, bid) {
-          if (!this.setup(!isLogin)) {
+          if (!this.setup(!isLogin, true)) {
             return
           }
           var promises = []
           var t = app.teams.get(tc)
           if (t === undefined) {
             t = new app.Team({canonical: tc}, {collection: app.teams})
-            promises.push(t)
+            if (!app.session.isEmpty()) {
+              promises.push(t)
+            }
           }
           var pps = new app.Pipelines(null, {team: t})
           var pp = new app.Pipeline({name: pn},{collection: pps})
@@ -1868,17 +1895,23 @@
               pipeline: pp.toJSON(),
               job: jb.toJSON(),
             }).render().el)
+          }).fail(function() {
+            if (app.session.isEmpty()) {
+              app.router.navigate("login", { trigger: true });
+            }
           })
         },
         resourceVersions: function(tc, pn, rCan) {
-          if (!this.setup(!isLogin)) {
+          if (!this.setup(!isLogin, true)) {
             return
           }
           var promises = []
           var t = app.teams.get(tc)
           if (t === undefined) {
             t = new app.Team({canonical: tc}, {collection: app.teams})
-            promises.push(t)
+            if (!app.session.isEmpty()) {
+              promises.push(t)
+            }
           }
           var pps = new app.Pipelines(null, {team: t})
           var pp = new app.Pipeline({name: pn},{collection: pps})
@@ -1901,16 +1934,20 @@
               pipeline: pp.toJSON(),
               resource: rs.toJSON(),
             }).render().el)
+          }).fail(function() {
+            if (app.session.isEmpty()) {
+              app.router.navigate("login", { trigger: true });
+            }
           })
         },
         notFound: function() {
           app.router.navigate('', { trigger: true });
         },
-        setup: function(isLogin) {
+        setup: function(isLogin, allowPublic) {
           if (!this.mainView) {
             this.mainView = new app.MainView({ el: '#app' });
           }
-          if (app.session.isEmpty() && !isLogin) {
+          if (app.session.isEmpty() && !isLogin && !allowPublic) {
             app.router.navigate("login", { trigger: true });
             return false
           } else if (!app.session.isEmpty() && isLogin) {
