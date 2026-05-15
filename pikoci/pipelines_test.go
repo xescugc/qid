@@ -358,6 +358,74 @@ job "test" {
 	assert.Contains(t, err.Error(), "invalid timeout")
 }
 
+func TestCreatePipeline_WithAttempts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger  = true
+    attempts = 3
+  }
+  task "build" {
+    attempts = 2
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "attempts-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 2)
+			assert.Equal(t, 3, j.Plan[0].Attempts)
+			assert.Equal(t, 2, j.Plan[1].Attempts)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "attempts-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "attempts-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "attempts-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "attempts-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_InvalidAttempts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  task "build" {
+    attempts = -1
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "invalid-attempts-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid attempts")
+}
+
 func TestCreatePipeline_SourceResolution(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)

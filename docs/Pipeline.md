@@ -164,9 +164,10 @@ get "git" "my_repo" {
 |-----------|----------|------------------------------------------------|
 | `type`    | yes      | Label, resource type name                      |
 | `name`    | yes      | Label, resource name                           |
-| `trigger` | no       | Auto-run the job on new versions (default `false`) |
-| `passed`  | no       | List of job names that must have run with this version first |
-| `timeout` | no       | Maximum duration for the step (e.g. `"2m"`, `"30s"`) |
+| `trigger`  | no       | Auto-run the job on new versions (default `false`) |
+| `passed`   | no       | List of job names that must have run with this version first |
+| `timeout`  | no       | Maximum duration for the step (e.g. `"2m"`, `"30s"`) |
+| `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
 
 ### task
 
@@ -183,8 +184,9 @@ task "test" {
 
 | Field     | Required | Description                                    |
 |-----------|----------|------------------------------------------------|
-| `name`    | yes      | Label on the block                             |
-| `timeout` | no       | Maximum duration for the step (e.g. `"10m"`, `"1h"`) |
+| `name`     | yes      | Label on the block                             |
+| `timeout`  | no       | Maximum duration for the step (e.g. `"10m"`, `"1h"`) |
+| `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
 
 ### put
 
@@ -200,9 +202,10 @@ put "git" "my_repo" {
 
 | Field     | Required | Description                                    |
 |-----------|----------|------------------------------------------------|
-| `type`    | yes      | Label, resource type name                      |
-| `name`    | yes      | Label, resource name                           |
-| `timeout` | no       | Maximum duration for the step (e.g. `"5m"`, `"30s"`) |
+| `type`     | yes      | Label, resource type name                      |
+| `name`     | yes      | Label, resource name                           |
+| `timeout`  | no       | Maximum duration for the step (e.g. `"5m"`, `"30s"`) |
+| `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
 
 ### Step hooks
 
@@ -239,6 +242,25 @@ task "long-build" {
   on_failure "exec" {
     path = "echo"
     args = ["build timed out or failed"]
+  }
+}
+```
+
+### Step retry
+
+Any step can set `attempts` to retry on failure. The value is the maximum number of times the step will be tried (default `1`, no retry). If the step fails and attempts remain, the runner is re-invoked. Hooks (`on_failure`, `on_success`, `ensure`) only run after the final attempt. When combined with `timeout`, each attempt gets a fresh timeout. Attempt markers (e.g. `--- attempt 2/3 ---`) appear in the build logs starting from the second attempt onward.
+
+```hcl
+task "flaky-test" {
+  timeout  = "5m"
+  attempts = 3
+  run "exec" {
+    path = "make"
+    args = ["test"]
+  }
+  on_failure "exec" {
+    path = "echo"
+    args = ["tests failed after 3 attempts"]
   }
 }
 ```
