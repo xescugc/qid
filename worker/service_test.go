@@ -29,7 +29,7 @@ func newTestWorker(ctrl *gomock.Controller) (*Worker, *mock.Service, *mock.Topic
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	w := &Worker{
-		pikoci:        svc,
+		pikoci: svc,
 		topic:  topic,
 		logger: logger,
 	}
@@ -44,21 +44,21 @@ func testPipeline() *pipeline.Pipeline {
 			{
 				ID:   1,
 				Name: "test-job",
-				Get: []job.GetStep{
+				Plan: []job.PlanStep{
 					{
-						Type:    "cron",
-						Name:    "my-cron",
-						Trigger: true,
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
 					},
-				},
-				Task: []job.TaskStep{
 					{
-						Name: "echo",
-						Run: utils.RunnerCommand{
-							Runner: "exec",
-							Params: map[string]string{
-								"path": "echo",
-								"args": "hello",
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{
+									"path": "echo",
+									"args": "hello",
+								},
 							},
 						},
 					},
@@ -122,14 +122,17 @@ func TestProcessJob_Success_TaskOnly(t *testing.T) {
 			{
 				ID:   1,
 				Name: "echo-job",
-				Task: []job.TaskStep{
+				Plan: []job.PlanStep{
 					{
-						Name: "echo",
-						Run: utils.RunnerCommand{
-							Runner: "exec",
-							Params: map[string]string{
-								"path": "echo",
-								"args": "hello",
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{
+									"path": "echo",
+									"args": "hello",
+								},
 							},
 						},
 					},
@@ -172,13 +175,17 @@ func TestProcessJob_Success_WithGetAndTask(t *testing.T) {
 			{
 				ID:   1,
 				Name: "test-job",
-				Get: []job.GetStep{
-					{Type: "cron", Name: "my-cron", Trigger: true},
-				},
-				Task: []job.TaskStep{
+				Plan: []job.PlanStep{
 					{
-						Name: "echo",
-						Run:  utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "hello"}},
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
+					},
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run:  utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "hello"}},
+						},
 					},
 				},
 			},
@@ -235,12 +242,15 @@ func TestProcessJob_FailedPassedConstraint_NoBuilds(t *testing.T) {
 			{
 				ID:   2,
 				Name: "downstream-job",
-				Get: []job.GetStep{
+				Plan: []job.PlanStep{
 					{
-						Type:    "cron",
-						Name:    "my-cron",
-						Passed:  []string{"upstream-job"},
-						Trigger: true,
+						Type: job.StepTypeGet,
+						Get: &job.GetStep{
+							Type:    "cron",
+							Name:    "my-cron",
+							Passed:  []string{"upstream-job"},
+							Trigger: true,
+						},
 					},
 				},
 			},
@@ -284,12 +294,15 @@ func TestProcessJob_FailedPassedConstraint_NotSucceeded(t *testing.T) {
 			{
 				ID:   2,
 				Name: "downstream-job",
-				Get: []job.GetStep{
+				Plan: []job.PlanStep{
 					{
-						Type:    "cron",
-						Name:    "my-cron",
-						Passed:  []string{"upstream-job"},
-						Trigger: true,
+						Type: job.StepTypeGet,
+						Get: &job.GetStep{
+							Type:    "cron",
+							Name:    "my-cron",
+							Passed:  []string{"upstream-job"},
+							Trigger: true,
+						},
 					},
 				},
 			},
@@ -334,14 +347,17 @@ func TestProcessJob_TaskFailure_RunsHooks(t *testing.T) {
 			{
 				ID:   1,
 				Name: "failing-job",
-				Task: []job.TaskStep{
+				Plan: []job.PlanStep{
 					{
-						Name: "will-fail",
-						Run: utils.RunnerCommand{
-							Runner: "exec",
-							Params: map[string]string{
-								"path": "false", // exits with code 1
-								"args": "",
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "will-fail",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{
+									"path": "false", // exits with code 1
+									"args": "",
+								},
 							},
 						},
 						OnFailure: []utils.RunnerCommand{
@@ -421,14 +437,17 @@ func TestProcessJob_TriggersDownstream(t *testing.T) {
 			{
 				ID:   1,
 				Name: "upstream-job",
-				Task: []job.TaskStep{
+				Plan: []job.PlanStep{
 					{
-						Name: "echo",
-						Run: utils.RunnerCommand{
-							Runner: "exec",
-							Params: map[string]string{
-								"path": "echo",
-								"args": "hello",
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{
+									"path": "echo",
+									"args": "hello",
+								},
 							},
 						},
 					},
@@ -437,12 +456,15 @@ func TestProcessJob_TriggersDownstream(t *testing.T) {
 			{
 				ID:   2,
 				Name: "downstream-job",
-				Get: []job.GetStep{
+				Plan: []job.PlanStep{
 					{
-						Type:    "cron",
-						Name:    "my-cron",
-						Passed:  []string{"upstream-job"},
-						Trigger: true,
+						Type: job.StepTypeGet,
+						Get: &job.GetStep{
+							Type:    "cron",
+							Name:    "my-cron",
+							Passed:  []string{"upstream-job"},
+							Trigger: true,
+						},
 					},
 				},
 			},
@@ -503,7 +525,12 @@ func TestProcessResourceCheck_NewVersions(t *testing.T) {
 			{
 				ID:   1,
 				Name: "test-job",
-				Get:  []job.GetStep{{Type: "cron", Name: "my-cron", Trigger: true}},
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
+					},
+				},
 			},
 		},
 		Resources: []resource.Resource{
@@ -562,11 +589,14 @@ func TestCheckPassedConstraints_AllPassed(t *testing.T) {
 	b := build.Build{ID: 50}
 	j := &job.Job{
 		Name: "downstream-job",
-		Get: []job.GetStep{
+		Plan: []job.PlanStep{
 			{
-				Type:   "cron",
-				Name:   "my-cron",
-				Passed: []string{"job-a", "job-b"},
+				Type: job.StepTypeGet,
+				Get: &job.GetStep{
+					Type:   "cron",
+					Name:   "my-cron",
+					Passed: []string{"job-a", "job-b"},
+				},
 			},
 		},
 	}
@@ -694,7 +724,7 @@ func TestProcessMessage_JobDispatch(t *testing.T) {
 	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
 		Return(&build.Build{ID: 1}, nil)
 
-	// GetPipelineJob — no tasks, no gets
+	// GetPipelineJob — no plan steps
 	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
 		Return(&job.Job{Name: "test-job"}, nil)
 
@@ -807,6 +837,151 @@ func TestBuildPullParams_NoVersions_Fails(t *testing.T) {
 
 	params := w.buildPullParams(ctx, m, &b, rt, r, g)
 	assert.Nil(t, params)
+}
+
+func TestProcessJob_PutStep_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "deploy-job",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "deploy-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "build",
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Params: map[string]string{"path": "echo", "args": "building"},
+							},
+						},
+					},
+					{
+						Type: job.StepTypePut,
+						Put: &job.PutStep{
+							Type:   "git",
+							Name:   "repo",
+							Params: map[string]string{"tag": "latest"},
+						},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{ID: 1, Name: "repo", Type: "git", Canonical: "git.repo", Params: resource.Params{Params: map[string]string{"url": "http://example.com"}}},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "git",
+				Params: []string{"url"},
+				Push: utils.RunnerCommand{
+					Runner: "exec",
+					Params: map[string]string{"path": "echo", "args": "pushing"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 80}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// UpdateJobBuild: after task step + after put step + after marking succeeded
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(80), gomock.Any()).
+		Return(nil).Times(3)
+
+	w.processJob(ctx, m, cwd, pp)
+}
+
+func TestProcessJob_OrderedPlan_GetTaskPut(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "ordered-job",
+		VersionID:     1,
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "ordered-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
+					},
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "build",
+							Run:  utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "building"}},
+						},
+					},
+					{
+						Type: job.StepTypePut,
+						Put:  &job.PutStep{Type: "git", Name: "repo"},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-cron", Type: "cron", Canonical: "cron.my-cron"},
+			{ID: 2, Name: "repo", Type: "git", Canonical: "git.repo"},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "cron",
+				Pull: utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "pulling"}},
+			},
+			{
+				ID: 2, Name: "git",
+				Push: utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "pushing"}},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 90}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
+		Return([]*resource.Version{
+			{ID: 1, Version: map[string]interface{}{"date": "now"}},
+		}, nil)
+
+	// UpdateJobBuild: after get + after task + after put + after success = 4
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(90), gomock.Any()).
+		Return(nil).Times(4)
+
+	w.processJob(ctx, m, cwd, pp)
 }
 
 // Silence the unused import warnings

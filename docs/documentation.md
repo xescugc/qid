@@ -353,7 +353,9 @@ When a Job has a `get` to a resource, the `resource.pull` is run before the `job
 
 #### `push`
 
-NOT YET IMPLEMENTED. But will be used to push new content to the Resource Type
+The `label` is the [`runner`](#runner)
+
+When a Job has a `put` step for a resource, the `resource_type.push` is run. Resource-level params are available with the `$param_*` prefix (same as `check` and `pull`). Put-step params use the `$put_*` prefix (e.g. `$put_tag`).
 
 #### Example
 
@@ -419,7 +421,7 @@ resource "git" "my_repo" {
 
 ### Job
 
-Jobs are where the user actions happen. Jobs define a set of tasks that are run in groups: first all the `get` steps and then all the `task` steps.
+Jobs are where the user actions happen. Jobs define a **plan** — an ordered sequence of `get`, `task`, and `put` steps that are executed in the order they appear in the HCL configuration. This allows interleaving steps for CD workflows (e.g., build → push → deploy).
 
 #### `get`
 
@@ -473,6 +475,28 @@ Runs when the Job succeeds
 The `label` is the [`runner`](#runner)
 
 Runs when the Job fails
+
+##### `ensure`
+
+The `label` is the [`runner`](#runner)
+
+Runs always
+
+#### `put`
+
+Put steps push content to a resource. The labels must match a `resource` definition: the first label is the resource type and the second is the resource name. Any additional attributes inside the `put` block are passed as parameters to the `resource_type.push` runner.
+
+##### `on_success`
+
+The `label` is the [`runner`](#runner)
+
+Runs when the put step succeeds
+
+##### `on_failure`
+
+The `label` is the [`runner`](#runner)
+
+Runs when the put step fails
 
 ##### `ensure`
 
@@ -539,6 +563,25 @@ job "test" {
   }
   ensure "exec" {
     path = "ls"
+  }
+}
+```
+
+A CD pipeline with interleaved get/task/put steps:
+
+```hcl
+job "deploy" {
+  get "git" "my_repo" {
+    trigger = true
+  }
+  task "build" {
+    run "docker" {
+      image = "golang:1.25"
+      cmd = "make build"
+    }
+  }
+  put "git" "my_repo" {
+    tag = "latest"
   }
 }
 ```

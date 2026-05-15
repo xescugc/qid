@@ -34,7 +34,7 @@ type Service interface {
 
 type Worker struct {
 	topic        queue.Topic
-	pikoci        pikoci.Service
+	pikoci       pikoci.Service
 	subscription queue.Subscription
 
 	logger *slog.Logger
@@ -42,7 +42,7 @@ type Worker struct {
 
 func New(s pikoci.Service, t queue.Topic, ss queue.Subscription, l *slog.Logger) *Worker {
 	return &Worker{
-		pikoci:        s,
+		pikoci:       s,
 		topic:        t,
 		subscription: ss,
 		logger:       l,
@@ -103,13 +103,12 @@ func (w *Worker) processMessage(ctx context.Context, m queue.Body, cwd string) {
 	}
 }
 
-// processJob handles executing a job: creates a build, runs get/task steps,
+// processJob handles executing a job: creates a build, runs the plan steps,
 // runs hooks, and triggers downstream jobs.
 func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *pipeline.Pipeline) {
 	b := build.Build{
 		Status:    build.Started,
-		Get:       []build.Step{},
-		Task:      []build.Step{},
+		Steps:     []build.Step{},
 		StartedAt: time.Now(),
 	}
 	nb, err := w.pikoci.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
@@ -129,16 +128,14 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		return
 	}
 
-	failed := w.runGetSteps(ctx, m, &b, cwd, pp, j)
-	if !failed {
-		failed = w.runTaskSteps(ctx, m, &b, cwd, pp, j)
-	}
+	failed := w.runPlan(ctx, m, &b, cwd, pp, j)
 
 	if !failed {
 		b.Status = build.Succeeded
 		if err := w.updateBuild(ctx, m, b); err != nil {
 			return
 		}
+		w.triggerDownstreamJobs(ctx, m, &b, pp, j)
 		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnSuccess, "on_success")
 	} else {
 		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnFailure, "on_failure")
@@ -149,7 +146,11 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 // checkPassedConstraints verifies that all jobs in the "passed" list have a
 // successful latest build. If not, the build is deleted and false is returned.
 func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *build.Build, j *job.Job) bool {
-	for _, g := range j.Get {
+	for _, ps := range j.Plan {
+		if ps.Type != job.StepTypeGet || ps.Get == nil {
+			continue
+		}
+		g := ps.Get
 		for _, p := range g.Passed {
 			builds, err := w.pikoci.ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, p)
 			if err != nil {
@@ -173,52 +174,162 @@ func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *bu
 	return true
 }
 
-// runGetSteps runs all "get" steps (resource pulls) for a job.
-// Returns true if the job failed during get steps.
-func (w *Worker) runGetSteps(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job) bool {
-	for _, g := range j.Get {
-		r, ok := pp.Resource(utils.ResourceCanonical(g.Type, g.Name))
-		if !ok {
-			continue
+// runPlan runs all plan steps (get/task/put) in order.
+// Returns true if the job failed during plan execution.
+func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job) bool {
+	for _, ps := range j.Plan {
+		switch ps.Type {
+		case job.StepTypeGet:
+			if ps.Get == nil {
+				continue
+			}
+			if w.runGetStep(ctx, m, b, cwd, pp, *ps.Get, ps) {
+				return true
+			}
+		case job.StepTypeTask:
+			if ps.Task == nil {
+				continue
+			}
+			if w.runTaskStep(ctx, m, b, cwd, pp, *ps.Task, ps) {
+				return true
+			}
+		case job.StepTypePut:
+			if ps.Put == nil {
+				continue
+			}
+			if w.runPutStep(ctx, m, b, cwd, pp, *ps.Put, ps) {
+				return true
+			}
 		}
-		rt, ok := pp.ResourceType(g.Type)
-		if !ok {
-			continue
-		}
-
-		params := w.buildPullParams(ctx, m, b, rt, r, g)
-		if params == nil {
-			return true // error already handled
-		}
-
-		ru, ok := pp.Runner(rt.Pull.Runner)
-		if !ok {
-			continue
-		}
-
-		out, d, err := w.runRunner(ctx, ru, cwd, params)
-		if err != nil {
-			b.Get = append(b.Get, build.Step{Name: g.Name, Logs: out, Duration: d})
-			b.Status = build.Failed
-			w.failBuild(ctx, m, *b, nil)
-			w.logger.Error("failed to run get step", "step", g.Name, "error", err)
-			w.runHooks(ctx, m, b, &b.Get, cwd, pp, g.Name, g.OnFailure, "on_failure")
-			w.runHooks(ctx, m, b, &b.Get, cwd, pp, g.Name, g.Ensure, "ensure")
-			return true
-		}
-
-		b.Get = append(b.Get, build.Step{
-			Name:      g.Name,
-			VersionID: m.VersionID,
-			Logs:      out,
-			Duration:  d,
-		})
-		if err := w.updateBuild(ctx, m, *b); err != nil {
-			return true
-		}
-		w.runHooks(ctx, m, b, &b.Get, cwd, pp, g.Name, g.OnSuccess, "on_success")
-		w.runHooks(ctx, m, b, &b.Get, cwd, pp, g.Name, g.Ensure, "ensure")
 	}
+	return false
+}
+
+// runGetStep runs a single get step (resource pull).
+// Returns true if the step failed.
+func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, g job.GetStep, ps job.PlanStep) bool {
+	r, ok := pp.Resource(utils.ResourceCanonical(g.Type, g.Name))
+	if !ok {
+		return false
+	}
+	rt, ok := pp.ResourceType(g.Type)
+	if !ok {
+		return false
+	}
+
+	params := w.buildPullParams(ctx, m, b, rt, r, g)
+	if params == nil {
+		return true
+	}
+
+	ru, ok := pp.Runner(rt.Pull.Runner)
+	if !ok {
+		return false
+	}
+
+	out, d, err := w.runRunner(ctx, ru, cwd, params)
+	if err != nil {
+		b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d})
+		b.Status = build.Failed
+		w.failBuild(ctx, m, *b, nil)
+		w.logger.Error("failed to run get step", "step", g.Name, "error", err)
+		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, g.Name, ps.OnFailure, "on_failure")
+		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, g.Name, ps.Ensure, "ensure")
+		return true
+	}
+
+	b.Steps = append(b.Steps, build.Step{
+		Type:      "get",
+		Name:      g.Name,
+		VersionID: m.VersionID,
+		Logs:      out,
+		Duration:  d,
+	})
+	if err := w.updateBuild(ctx, m, *b); err != nil {
+		return true
+	}
+	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, g.Name, ps.OnSuccess, "on_success")
+	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, g.Name, ps.Ensure, "ensure")
+	return false
+}
+
+// runTaskStep runs a single task step.
+// Returns true if the step failed.
+func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, t job.TaskStep, ps job.PlanStep) bool {
+	ru, ok := pp.Runner(t.Run.Runner)
+	if !ok {
+		return false
+	}
+
+	out, d, err := w.runRunner(ctx, ru, cwd, t.Run.Params)
+	if err != nil {
+		b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d})
+		b.Status = build.Failed
+		w.failBuild(ctx, m, *b, nil)
+		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.OnFailure, "on_failure")
+		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.Ensure, "ensure")
+		return true
+	}
+
+	b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d})
+	if err := w.updateBuild(ctx, m, *b); err != nil {
+		return true
+	}
+	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.OnSuccess, "on_success")
+	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.Ensure, "ensure")
+	return false
+}
+
+// runPutStep runs a single put step (resource push).
+// Returns true if the step failed.
+func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, p job.PutStep, ps job.PlanStep) bool {
+	rCan := utils.ResourceCanonical(p.Type, p.Name)
+	r, ok := pp.Resource(rCan)
+	if !ok {
+		return false
+	}
+	rt, ok := pp.ResourceType(p.Type)
+	if !ok {
+		return false
+	}
+
+	params := rt.Push.Params
+	if params == nil {
+		params = make(map[string]string)
+	}
+	// Add resource-level params
+	for k, v := range r.Params.Params {
+		if slices.Contains(rt.Params, k) {
+			params["param_"+k] = v
+		}
+	}
+	// Add put-step-level params with put_ prefix
+	for k, v := range p.Params {
+		params["put_"+k] = v
+	}
+
+	ru, ok := pp.Runner(rt.Push.Runner)
+	if !ok {
+		return false
+	}
+
+	out, d, err := w.runRunner(ctx, ru, cwd, params)
+	if err != nil {
+		b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d})
+		b.Status = build.Failed
+		w.failBuild(ctx, m, *b, nil)
+		w.logger.Error("failed to run put step", "step", p.Name, "error", err)
+		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, p.Name, ps.OnFailure, "on_failure")
+		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, p.Name, ps.Ensure, "ensure")
+		return true
+	}
+
+	b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d})
+	if err := w.updateBuild(ctx, m, *b); err != nil {
+		return true
+	}
+	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, p.Name, ps.OnSuccess, "on_success")
+	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, p.Name, ps.Ensure, "ensure")
 	return false
 }
 
@@ -271,43 +382,15 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 	return params
 }
 
-// runTaskSteps runs all "task" steps for a job and triggers downstream jobs on success.
-// Returns true if the job failed during task steps.
-func (w *Worker) runTaskSteps(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job) bool {
-	for _, t := range j.Task {
-		ru, ok := pp.Runner(t.Run.Runner)
-		if !ok {
-			continue
-		}
-
-		out, d, err := w.runRunner(ctx, ru, cwd, t.Run.Params)
-		if err != nil {
-			b.Task = append(b.Task, build.Step{Name: t.Name, Logs: out, Duration: d})
-			b.Status = build.Failed
-			w.failBuild(ctx, m, *b, nil)
-			w.runHooks(ctx, m, b, &b.Task, cwd, pp, t.Name, t.OnFailure, "on_failure")
-			w.runHooks(ctx, m, b, &b.Task, cwd, pp, t.Name, t.Ensure, "ensure")
-			return true
-		}
-
-		b.Task = append(b.Task, build.Step{Name: t.Name, Logs: out, Duration: d})
-		if err := w.updateBuild(ctx, m, *b); err != nil {
-			return true
-		}
-		w.runHooks(ctx, m, b, &b.Task, cwd, pp, t.Name, t.OnSuccess, "on_success")
-		w.runHooks(ctx, m, b, &b.Task, cwd, pp, t.Name, t.Ensure, "ensure")
-
-		// Trigger downstream jobs that depend on this job via "passed"
-		w.triggerDownstreamJobs(ctx, m, b, pp, j)
-	}
-	return false
-}
-
 // triggerDownstreamJobs finds jobs that depend on the current job via "passed"
 // and triggers them.
 func (w *Worker) triggerDownstreamJobs(ctx context.Context, m queue.Body, b *build.Build, pp *pipeline.Pipeline, j *job.Job) {
 	for _, nj := range pp.Jobs {
-		for _, g := range nj.Get {
+		for _, ps := range nj.Plan {
+			if ps.Type != job.StepTypeGet || ps.Get == nil {
+				continue
+			}
+			g := ps.Get
 			if slices.Contains(g.Passed, j.Name) && g.Trigger {
 				qb := queue.Body{
 					TeamCanonical:     m.TeamCanonical,
@@ -349,7 +432,7 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 			}
 		}
 
-		*steps = append(*steps, build.Step{Name: name, Logs: out, Duration: d})
+		*steps = append(*steps, build.Step{Type: "hook", Name: name, Logs: out, Duration: d})
 		if err := w.updateBuild(ctx, m, *b); err != nil {
 			return
 		}
@@ -439,7 +522,11 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 // triggerResourceJobs triggers jobs that depend on a resource via "get" with trigger=true.
 func (w *Worker) triggerResourceJobs(ctx context.Context, m queue.Body, pp *pipeline.Pipeline, r resource.Resource, cv *resource.Version) {
 	for _, j := range pp.Jobs {
-		for _, g := range j.Get {
+		for _, ps := range j.Plan {
+			if ps.Type != job.StepTypeGet || ps.Get == nil {
+				continue
+			}
+			g := ps.Get
 			// If Passed is not 0 it means is waiting for another job
 			// and this trigger is only for resources
 			if g.Name == r.Name && g.Type == r.Type && g.Trigger && len(g.Passed) == 0 {

@@ -377,39 +377,24 @@
             <span class="piko-badge piko-badge-started">Running</span>
           <% } %>
         </div>
-        <% _.each(get || [], function(g, i) { %>
-          <div class="piko-step-row">
-            <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-              <span><span class="piko-step-label">get</span> <%- g.name %> <span style="color:var(--text-muted);">(<%- g.duration %>)</span></span>
-              <% if (status === "succeeded" || g.logs) { %>
-                <span class="piko-badge piko-badge-succeeded">ok</span>
-              <% } %>
-            </div>
-            <div class="piko-step-row-body" style="display:none;">
-<pre>
-<%- g.logs %>
-</pre>
-            </div>
-          </div>
-        <% }) %>
-        <% var _task = task || []; %>
+        <% var _steps = steps || []; %>
         <% var _job = job || []; %>
-        <% var lastTask = _task.length > 0 ? _task[_task.length-1] : null; %>
-        <% _.each(_task, function(t, i) { %>
+        <% var lastStep = _steps.length > 0 ? _steps[_steps.length-1] : null; %>
+        <% _.each(_steps, function(s, i) { %>
           <div class="piko-step-row">
             <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-              <span><span class="piko-step-label">task</span> <%- t.name %> <span style="color:var(--text-muted);">(<%- t.duration %>)</span></span>
-              <% if (status === "failed" && t === lastTask && _job.length === 0) { %>
+              <span><span class="piko-step-label"><%- s.type || "step" %></span> <%- s.name %> <span style="color:var(--text-muted);">(<%- s.duration %>)</span></span>
+              <% if (status === "failed" && s === lastStep && _job.length === 0) { %>
                 <span class="piko-badge piko-badge-failed">fail</span>
-              <% } else if (status === "started" && t === lastTask && _job.length === 0) { %>
+              <% } else if (status === "started" && s === lastStep && _job.length === 0) { %>
                 <span class="piko-badge piko-badge-started">running</span>
-              <% } else if (t.logs) { %>
+              <% } else if (s.logs) { %>
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
             </div>
             <div class="piko-step-row-body" style="display:none;">
 <pre>
-<%- t.logs %>
+<%- s.logs %>
 </pre>
             </div>
           </div>
@@ -796,11 +781,8 @@
             if (data.duration  !== 0) {
               data.duration = durationToString(data.duration)
             }
-            _.each(data.get, function(g, i) {
-              data.get[i].duration = durationToString(g.duration)
-            })
-            _.each(data.task, function(t, i) {
-              data.task[i].duration = durationToString(t.duration)
+            _.each(data.steps, function(s, i) {
+              data.steps[i].duration = durationToString(s.duration)
             })
             _.each(data.job, function(j, i) {
               data.job[i].duration = durationToString(j.duration)

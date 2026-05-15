@@ -152,7 +152,7 @@ func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 const pipelineQuery = `
 	SELECT
 		p.id, p.name, p.raw,
-		j.id, j.name, j.get, j.task, j.on_success, j.on_failure, j.ensure,
+		j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure,
 		r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.cron_id, r.logs, r.last_check,
 		rt.id, rt.name, rt.` + "`check`" + `, rt.pull, rt.push, rt.params,
 		ru.id, ru.name, ru.run
@@ -187,7 +187,7 @@ func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
 
 		err := rows.Scan(
 			&pp.ID, &pp.Name, &pp.Raw,
-			&j.ID, &j.Name, &j.Get, &j.Task, &j.OnSuccess, &j.OnFailure, &j.Ensure,
+			&j.ID, &j.Name, &j.Plan, &j.OnSuccess, &j.OnFailure, &j.Ensure,
 			&r.ID, &r.Name, &r.Type, &r.Canonical, &r.Params, &r.CheckInterval, &r.CronID, &r.Logs, &r.LastCheck,
 			&rt.ID, &rt.Name, &rt.Check, &rt.Pull, &rt.Push, &rt.Params,
 			&ru.ID, &ru.Name, &ru.Run,
