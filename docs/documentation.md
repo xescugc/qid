@@ -203,7 +203,11 @@ job "build" {
   task "build" {
     run "exec" {
       path = "make"
-      args = ["-C", "${var.repo_name}", "release"]
+      args = [
+        "-C",
+        "${var.repo_name}",
+        "release",
+      ]
     }
   }
 }
@@ -234,7 +238,11 @@ job "build" {
   task "build" {
     run "exec" {
       path = "make"
-      args = ["-C", "${var.repo_name}", "release"]
+      args = [
+        "-C",
+        "${var.repo_name}",
+        "release",
+      ]
     }
   }
 }
@@ -301,7 +309,9 @@ job "my_job" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = ["IN"]
+      args = [
+        "IN",
+      ]
     }
   }
 }
@@ -363,25 +373,29 @@ resource_type "git" {
   ]
   check "exec" {
     path = "/bin/sh"
-    args = <<-EOT
-        '-ec'
-        'git clone --quiet $param_url $param_name
-        cd $param_name
-        if [[ -n $version_ref ]]; then
-          git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
-        else
-          git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
-        fi'
+    args = [
+      "-ec",
+      <<-EOT
+      git clone --quiet $param_url $param_name
+      cd $param_name
+      if [[ -n $version_ref ]]; then
+        git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { \"ref\": . }))"
+      else
+        git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { \"ref\": . }))"
+      fi
       EOT
+    ]
   }
   pull "exec" {
     path = "/bin/sh"
-    args = <<-EOT
-        '-ec'
-        'git clone $param_url $param_name
-        cd $param_name
-        git checkout $version_ref'
+    args = [
+      "-ec",
+      <<-EOT
+      git clone $param_url $param_name
+      cd $param_name
+      git checkout $version_ref
       EOT
+    ]
   }
   push "exec" { }
 }
@@ -528,11 +542,11 @@ job "gen" {
   task "gen" {
     run "exec" {
       path = "make"
-      args = <<-EOT
-          '-C'
-          '${var.repo_name}'
-          'gen'
-        EOT
+      args = [
+        "-C",
+        "${var.repo_name}",
+        "gen",
+      ]
     }
     on_success "exec" {
       path = "ls"
@@ -548,11 +562,11 @@ job "test" {
   task "test" {
     run "exec" {
       path = "make"
-      args = <<-EOT
-          '-C'
-          '${var.repo_name}'
-          'test'
-        EOT
+      args = [
+        "-C",
+        "${var.repo_name}",
+        "test",
+      ]
     }
   }
   ensure "exec" {
