@@ -5,15 +5,15 @@ resource_type "git" {
   ]
   check "exec" {
     path = "/bin/sh"
-    args = "-ec 'echo [{\"ref\":\"abc\"}]'"
+    args = ["-ec", "echo [{\\\"ref\\\":\\\"abc\\\"}]"]
   }
   pull "exec" {
     path = "/bin/sh"
-    args = "-ec 'echo pulling'"
+    args = ["-ec", "echo pulling"]
   }
   push "exec" {
     path = "/bin/sh"
-    args = "-ec 'echo pushing'"
+    args = ["-ec", "echo pushing"]
   }
 }
 
@@ -36,7 +36,7 @@ job "build-and-push" {
   task "build" {
     run "exec" {
       path = "echo"
-      args = "building"
+      args = ["building"]
     }
   }
   put "git" "repo" {

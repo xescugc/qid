@@ -267,7 +267,7 @@ job "gen" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = "'IN'"
+      args = ["IN"]
     }
   }
 }`)
@@ -313,7 +313,7 @@ job "gen" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = "'IN'"
+      args = ["IN"]
     }
   }
 }`)
@@ -455,7 +455,7 @@ job "gen" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = "'IN'"
+      args = ["IN"]
     }
   }
 }`)

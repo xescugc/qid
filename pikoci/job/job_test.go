@@ -82,7 +82,7 @@ func TestPlanStep_JSONMarshalUnmarshal(t *testing.T) {
 			Type: job.StepTypePut,
 			Put:  &job.PutStep{Type: "docker", Name: "image", Params: map[string]string{"tag": "latest"}},
 			OnSuccess: []utils.RunnerCommand{
-				{Runner: "exec", Params: map[string]string{"path": "echo", "args": "done"}},
+				{Runner: "exec", Args: []string{"done"}, Params: map[string]string{"path": "echo"}},
 			},
 		},
 	}

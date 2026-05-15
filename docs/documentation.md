@@ -203,14 +203,14 @@ job "build" {
   task "build" {
     run "exec" {
       path = "make"
-      args = "-C ${var.repo_name} release"
+      args = ["-C", "${var.repo_name}", "release"]
     }
   }
 }
 ```
 
 Will use `exec` when running the task `build`, and all the content of the `run`  will be passed to the `runner` as env variables,
-in this case `$path` and `$args` will be available to be used on the `runner`.
+in this case `$path` will be available to be used on the `runner`. The `$args` placeholder in the runner definition is replaced by the `args` list from the `run` block.
 
 The runner `exec` will be always available to be used (no need to define it) and it looks like:
 
@@ -223,7 +223,7 @@ runner "exec" {
 }
 ```
 
-So to use it you need to pass a `path` and `args` to the block. If you want to pass multiline or separate arguments, here is an example:
+So to use it you need to pass a `path` and `args` to the block. Each element of the `args` list is passed as a single argument:
 
 ```hcl
 job "build" {
@@ -234,17 +234,11 @@ job "build" {
   task "build" {
     run "exec" {
       path = "make"
-      args = <<-EOT
-          '-C'
-          '${var.repo_name}'
-          'release'
-        EOT
+      args = ["-C", "${var.repo_name}", "release"]
     }
   }
 }
 ```
-
-The logic for separating the `args` (as this is just a 1 string with `\n`) is implemented using the [go-shellquote#Split](https://github.com/kballard/go-shellquote) for reference, so using in this case `'arg1' 'arg2'`
 
 #### `run`
 
@@ -256,7 +250,7 @@ The name of or path to the executable to run.
 
 ##### `args`
 
-Arguments to pass to the command.
+A list of arguments to pass to the command. Each element is passed as a single argument (no shell-style splitting).
 
 #### Example
 
@@ -307,7 +301,7 @@ job "my_job" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = "'IN'"
+      args = ["IN"]
     }
   }
 }

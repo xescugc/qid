@@ -5,25 +5,29 @@ resource_type "git" {
   ]
   check "exec" {
     path = "/bin/sh"
-    args = <<-EOT
-        '-ec'
-        'git clone --quiet $param_url $param_name
-        cd $param_name
-        if [[ -n $version_ref ]]; then
-          git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
-        else
-          git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { "ref": . }))"
-        fi'
+    args = [
+      "-ec",
+      <<-EOT
+      git clone --quiet $param_url $param_name
+      cd $param_name
+      if [[ -n $version_ref ]]; then
+        git log $version_ref..HEAD --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { \"ref\": . }))"
+      else
+        git log -1 --pretty=format:"%H" | jq -Rsc "(. / \"\n\" | map(select(length>0) | { \"ref\": . }))"
+      fi
       EOT
+    ]
   }
   pull "exec" {
     path = "/bin/sh"
-    args = <<-EOT
-        '-ec'
-        'git clone $param_url $param_name
-        cd $param_name
-        git checkout $version_ref'
+    args = [
+      "-ec",
+      <<-EOT
+      git clone $param_url $param_name
+      cd $param_name
+      git checkout $version_ref
       EOT
+    ]
   }
   push "exec" { }
 }

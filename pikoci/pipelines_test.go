@@ -103,15 +103,15 @@ resource_type "git" {
   params = ["url"]
   check "exec" {
     path = "echo"
-    args = "check"
+    args = ["check"]
   }
   pull "exec" {
     path = "echo"
-    args = "pull"
+    args = ["pull"]
   }
   push "exec" {
     path = "echo"
-    args = "push"
+    args = ["push"]
   }
 }
 
@@ -133,7 +133,7 @@ job "deploy" {
   task "build" {
     run "exec" {
       path = "echo"
-      args = "building"
+      args = ["building"]
     }
   }
   put "git" "repo" {
@@ -183,7 +183,7 @@ job "test" {
   task "echo" {
     run "exec" {
       path = "echo"
-      args = "hello"
+      args = ["hello"]
     }
   }
 }

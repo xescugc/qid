@@ -42,9 +42,9 @@ func (pp *Pipeline) ResourceType(rtn string) (restype.ResourceType, bool) {
 			Name: "cron",
 			Check: utils.RunnerCommand{
 				Runner: "exec",
+				Args:   []string{"-ec", `echo [{"date":"$(date)"}]`},
 				Params: map[string]string{
 					"path": "/bin/sh",
-					"args": `-ec 'echo [{\"date\":\"$(date)\"}]'`,
 				},
 			},
 		}, true
