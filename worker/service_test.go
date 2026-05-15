@@ -81,7 +81,7 @@ func testPipeline() *pipeline.Pipeline {
 				Params: []string{},
 				Check: utils.RunnerCommand{
 					Runner: "exec",
-					Args:   []string{"-ec", `echo [{"date":"now"}]`},
+					Args:   []string{"-ec", `echo "[{\"date\":\"now\"}]"`},
 					Params: map[string]string{
 						"path": "/bin/sh",
 					},
