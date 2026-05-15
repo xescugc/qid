@@ -55,9 +55,9 @@ func testPipeline() *pipeline.Pipeline {
 							Name: "echo",
 							Run: utils.RunnerCommand{
 								Runner: "exec",
+								Args:   []string{"hello"},
 								Params: map[string]string{
 									"path": "echo",
-									"args": "hello",
 								},
 							},
 						},
@@ -81,9 +81,9 @@ func testPipeline() *pipeline.Pipeline {
 				Params: []string{},
 				Check: utils.RunnerCommand{
 					Runner: "exec",
+					Args:   []string{"-ec", `echo [{"date":"now"}]`},
 					Params: map[string]string{
 						"path": "/bin/sh",
-						"args": `-ec 'echo [{"date":"now"}]'`,
 					},
 				},
 				Pull: utils.RunnerCommand{
@@ -129,9 +129,9 @@ func TestProcessJob_Success_TaskOnly(t *testing.T) {
 							Name: "echo",
 							Run: utils.RunnerCommand{
 								Runner: "exec",
+								Args:   []string{"hello"},
 								Params: map[string]string{
 									"path": "echo",
-									"args": "hello",
 								},
 							},
 						},
@@ -184,7 +184,7 @@ func TestProcessJob_Success_WithGetAndTask(t *testing.T) {
 						Type: job.StepTypeTask,
 						Task: &job.TaskStep{
 							Name: "echo",
-							Run:  utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "hello"}},
+							Run:  utils.RunnerCommand{Runner: "exec", Args: []string{"hello"}, Params: map[string]string{"path": "echo"}},
 						},
 					},
 				},
@@ -198,7 +198,8 @@ func TestProcessJob_Success_WithGetAndTask(t *testing.T) {
 				ID: 1, Name: "cron",
 				Pull: utils.RunnerCommand{
 					Runner: "exec",
-					Params: map[string]string{"path": "echo", "args": "pulling"},
+					Args:   []string{"pulling"},
+					Params: map[string]string{"path": "echo"},
 				},
 			},
 		},
@@ -356,16 +357,15 @@ func TestProcessJob_TaskFailure_RunsHooks(t *testing.T) {
 								Runner: "exec",
 								Params: map[string]string{
 									"path": "false", // exits with code 1
-									"args": "",
 								},
 							},
 						},
 						OnFailure: []utils.RunnerCommand{
 							{
 								Runner: "exec",
+								Args:   []string{"task failed"},
 								Params: map[string]string{
 									"path": "echo",
-									"args": "task failed",
 								},
 							},
 						},
@@ -374,18 +374,18 @@ func TestProcessJob_TaskFailure_RunsHooks(t *testing.T) {
 				OnFailure: []utils.RunnerCommand{
 					{
 						Runner: "exec",
+						Args:   []string{"job failed"},
 						Params: map[string]string{
 							"path": "echo",
-							"args": "job failed",
 						},
 					},
 				},
 				Ensure: []utils.RunnerCommand{
 					{
 						Runner: "exec",
+						Args:   []string{"always runs"},
 						Params: map[string]string{
 							"path": "echo",
-							"args": "always runs",
 						},
 					},
 				},
@@ -444,9 +444,9 @@ func TestProcessJob_TriggersDownstream(t *testing.T) {
 							Name: "echo",
 							Run: utils.RunnerCommand{
 								Runner: "exec",
+								Args:   []string{"hello"},
 								Params: map[string]string{
 									"path": "echo",
-									"args": "hello",
 								},
 							},
 						},
@@ -541,9 +541,9 @@ func TestProcessResourceCheck_NewVersions(t *testing.T) {
 				ID: 1, Name: "cron",
 				Check: utils.RunnerCommand{
 					Runner: "exec",
+					Args:   []string{"-ec", `printf "[{\"date\":\"now\"}]\n"`},
 					Params: map[string]string{
 						"path": "/bin/sh",
-						"args": `-ec 'printf "[{\"date\":\"now\"}]\n"'`,
 					},
 				},
 			},
@@ -631,8 +631,8 @@ func TestRunHooks(t *testing.T) {
 	}
 
 	hooks := []utils.RunnerCommand{
-		{Runner: "exec", Params: map[string]string{"path": "echo", "args": "hook1"}},
-		{Runner: "exec", Params: map[string]string{"path": "echo", "args": "hook2"}},
+		{Runner: "exec", Args: []string{"hook1"}, Params: map[string]string{"path": "echo"}},
+		{Runner: "exec", Args: []string{"hook2"}, Params: map[string]string{"path": "echo"}},
 	}
 
 	// 2 hooks = 2 UpdateJobBuild calls
@@ -663,7 +663,7 @@ func TestRunHooks_SingleHook_NoIndex(t *testing.T) {
 	b := build.Build{ID: 61, Job: []build.Step{}}
 
 	hooks := []utils.RunnerCommand{
-		{Runner: "exec", Params: map[string]string{"path": "echo", "args": "only"}},
+		{Runner: "exec", Args: []string{"only"}, Params: map[string]string{"path": "echo"}},
 	}
 
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(61), gomock.Any()).
@@ -692,7 +692,7 @@ func TestRunHooks_JobLevel_NoStepName(t *testing.T) {
 	b := build.Build{ID: 62, Job: []build.Step{}}
 
 	hooks := []utils.RunnerCommand{
-		{Runner: "exec", Params: map[string]string{"path": "echo", "args": "job-level"}},
+		{Runner: "exec", Args: []string{"job-level"}, Params: map[string]string{"path": "echo"}},
 	}
 
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(62), gomock.Any()).
@@ -864,7 +864,8 @@ func TestProcessJob_PutStep_Success(t *testing.T) {
 							Name: "build",
 							Run: utils.RunnerCommand{
 								Runner: "exec",
-								Params: map[string]string{"path": "echo", "args": "building"},
+								Args:   []string{"building"},
+								Params: map[string]string{"path": "echo"},
 							},
 						},
 					},
@@ -888,7 +889,8 @@ func TestProcessJob_PutStep_Success(t *testing.T) {
 				Params: []string{"url"},
 				Push: utils.RunnerCommand{
 					Runner: "exec",
-					Params: map[string]string{"path": "echo", "args": "pushing"},
+					Args:   []string{"pushing"},
+					Params: map[string]string{"path": "echo"},
 				},
 			},
 		},
@@ -938,7 +940,7 @@ func TestProcessJob_OrderedPlan_GetTaskPut(t *testing.T) {
 						Type: job.StepTypeTask,
 						Task: &job.TaskStep{
 							Name: "build",
-							Run:  utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "building"}},
+							Run:  utils.RunnerCommand{Runner: "exec", Args: []string{"building"}, Params: map[string]string{"path": "echo"}},
 						},
 					},
 					{
@@ -955,11 +957,11 @@ func TestProcessJob_OrderedPlan_GetTaskPut(t *testing.T) {
 		ResourceTypes: []restype.ResourceType{
 			{
 				ID: 1, Name: "cron",
-				Pull: utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "pulling"}},
+				Pull: utils.RunnerCommand{Runner: "exec", Args: []string{"pulling"}, Params: map[string]string{"path": "echo"}},
 			},
 			{
 				ID: 2, Name: "git",
-				Push: utils.RunnerCommand{Runner: "exec", Params: map[string]string{"path": "echo", "args": "pushing"}},
+				Push: utils.RunnerCommand{Runner: "exec", Args: []string{"pushing"}, Params: map[string]string{"path": "echo"}},
 			},
 		},
 		Runners: []runner.Runner{

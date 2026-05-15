@@ -15,7 +15,6 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/google/uuid"
-	"github.com/kballard/go-shellquote"
 	"github.com/xescugc/pikoci/pikoci"
 	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/job"
@@ -227,7 +226,12 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
-	out, d, err := w.runRunner(ctx, ru, cwd, params)
+	rc := utils.RunnerCommand{
+		Runner: rt.Pull.Runner,
+		Args:   rt.Pull.Args,
+		Params: params,
+	}
+	out, d, err := w.runRunner(ctx, ru, cwd, rc)
 	if err != nil {
 		b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d})
 		b.Status = build.Failed
@@ -261,7 +265,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		return false
 	}
 
-	out, d, err := w.runRunner(ctx, ru, cwd, t.Run.Params)
+	out, d, err := w.runRunner(ctx, ru, cwd, t.Run)
 	if err != nil {
 		b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d})
 		b.Status = build.Failed
@@ -313,7 +317,12 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
-	out, d, err := w.runRunner(ctx, ru, cwd, params)
+	rc := utils.RunnerCommand{
+		Runner: rt.Push.Runner,
+		Args:   rt.Push.Args,
+		Params: params,
+	}
+	out, d, err := w.runRunner(ctx, ru, cwd, rc)
 	if err != nil {
 		b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d})
 		b.Status = build.Failed
@@ -418,7 +427,7 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 		if !ok {
 			continue
 		}
-		out, d, _ := w.runRunner(ctx, ru, cwd, h.Params)
+		out, d, _ := w.runRunner(ctx, ru, cwd, h)
 
 		name := hookType
 		if stepName != "" {
@@ -473,7 +482,12 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 		return
 	}
 
-	out, _, err := w.runRunner(ctx, ru, cwd, params)
+	rc := utils.RunnerCommand{
+		Runner: rt.Check.Runner,
+		Args:   rt.Check.Args,
+		Params: params,
+	}
+	out, _, err := w.runRunner(ctx, ru, cwd, rc)
 	if err != nil {
 		r.Logs = out
 		if nerr := w.pikoci.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); nerr != nil {
@@ -574,9 +588,9 @@ func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
 	}
 }
 
-func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, params map[string]string) (string, time.Duration, error) {
+func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc utils.RunnerCommand) (string, time.Duration, error) {
 	envs := map[string]string{"WORKDIR": cwd}
-	for k, v := range params {
+	for k, v := range rc.Params {
 		envs[k] = v
 	}
 	envFn := func(p string) string {
@@ -589,16 +603,19 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, pa
 	var args []string
 	var out string
 	for _, a := range ru.Run.Args {
-		ea := os.Expand(a, envFn)
-		if ea == "" {
+		if a == "$args" {
+			for _, ca := range rc.Args {
+				ea := os.Expand(ca, envFn)
+				if ea != "" {
+					args = append(args, ea)
+				}
+			}
 			continue
 		}
-		sea, err := shellquote.Split(ea)
-		if err != nil {
-			out += "\n" + err.Error()
-			return out, time.Duration(1), err
+		ea := os.Expand(a, envFn)
+		if ea != "" {
+			args = append(args, ea)
 		}
-		args = append(args, sea...)
 	}
 
 	cmd := exec.CommandContext(ctx, os.Expand(ru.Run.Path, envFn), args...)
