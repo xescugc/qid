@@ -72,9 +72,6 @@ func TestDeletePipeline(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
-	s.Resources.EXPECT().Filter(ctx, "main", "my-pipeline").Return([]*resource.Resource{
-		{ID: 1, Canonical: "cron.my-cron", CronID: 5},
-	}, nil)
 	s.Pipelines.EXPECT().Delete(ctx, "main", "my-pipeline").Return(nil)
 
 	err := s.S.DeletePipeline(ctx, "main", "my-pipeline")

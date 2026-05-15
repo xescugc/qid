@@ -17,7 +17,8 @@ import (
 )
 
 type unitOfWork struct {
-	tx *sql.Tx
+	tx       *sql.Tx
+	dbSystem string
 
 	users         user.Repository
 	teams         team.Repository
@@ -29,14 +30,14 @@ type unitOfWork struct {
 	runners       runner.Repository
 }
 
-func NewStartUnitOfWork(db *sql.DB) StartUnitOfWork {
+func NewStartUnitOfWork(db *sql.DB, dbSystem string) StartUnitOfWork {
 	return func(ctx context.Context, uowFn func(uow UnitOfWork) error) error {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
-		uow := &unitOfWork{tx: tx}
+		uow := &unitOfWork{tx: tx, dbSystem: dbSystem}
 
 		if err := uowFn(uow); err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -83,7 +84,7 @@ func (u *unitOfWork) Jobs() job.Repository {
 
 func (u *unitOfWork) Resources() resource.Repository {
 	if u.resources == nil {
-		u.resources = mysql.NewResourceRepository(u.tx)
+		u.resources = mysql.NewResourceRepository(u.tx, u.dbSystem)
 	}
 	return u.resources
 }

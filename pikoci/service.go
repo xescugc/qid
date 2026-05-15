@@ -3,7 +3,6 @@ package pikoci
 import (
 	"context"
 
-	cron "github.com/netresearch/go-cron"
 	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
@@ -11,6 +10,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/scheduler"
 	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/user"
@@ -89,12 +89,12 @@ type PikoCI struct {
 
 	JWTSecret []byte
 
-	cron   *cron.Cron
-	logger *slog.Logger
+	scheduler *scheduler.Scheduler
+	logger    *slog.Logger
 }
 
 func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, suow unitwork.StartUnitOfWork, js []byte, l *slog.Logger) *PikoCI {
-	q := &PikoCI{
+	return &PikoCI{
 		Ctx:           ctx,
 		Topic:         t,
 		Users:         ur,
@@ -108,10 +108,11 @@ func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Reposit
 		StartUoW:      suow,
 		JWTSecret:     js,
 		logger:        l,
-		cron:          cron.New(cron.WithContext(ctx)),
+		scheduler:     scheduler.New(rr, t, l),
 	}
+}
 
-	q.cron.Start()
-
-	return q
+// StartScheduler starts the background scheduler that polls for due resources.
+func (q *PikoCI) StartScheduler(ctx context.Context) {
+	q.scheduler.Start(ctx)
 }

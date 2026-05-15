@@ -10,10 +10,10 @@ type Resource struct {
 	Params        Params `json:"params" hcl:"params,block"`
 	CheckInterval string `json:"check_interval" hcl:"check_interval,optional"`
 
-	CronID    uint64    `json:"cron_id"`
 	Canonical string    `json:"canonical"`
 	Logs      string    `json:"logs"`
 	LastCheck     time.Time `json:"last_check"`
+	NextCheck     time.Time `json:"next_check"`
 	WebhookToken  string    `json:"webhook_token"`
 }
 

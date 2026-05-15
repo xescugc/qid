@@ -2,7 +2,6 @@ package pikoci
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,47 +9,15 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 	"github.com/google/uuid"
-	cron "github.com/netresearch/go-cron"
 	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
-	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
+	"github.com/xescugc/pikoci/pikoci/scheduler"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/utils"
-	"gocloud.dev/pubsub"
 )
-
-func (q *PikoCI) newCronResourceFunc(tc, ppName, resCan string) func() {
-	return func() {
-		q.logger.Info("Checking resource ...", "Pipeline", ppName, "Resource", resCan)
-		r, err := q.Resources.Find(q.Ctx, tc, ppName, resCan)
-		if err != nil {
-			q.logger.Error("failed to find Resource", "error", err)
-			return
-		}
-		m := queue.Body{
-			TeamCanonical:     tc,
-			PipelineName:      ppName,
-			ResourceCanonical: resCan,
-		}
-		mb, err := json.Marshal(m)
-		if err != nil {
-			q.logger.Error("failed to marshal Message Body", "error", err)
-			return
-		}
-		err = q.Topic.Send(q.Ctx, &pubsub.Message{
-			Body: mb,
-		})
-		if err != nil {
-			q.logger.Error("failed to send Topic", "error", err)
-			return
-		}
-		r.LastCheck = time.Now()
-		_ = q.UpdatePipelineResource(q.Ctx, tc, ppName, resCan, *r)
-	}
-}
 
 func (q *PikoCI) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error) {
 	if !utils.ValidateCanonical(tc) {
@@ -67,7 +34,6 @@ func (q *PikoCI) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 	pp.Name = pn
 	pp.Raw = rpp
 
-	var cronEntries []cron.EntryID
 	var cp *pipeline.Pipeline
 	err = q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
 		_, err := uow.Pipelines().Create(ctx, tc, *pp)
@@ -103,16 +69,17 @@ func (q *PikoCI) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 			if spec == "" {
 				spec = "@every 1m"
 			}
-			eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
-			if err != nil {
-				return fmt.Errorf("failed to add Cron Func %q: %w", r.Name, err)
+			if err := scheduler.ValidateCheckInterval(spec); err != nil {
+				return fmt.Errorf("invalid check_interval for resource %q: %w", r.Name, err)
 			}
-			cronEntries = append(cronEntries, eid)
-			r.CronID = uint64(eid)
+			nextCheck, err := scheduler.ComputeNextCheck(spec, time.Now())
+			if err != nil {
+				return fmt.Errorf("failed to compute next check for resource %q: %w", r.Name, err)
+			}
+			r.NextCheck = nextCheck
 			r.WebhookToken = uuid.New().String()
 			_, err = uow.Resources().Create(ctx, tc, pn, r)
 			if err != nil {
-				q.cron.Remove(eid)
 				return fmt.Errorf("failed to create Resource %q: %w", r.Name, err)
 			}
 		}
@@ -134,10 +101,6 @@ func (q *PikoCI) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 		return nil
 	})
 	if err != nil {
-		// Clean up any cron entries that were added
-		for _, eid := range cronEntries {
-			q.cron.Remove(eid)
-		}
 		return nil, err
 	}
 	return cp, nil
@@ -234,19 +197,23 @@ func (q *PikoCI) UpdatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 			if !utils.ValidateCanonical(r.Name) {
 				return fmt.Errorf("invalid Resource Name format %q", r.Name)
 			}
+			spec := r.CheckInterval
+			if spec == "" {
+				spec = "@every 1m"
+			}
+			if err := scheduler.ValidateCheckInterval(spec); err != nil {
+				return fmt.Errorf("invalid check_interval for resource %q: %w", r.Name, err)
+			}
 			if dbr, ok := dbrs[r.Canonical]; ok {
 				delete(dbrs, r.Canonical)
 				if dbr.CheckInterval != r.CheckInterval {
-					q.cron.Remove(cron.EntryID(dbr.CronID))
-					spec := r.CheckInterval
-					if spec == "" {
-						spec = "@every 1m"
-					}
-					eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
+					nextCheck, err := scheduler.ComputeNextCheck(spec, time.Now())
 					if err != nil {
-						return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
+						return fmt.Errorf("failed to compute next check for resource %q: %w", r.Canonical, err)
 					}
-					r.CronID = uint64(eid)
+					r.NextCheck = nextCheck
+				} else {
+					r.NextCheck = dbr.NextCheck
 				}
 				r.WebhookToken = dbr.WebhookToken
 				err = uow.Resources().Update(ctx, tc, pn, r.Canonical, r)
@@ -254,15 +221,11 @@ func (q *PikoCI) UpdatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 					return fmt.Errorf("failed to update Resource %q: %w", r.Canonical, err)
 				}
 			} else {
-				spec := r.CheckInterval
-				if spec == "" {
-					spec = "@every 1m"
-				}
-				eid, err := q.cron.AddFunc(spec, q.newCronResourceFunc(tc, pp.Name, r.Canonical))
+				nextCheck, err := scheduler.ComputeNextCheck(spec, time.Now())
 				if err != nil {
-					return fmt.Errorf("failed to add Cron Func %q: %w", r.Canonical, err)
+					return fmt.Errorf("failed to compute next check for resource %q: %w", r.Canonical, err)
 				}
-				r.CronID = uint64(eid)
+				r.NextCheck = nextCheck
 				r.WebhookToken = uuid.New().String()
 				_, err = uow.Resources().Create(ctx, tc, pn, r)
 				if err != nil {
@@ -604,7 +567,6 @@ func sanitizeResourceForPublic(r resource.Resource) resource.Resource {
 	r.Params = resource.Params{}
 	r.WebhookToken = ""
 	r.Logs = ""
-	r.CronID = 0
 	return r
 }
 
@@ -695,17 +657,7 @@ func (q *PikoCI) DeletePipeline(ctx context.Context, tc, pn string) error {
 	}
 
 	return q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
-		resources, err := uow.Resources().Filter(ctx, tc, pn)
-		if err != nil {
-			return fmt.Errorf("failed to get Resources from Pipeline %q: %w", pn, err)
-		}
-
-		// Removes all the Cron Resources
-		for _, res := range resources {
-			q.cron.Remove(cron.EntryID(res.CronID))
-		}
-
-		err = uow.Pipelines().Delete(ctx, tc, pn)
+		err := uow.Pipelines().Delete(ctx, tc, pn)
 		if err != nil {
 			return fmt.Errorf("failed to delete Pipeline %q: %w", pn, err)
 		}
