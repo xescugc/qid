@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl/v2"
@@ -28,6 +29,7 @@ type hclGetStep struct {
 	Name    string   `json:"name" hcl:"name,label"`
 	Passed  []string `json:"passed" hcl:"passed,optional"`
 	Trigger bool     `json:"trigger" hcl:"trigger,optional"`
+	Timeout string   `json:"timeout" hcl:"timeout,optional"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -36,8 +38,9 @@ type hclGetStep struct {
 
 // hclTaskStep is the HCL-decoded task step with per-step hooks.
 type hclTaskStep struct {
-	Name string              `json:"name" hcl:"name,label"`
-	Run  utils.RunnerCommand `json:"run" hcl:"run,block"`
+	Name    string              `json:"name" hcl:"name,label"`
+	Timeout string              `json:"timeout" hcl:"timeout,optional"`
+	Run     utils.RunnerCommand `json:"run" hcl:"run,block"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -46,8 +49,9 @@ type hclTaskStep struct {
 
 // hclPutStep is the HCL-decoded put step.
 type hclPutStep struct {
-	Type string `hcl:"type,label"`
-	Name string `hcl:"name,label"`
+	Type    string `hcl:"type,label"`
+	Name    string `hcl:"name,label"`
+	Timeout string `hcl:"timeout,optional"`
 
 	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
@@ -372,8 +376,17 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 				}
 				g := hj.Get[getIdx]
 				getIdx++
+				var timeout time.Duration
+				if g.Timeout != "" {
+					var err error
+					timeout, err = time.ParseDuration(g.Timeout)
+					if err != nil {
+						return nil, fmt.Errorf("invalid timeout %q on get step %q: %w", g.Timeout, g.Name, err)
+					}
+				}
 				plan = append(plan, job.PlanStep{
-					Type: job.StepTypeGet,
+					Type:    job.StepTypeGet,
+					Timeout: timeout,
 					Get: &job.GetStep{
 						Type:    g.Type,
 						Name:    g.Name,
@@ -390,8 +403,17 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 				}
 				t := hj.Task[taskIdx]
 				taskIdx++
+				var timeout time.Duration
+				if t.Timeout != "" {
+					var err error
+					timeout, err = time.ParseDuration(t.Timeout)
+					if err != nil {
+						return nil, fmt.Errorf("invalid timeout %q on task step %q: %w", t.Timeout, t.Name, err)
+					}
+				}
 				plan = append(plan, job.PlanStep{
-					Type: job.StepTypeTask,
+					Type:    job.StepTypeTask,
+					Timeout: timeout,
 					Task: &job.TaskStep{
 						Name: t.Name,
 						Run:  t.Run,
@@ -406,8 +428,17 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 				}
 				p := hj.Put[putIdx]
 				putIdx++
+				var timeout time.Duration
+				if p.Timeout != "" {
+					var err error
+					timeout, err = time.ParseDuration(p.Timeout)
+					if err != nil {
+						return nil, fmt.Errorf("invalid timeout %q on put step %q: %w", p.Timeout, p.Name, err)
+					}
+				}
 				plan = append(plan, job.PlanStep{
-					Type: job.StepTypePut,
+					Type:    job.StepTypePut,
+					Timeout: timeout,
 					Put: &job.PutStep{
 						Type:   p.Type,
 						Name:   p.Name,

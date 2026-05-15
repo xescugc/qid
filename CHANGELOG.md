@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add optional `timeout` field on get, task, and put plan steps. When set, the step's runner execution is cancelled after the specified duration, the step is marked as failed with a timeout message, and on_failure/ensure hooks still run normally ([#173](https://github.com/xescugc/pikoci/issues/173))
 - Replace in-memory cron scheduler with database-polling scheduler for horizontal scaling support. Multiple server instances can now run concurrently with PostgreSQL or MySQL. Minimum check_interval is now 10 seconds. Manual and webhook triggers reset the check interval timer ([#213](https://github.com/xescugc/pikoci/issues/213), [#215](https://github.com/xescugc/pikoci/issues/215))
 - Add `source` field on `resource_type` and `runner` blocks for URL-based definition sharing (`pikoci://` and `https://` schemes), built-in `git` resource type with API-aware check for GitHub/GitLab, built-in `docker` runner, HCL standard functions (string, collection, numeric, encoding, regex), and optional `params` on resource types ([#11](https://github.com/xescugc/pikoci/issues/11), [#143](https://github.com/xescugc/pikoci/issues/143), [#206](https://github.com/xescugc/pikoci/issues/206), [#104](https://github.com/xescugc/pikoci/issues/104))
 - Add `docs/` folder with GitHub Actions workflow to sync wiki on push ([#211](https://github.com/xescugc/pikoci/issues/211))

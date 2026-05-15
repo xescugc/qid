@@ -1,6 +1,10 @@
 package job
 
-import "github.com/xescugc/pikoci/pikoci/utils"
+import (
+	"time"
+
+	"github.com/xescugc/pikoci/pikoci/utils"
+)
 
 type StepType string
 
@@ -44,6 +48,7 @@ func (j *Job) PlanGetSteps() []PlanStep {
 
 type PlanStep struct {
 	Type      StepType              `json:"type"`
+	Timeout   time.Duration         `json:"timeout,omitempty"`
 	Get       *GetStep              `json:"get,omitempty"`
 	Task      *TaskStep             `json:"task,omitempty"`
 	Put       *PutStep              `json:"put,omitempty"`
