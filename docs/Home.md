@@ -11,6 +11,7 @@ PikoCI is a portable, self-hosted CI/CD system. One binary, any database, any qu
 - [Server Configuration](Server) - Server flags and options
 - [Database Backends](Database) - Supported database systems
 - [Queue Backends](Queue) - Supported queue/pubsub systems
+- [Functions](Functions) - HCL functions available in pipelines
 - [Variables and Secrets](Variables) - Pipeline variables
 - [CLI Reference](CLI) - Client commands and flags
 - [Public Pipelines](Public-Pipelines) - Sharing pipeline status publicly

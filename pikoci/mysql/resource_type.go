@@ -23,6 +23,7 @@ func NewResourceTypeRepository(db sqlr.Querier) *ResourceTypeRepository {
 type dbResourceType struct {
 	ID     sql.NullInt64
 	Name   sql.NullString
+	Source sql.NullString
 	Params sql.NullString
 	Check  sql.NullString
 	Pull   sql.NullString
@@ -36,6 +37,7 @@ func newDBResourceType(rt restype.ResourceType) dbResourceType {
 	ps, _ := json.Marshal(rt.Push)
 	return dbResourceType{
 		Name:   toNullString(rt.Name),
+		Source: toNullString(rt.Source),
 		Params: toNullString(string(i)),
 		Check:  toNullString(string(c)),
 		Pull:   toNullString(string(pl)),
@@ -45,8 +47,9 @@ func newDBResourceType(rt restype.ResourceType) dbResourceType {
 
 func (dbrt *dbResourceType) toDomainEntity() *restype.ResourceType {
 	rt := &restype.ResourceType{
-		ID:   uint32(dbrt.ID.Int64),
-		Name: dbrt.Name.String,
+		ID:     uint32(dbrt.ID.Int64),
+		Name:   dbrt.Name.String,
+		Source: dbrt.Source.String,
 	}
 
 	_ = json.Unmarshal([]byte(dbrt.Params.String), &rt.Params)
@@ -60,8 +63,8 @@ func (dbrt *dbResourceType) toDomainEntity() *restype.ResourceType {
 func (r *ResourceTypeRepository) Create(ctx context.Context, tc, pn string, rt restype.ResourceType) (uint32, error) {
 	dbrt := newDBResourceType(rt)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO resource_types(name, `+"`check`"+`, pull, push, params, pipeline_id)
-		VALUES (?, ?, ?, ?, ?,
+		INSERT INTO resource_types(name, source, `+"`check`"+`, pull, push, params, pipeline_id)
+		VALUES (?, ?, ?, ?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
@@ -69,7 +72,7 @@ func (r *ResourceTypeRepository) Create(ctx context.Context, tc, pn string, rt r
 				JOIN teams AS t
 					ON p.team_id = t.id
 				WHERE t.canonical = ? AND p.name = ?
-			))`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, tc, pn)
+			))`, dbrt.Name, dbrt.Source, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -86,7 +89,7 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, tc, pn, rtn string,
 	dbrt := newDBResourceType(rt)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE resource_types AS rt
-		SET name = ?, `+"`check`"+` = ?, pull = ?, push = ?, params = ?
+		SET name = ?, source = ?, `+"`check`"+` = ?, pull = ?, push = ?, params = ?
 		FROM (
 			SELECT rt.id
 			FROM resource_types AS rt
@@ -97,7 +100,7 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, tc, pn, rtn string,
 			WHERE t.canonical = ? AND p.name = ? AND rt.name = ?
 		) AS rtt
 		WHERE rtt.id = rt.id
-	`, dbrt.Name, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, tc, pn, rtn)
+	`, dbrt.Name, dbrt.Source, dbrt.Check, dbrt.Pull, dbrt.Push, dbrt.Params, tc, pn, rtn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -112,7 +115,7 @@ func (r *ResourceTypeRepository) Update(ctx context.Context, tc, pn, rtn string,
 
 func (r *ResourceTypeRepository) Find(ctx context.Context, tc, pn, rtn string) (*restype.ResourceType, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT rt.id, rt.name, `+"rt.`check`"+`, rt.pull, rt.push, rt.params
+		SELECT rt.id, rt.name, rt.source, `+"rt.`check`"+`, rt.pull, rt.push, rt.params
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
@@ -131,7 +134,7 @@ func (r *ResourceTypeRepository) Find(ctx context.Context, tc, pn, rtn string) (
 
 func (r *ResourceTypeRepository) Filter(ctx context.Context, tc, pn string) ([]*restype.ResourceType, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT rt.id, rt.name, `+"rt.`check`"+`, rt.pull, rt.push, rt.params
+		SELECT rt.id, rt.name, rt.source, `+"rt.`check`"+`, rt.pull, rt.push, rt.params
 		FROM resource_types AS rt
 		JOIN pipelines AS p
 			ON rt.pipeline_id = p.id
@@ -183,6 +186,7 @@ func scanResourceType(s sqlr.Scanner) (*restype.ResourceType, error) {
 	err := s.Scan(
 		&rt.ID,
 		&rt.Name,
+		&rt.Source,
 		&rt.Check,
 		&rt.Pull,
 		&rt.Push,

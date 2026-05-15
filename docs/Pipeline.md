@@ -50,6 +50,14 @@ resource_type "git" {
 }
 ```
 
+| Field    | Required | Description                                         |
+|----------|----------|-----------------------------------------------------|
+| `name`   | yes      | Label on the block                                  |
+| `source` | no       | URL to fetch definition (e.g. `pikoci://git`)       |
+| `params` | no       | List of parameter names                             |
+
+When `source` is set, inline commands are not needed.
+
 ## resource
 
 An instance of a resource type. See [Resource Types](Resource-Types).
@@ -93,6 +101,13 @@ runner "docker" {
   }
 }
 ```
+
+| Field    | Required | Description                                    |
+|----------|----------|------------------------------------------------|
+| `name`   | yes      | Label on the block                             |
+| `source` | no       | URL to fetch definition (e.g. `pikoci://docker`) |
+
+When `source` is set, inline `run` block is not needed.
 
 ## job
 
@@ -200,6 +215,8 @@ task "deploy" {
 
 ## Full example
 
+Using built-in `git` and `docker` (no inline resource_type or runner blocks needed):
+
 ```hcl
 variable "repo_url" {
   type    = string
@@ -211,26 +228,10 @@ variable "repo_name" {
   default = "pikoci"
 }
 
-resource_type "git" {
-  params = ["url", "name"]
-
-  check "exec" {
-    path = "/bin/sh"
-    args = ["-ec", "git ls-remote $param_url HEAD | awk '{print $1}'"]
-  }
-
-  pull "exec" {
-    path = "/bin/sh"
-    args = ["-ec", "git clone $param_url $param_name && git checkout $version_ref"]
-  }
-
-  push "exec" {}
-}
-
 resource "git" "pikoci" {
   params {
     url  = var.repo_url
-    name = "${var.repo_name}"
+    name = var.repo_name
   }
 }
 
@@ -245,9 +246,9 @@ job "test" {
   }
 
   task "run-tests" {
-    run "exec" {
-      path = "/bin/sh"
-      args = ["-ec", "cd ${var.repo_name} && make test"]
+    run "docker" {
+      image = "golang:1.23"
+      cmd   = "cd ${var.repo_name} && make test"
     }
   }
 }

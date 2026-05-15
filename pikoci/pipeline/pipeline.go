@@ -2,11 +2,11 @@ package pipeline
 
 import (
 	"github.com/hashicorp/hcl/v2"
+	"github.com/xescugc/pikoci/pikoci/builtin"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
-	"github.com/xescugc/pikoci/pikoci/utils"
 )
 
 type Pipeline struct {
@@ -38,17 +38,8 @@ func (pp *Pipeline) ResourceType(rtn string) (restype.ResourceType, bool) {
 		}
 	}
 
-	if rtn == "cron" {
-		return restype.ResourceType{
-			Name: "cron",
-			Check: utils.RunnerCommand{
-				Runner: "exec",
-				Args:   []string{"-ec", `echo "[{\"date\":\"$(date)\"}]"`},
-				Params: map[string]string{
-					"path": "/bin/sh",
-				},
-			},
-		}, true
+	if brt, ok := builtin.ResourceTypes()[rtn]; ok {
+		return brt, true
 	}
 
 	return restype.ResourceType{}, false
@@ -71,14 +62,8 @@ func (pp *Pipeline) Runner(run string) (runner.Runner, bool) {
 		}
 	}
 
-	if run == "exec" {
-		return runner.Runner{
-			Name: "exec",
-			Run: utils.RunCommand{
-				Path: "$path",
-				Args: []string{"$args"},
-			},
-		}, true
+	if bru, ok := builtin.Runners()[run]; ok {
+		return bru, true
 	}
 
 	return runner.Runner{}, false

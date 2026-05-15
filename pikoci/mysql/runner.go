@@ -21,23 +21,26 @@ func NewRunnerRepository(db sqlr.Querier) *RunnerRepository {
 }
 
 type dbRunner struct {
-	ID   sql.NullInt64
-	Name sql.NullString
-	Run  sql.NullString
+	ID     sql.NullInt64
+	Name   sql.NullString
+	Source sql.NullString
+	Run    sql.NullString
 }
 
 func newDBRunner(ru runner.Runner) dbRunner {
 	r, _ := json.Marshal(ru.Run)
 	return dbRunner{
-		Name: toNullString(ru.Name),
-		Run:  toNullString(string(r)),
+		Name:   toNullString(ru.Name),
+		Source: toNullString(ru.Source),
+		Run:    toNullString(string(r)),
 	}
 }
 
 func (dbru *dbRunner) toDomainEntity() *runner.Runner {
 	ru := &runner.Runner{
-		ID:   uint32(dbru.ID.Int64),
-		Name: dbru.Name.String,
+		ID:     uint32(dbru.ID.Int64),
+		Name:   dbru.Name.String,
+		Source: dbru.Source.String,
 	}
 
 	_ = json.Unmarshal([]byte(dbru.Run.String), &ru.Run)
@@ -48,8 +51,8 @@ func (dbru *dbRunner) toDomainEntity() *runner.Runner {
 func (r *RunnerRepository) Create(ctx context.Context, tc, pn string, ru runner.Runner) (uint32, error) {
 	dbru := newDBRunner(ru)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO runners(name, run, pipeline_id)
-		VALUES (?, ?,
+		INSERT INTO runners(name, source, run, pipeline_id)
+		VALUES (?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
@@ -57,7 +60,7 @@ func (r *RunnerRepository) Create(ctx context.Context, tc, pn string, ru runner.
 				JOIN teams AS t
 					ON p.team_id = t.id
 				WHERE t.canonical = ? AND p.name = ?
-			))`, dbru.Name, dbru.Run, tc, pn)
+			))`, dbru.Name, dbru.Source, dbru.Run, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -74,7 +77,7 @@ func (r *RunnerRepository) Update(ctx context.Context, tc, pn, run string, ru ru
 	dbru := newDBRunner(ru)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE runners AS ru
-		SET name = ?, run = ?
+		SET name = ?, source = ?, run = ?
 		FROM (
 			SELECT ru.id
 			FROM runners AS ru
@@ -85,7 +88,7 @@ func (r *RunnerRepository) Update(ctx context.Context, tc, pn, run string, ru ru
 			WHERE t.canonical = ? AND p.name = ? AND ru.name = ?
 		) AS ruru
 		WHERE ruru.id = ru.id
-	`, dbru.Name, dbru.Run, tc, pn, run)
+	`, dbru.Name, dbru.Source, dbru.Run, tc, pn, run)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -100,7 +103,7 @@ func (r *RunnerRepository) Update(ctx context.Context, tc, pn, run string, ru ru
 
 func (r *RunnerRepository) Find(ctx context.Context, tc, pn, run string) (*runner.Runner, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT ru.id, ru.name, ru.run
+		SELECT ru.id, ru.name, ru.source, ru.run
 		FROM runners AS ru
 		JOIN pipelines AS p
 			ON ru.pipeline_id = p.id
@@ -119,7 +122,7 @@ func (r *RunnerRepository) Find(ctx context.Context, tc, pn, run string) (*runne
 
 func (r *RunnerRepository) Filter(ctx context.Context, tc, pn string) ([]*runner.Runner, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT ru.id, ru.name, ru.run
+		SELECT ru.id, ru.name, ru.source, ru.run
 		FROM runners AS ru
 		JOIN pipelines AS p
 			ON ru.pipeline_id = p.id
@@ -171,6 +174,7 @@ func scanRunner(s sqlr.Scanner) (*runner.Runner, error) {
 	err := s.Scan(
 		&ru.ID,
 		&ru.Name,
+		&ru.Source,
 		&ru.Run,
 	)
 
