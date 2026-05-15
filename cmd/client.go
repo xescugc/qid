@@ -139,13 +139,24 @@ var (
 							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
 							&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true, Required: true},
 							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
+							&cli.BoolFlag{Name: "public", Usage: "Make the pipeline publicly visible"},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
 							if err != nil {
 								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
 							}
-							return createPipeline(ctx, c, cmd.String("team-canonical"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
+							err = createPipeline(ctx, c, cmd.String("team-canonical"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
+							if err != nil {
+								return err
+							}
+							if cmd.IsSet("public") {
+								err = c.SetPipelinePublic(ctx, cmd.String("team-canonical"), cmd.String("name"), cmd.Bool("public"))
+								if err != nil {
+									return fmt.Errorf("failed to set pipeline public: %w", err)
+								}
+							}
+							return nil
 						},
 					},
 					{
@@ -185,6 +196,29 @@ var (
 							}
 
 							spew.Dump(pp)
+
+							return nil
+						},
+					},
+					{
+						Name:  "graph",
+						Usage: "Outputs the pipeline graph in DOT format",
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
+							&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Value: "dot", Usage: "Output format (dot)"},
+						},
+						Action: func(ctx context.Context, cmd *cli.Command) error {
+							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
+							if err != nil {
+								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
+							}
+
+							image, err := c.GetPipelineImage(ctx, cmd.String("team-canonical"), cmd.String("name"), cmd.String("format"))
+							if err != nil {
+								return fmt.Errorf("failed to get pipeline graph for %q: %w", cmd.String("name"), err)
+							}
+
+							fmt.Fprint(os.Stdout, string(image))
 
 							return nil
 						},

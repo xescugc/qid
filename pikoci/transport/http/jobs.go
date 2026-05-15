@@ -60,7 +60,13 @@ func getPipelineJob(s pikoci.Service) http.HandlerFunc {
 		req.TeamCanonical = vars["team_canonical"]
 		req.PipelineName = vars["pipeline_name"]
 		req.JobName = vars["job_name"]
-		j, err := s.GetPipelineJob(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
+		var j *job.Job
+		var err error
+		if isPublic, _ := ctx.Value(IsPublicAccessKey).(bool); isPublic {
+			j, err = s.GetPublicPipelineJob(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
+		} else {
+			j, err = s.GetPipelineJob(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
+		}
 		var errs string
 		if err != nil {
 			errs = err.Error()

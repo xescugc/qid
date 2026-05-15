@@ -68,7 +68,13 @@ func listResourceVersions(s pikoci.Service) http.HandlerFunc {
 		req.TeamCanonical = vars["team_canonical"]
 		req.PipelineName = vars["pipeline_name"]
 		req.ResourceCanonical = vars["resource_canonical"]
-		vers, err := s.ListResourceVersions(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
+		var vers []*resource.Version
+		var err error
+		if isPublic, _ := ctx.Value(IsPublicAccessKey).(bool); isPublic {
+			vers, err = s.ListPublicResourceVersions(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
+		} else {
+			vers, err = s.ListResourceVersions(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
+		}
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -99,21 +105,27 @@ func getPipelineResource(s pikoci.Service) http.HandlerFunc {
 		req.TeamCanonical = vars["team_canonical"]
 		req.PipelineName = vars["pipeline_name"]
 		req.ResourceCanonical = vars["resource_canonical"]
-		res, err := s.GetPipelineResource(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
+		var res *resource.Resource
+		var err error
+		if isPublic, _ := ctx.Value(IsPublicAccessKey).(bool); isPublic {
+			res, err = s.GetPublicPipelineResource(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
+		} else {
+			res, err = s.GetPipelineResource(ctx, req.TeamCanonical, req.PipelineName, req.ResourceCanonical)
+			if res != nil {
+				un, _ := ctx.Value(UsernameContextKey).(string)
+				if un != "" {
+					um, uerr := s.GetUser(ctx, un)
+					if uerr != nil || !um.IsAdmin(req.TeamCanonical) {
+						res.WebhookToken = ""
+					}
+				} else {
+					res.WebhookToken = ""
+				}
+			}
+		}
 		var errs string
 		if err != nil {
 			errs = err.Error()
-		}
-		if res != nil {
-			un, _ := ctx.Value(UsernameContextKey).(string)
-			if un != "" {
-				um, uerr := s.GetUser(ctx, un)
-				if uerr != nil || !um.IsAdmin(req.TeamCanonical) {
-					res.WebhookToken = ""
-				}
-			} else {
-				res.WebhookToken = ""
-			}
 		}
 		encodeResponse(GetPipelineResourceResponse{Resource: res, Err: errs}, w)
 	}

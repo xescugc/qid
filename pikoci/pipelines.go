@@ -12,9 +12,11 @@ import (
 	"github.com/google/uuid"
 	cron "github.com/netresearch/go-cron"
 	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"gocloud.dev/pubsub"
@@ -576,6 +578,112 @@ func (q *PikoCI) CreatePipelineImage(ctx context.Context, tc string, pipeline []
 	}
 
 	return img, err
+}
+
+func sanitizePipelineForPublic(pp *pipeline.Pipeline) *pipeline.Pipeline {
+	cp := *pp
+	cp.Raw = nil
+	rs := make([]resource.Resource, len(cp.Resources))
+	for i, r := range cp.Resources {
+		rs[i] = sanitizeResourceForPublic(r)
+	}
+	cp.Resources = rs
+	rts := make([]restype.ResourceType, len(cp.ResourceTypes))
+	for i, rt := range cp.ResourceTypes {
+		rts[i] = restype.ResourceType{
+			ID:   rt.ID,
+			Name: rt.Name,
+		}
+	}
+	cp.ResourceTypes = rts
+	return &cp
+}
+
+func sanitizeResourceForPublic(r resource.Resource) resource.Resource {
+	r.Params = resource.Params{}
+	r.WebhookToken = ""
+	r.Logs = ""
+	r.CronID = 0
+	return r
+}
+
+func (q *PikoCI) SetPipelinePublic(ctx context.Context, tc, pn string, public bool) error {
+	if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	}
+
+	return q.Pipelines.SetPublic(ctx, tc, pn, public)
+}
+
+func (q *PikoCI) GetPublicPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error) {
+	pp, err := q.Pipelines.FindPublic(ctx, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
+	}
+	return sanitizePipelineForPublic(pp), nil
+}
+
+func (q *PikoCI) GetPublicPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
+	pp, err := q.Pipelines.FindPublic(ctx, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
+	}
+
+	if format == "" {
+		format = "dot"
+	}
+	if strings.Contains(format, ".") {
+		format = strings.Split(format, ".")[1]
+	}
+	if format != "dot" {
+		return nil, fmt.Errorf("invalid image format %q", format)
+	}
+
+	return q.generateImage(ctx, tc, pp)
+}
+
+func (q *PikoCI) GetPublicPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
+	_, err := q.Pipelines.FindPublic(ctx, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
+	}
+
+	return q.GetPipelineJob(ctx, tc, pn, jn)
+}
+
+func (q *PikoCI) ListPublicJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
+	_, err := q.Pipelines.FindPublic(ctx, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
+	}
+
+	return q.ListJobBuilds(ctx, tc, pn, jn)
+}
+
+func (q *PikoCI) GetPublicPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {
+	_, err := q.Pipelines.FindPublic(ctx, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
+	}
+
+	r, err := q.GetPipelineResource(ctx, tc, pn, rCan)
+	if err != nil {
+		return nil, err
+	}
+
+	sr := sanitizeResourceForPublic(*r)
+	return &sr, nil
+}
+
+func (q *PikoCI) ListPublicResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error) {
+	_, err := q.Pipelines.FindPublic(ctx, tc, pn)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
+	}
+
+	return q.ListResourceVersions(ctx, tc, pn, rCan)
 }
 
 func (q *PikoCI) DeletePipeline(ctx context.Context, tc, pn string) error {

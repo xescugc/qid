@@ -1,21 +1,177 @@
-<p align="center">
-    <img src="pikoci/transport/http/assets/images/logo.svg" width="100">
-</p>
+<div align="center">
+  <img src="pikoci/transport/http/assets/images/logo.svg" width="96" height="96" alt="PikoCI Logo"/>
 
-![](docs/images/pikoci.gif)
+  # PikoCI
 
-# PikoCI
+  **The portable CI/CD. One binary, any database, any queue, runs anywhere.**
 
-PikoCI is a small CI/CD system inspired by Concourse CI, built on top of a Queue/Pub-Sub system — the ones running the Jobs are basically queue workers.
+  [![Go Version](https://img.shields.io/badge/go-1.25+-blue)](https://golang.org)
+  [![License](https://img.shields.io/badge/license-Apache%202.0-yellow)](LICENSE)
+  [![Go Report Card](https://goreportcard.com/badge/github.com/xescugc/pikoci)](https://goreportcard.com/report/github.com/xescugc/pikoci)
 
-:warning: This is still a PoC and under heavily development, may cause breaking changes on the API or configuration :warning:
+  [Documentation](https://github.com/xescugc/pikoci/wiki) · [Quick Start](#quick-start) · [Contributing](#contributing)
+</div>
 
-## Why?
+<!-- GIF goes here -->
+<!-- ![PikoCI demo](docs/images/pikoci.gif) -->
 
-PikoCI is heavily inspired in [ConcourseCI](https://concourse-ci.org/) and basically trying to make a simple
-configuration (HCL instead of YAML) and simple installation/usage by allowing to run everything even in-memory
-(workers and DB) for small usecases.
+## What is PikoCI?
+
+PikoCI is a self-hosted CI/CD system built around a resource/resource-type pipeline model, inspired by [Concourse CI](https://concourse-ci.org), but designed to run anywhere without operational pain.
+
+Most CI/CD tools either lock you into a cloud platform or require spinning up multiple services just to get started. PikoCI runs as a single binary with pluggable database and queue backends. Use what you already have, or run entirely in memory with zero external dependencies. Bundle your binary, your pipelines, and your database file, and move them anywhere.
+
+Pipelines are defined in [HCL](https://github.com/hashicorp/hcl). The runner abstraction means you're not locked into a specific execution environment.
+
+
+## Features
+
+- **Single binary**: download and run. No Docker Compose, no Kubernetes, no setup scripts.
+- **Truly portable**: bundle the binary with your pipeline config and SQLite file. Move it anywhere, run it instantly.
+- **In-memory mode**: run the entire system in memory for development and testing. Zero files, zero cleanup.
+- **Any SQL database**: SQLite (built-in), MySQL, PostgreSQL, and any other SQL-compatible backend.
+- **Any queue backend**: pluggable via [google/go-cloud](https://gocloud.dev/howto/pubsub/), including NATS, Kafka, and RabbitMQ. [AWS SQS and GCP Pub/Sub planned (#209)](https://github.com/xescugc/pikoci/issues/209).
+- **Resource model**: pipelines built from resources and resource types. Clean, composable, reusable.
+- **HCL pipelines**: more expressive and readable than YAML. Familiar to anyone who has used Terraform.
+- **Flexible runners**: run jobs on the host machine or define your own runner. [Docker runner planned (#206)](https://github.com/xescugc/pikoci/issues/206).
+- **Pipelines at startup**: pass a pipeline config at launch and it's ready the moment the server starts. No CLI or UI step required.
+- **Public pipelines**: mark a pipeline as public so anyone can view its status without an account. Perfect for open source projects.
+- **Built-in UI**: visualize pipeline state, stream build logs, manage pipelines from a web interface.
+- **Teams and users**: multi-user support with team-based access control. [Granular role management planned (#207)](https://github.com/xescugc/pikoci/issues/207).
+- **DOT graph output**: export pipeline state as a DOT graph and pipe it to Graphviz for terminal-native visualization.
+
+
+## Quick Start
+
+### Download
+
+```bash
+# Linux (amd64)
+curl -L https://github.com/xescugc/pikoci/releases/latest/download/linux-amd64 -o pikoci
+chmod +x pikoci
+
+# macOS (amd64)
+curl -L https://github.com/xescugc/pikoci/releases/latest/download/darwin-amd64 -o pikoci
+chmod +x pikoci
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/xescugc/pikoci.git
+cd pikoci
+go build -o pikoci .
+```
+
+### Run with a pipeline
+
+The fastest way to get started. Pass a pipeline config directly at launch. When the server starts, your pipeline is already loaded and ready:
+
+```bash
+./pikoci server \
+  --db-system mem \
+  --pubsub-system mem \
+  --jwt-secret my-secret \
+  --run-worker \
+  --pipeline-name my-pipeline \
+  --pipeline-config pipeline.hcl
+```
+
+Open [http://localhost:8080](http://localhost:8080) and log in with the default user `admin` and password `admin123`.
+
+> **Users:** pass `--users 'username:hashed-password'` to add more users at startup. Use `pikoci user-password` to generate password hashes.
+
+### Example pipeline
+
+A cron resource checks for new versions every 10 seconds. When a new version is detected, it triggers the `gen` job, which runs `echo IN` on the host machine.
+
+```hcl
+resource "cron" "my_cron" {
+  check_interval = "@every 10s"
+  params {}
+}
+
+job "gen" {
+  get "cron" "my_cron" {
+    trigger = true
+  }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = ["IN"]
+    }
+  }
+}
+```
+
+
+## Pipeline Visualization
+
+PikoCI can export pipeline state as a [DOT graph](https://graphviz.org/doc/info/lang.html):
+
+```bash
+# Export as SVG
+pikoci client -u localhost:8080 pipelines graph -n my-pipeline | dot -Tsvg > pipeline.svg
+
+# Live view in terminal
+watch -n2 'pikoci client -u localhost:8080 pipelines graph -n my-pipeline | dot -Txtk'
+```
+
+
+## Running Workers Separately
+
+For production setups, run the server and workers as separate processes on different machines:
+
+```bash
+# Server
+./pikoci server --db-system mysql --pubsub-system nats --jwt-secret my-secret --run-worker=false
+
+# Worker, can run anywhere with access to the server
+./pikoci worker --pikoci-url http://your-server:8080 --pubsub-system nats --jwt-secret my-secret
+```
+
+Full server and worker configuration options are covered in the [documentation](https://github.com/xescugc/pikoci/wiki/Server).
+
+
+## Coming from Concourse?
+
+PikoCI's resource model is directly inspired by Concourse. The main differences:
+
+- **Runners** replace task `image_resource`. Define a runner once, reference it from any job
+- **Deployment** is a single binary instead of a multi-service setup requiring PostgreSQL
+- **Secrets** use `variable` blocks today, with a native `secret_type` / `secret` backend system planned
+
+[Concourse pipeline importer planned (#210)](https://github.com/xescugc/pikoci/issues/210).
+
 
 ## Documentation
 
-The full documentation is available at [docs/README.md](./docs/README.md)
+Full documentation is in the [wiki](https://github.com/xescugc/pikoci/wiki):
+
+- [Pipeline configuration reference](https://github.com/xescugc/pikoci/wiki/Pipeline)
+- [Resource types](https://github.com/xescugc/pikoci/wiki/Resource-Types)
+- [Runners](https://github.com/xescugc/pikoci/wiki/Runners)
+- [Server configuration](https://github.com/xescugc/pikoci/wiki/Server)
+- [Variables and secrets](https://github.com/xescugc/pikoci/wiki/Variables)
+- [Database backends](https://github.com/xescugc/pikoci/wiki/Database)
+- [Queue backends](https://github.com/xescugc/pikoci/wiki/Queue)
+
+
+## Contributing
+
+PikoCI is open source and contributions are welcome. Please open an issue before starting work on a large feature so we can discuss the approach.
+
+```bash
+git clone https://github.com/xescugc/pikoci.git
+cd pikoci
+make test
+```
+
+
+## License
+
+Apache 2.0, see [LICENSE](LICENSE).
+
+<div align="center">
+  <sub>Built with Go · Inspired by Concourse · Designed to run anywhere</sub>
+</div>

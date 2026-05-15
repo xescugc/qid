@@ -141,7 +141,13 @@ func listJobBuilds(s pikoci.Service) http.HandlerFunc {
 		req.TeamCanonical = vars["team_canonical"]
 		req.PipelineName = vars["pipeline_name"]
 		req.JobName = vars["job_name"]
-		builds, err := s.ListJobBuilds(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
+		var builds []*build.Build
+		var err error
+		if isPublic, _ := ctx.Value(IsPublicAccessKey).(bool); isPublic {
+			builds, err = s.ListPublicJobBuilds(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
+		} else {
+			builds, err = s.ListJobBuilds(ctx, req.TeamCanonical, req.PipelineName, req.JobName)
+		}
 		var errs string
 		if err != nil {
 			errs = err.Error()

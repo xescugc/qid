@@ -12,6 +12,7 @@ import (
 type Pipeline struct {
 	ID            uint32                 `json:"id"`
 	Name          string                 `json:"name"`
+	Public        bool                   `json:"public"`
 	Jobs          []job.Job              `json:"jobs" hcl:"job,block"`
 	Resources     []resource.Resource    `json:"resources" hcl:"resource,block"`
 	ResourceTypes []restype.ResourceType `json:"resource_types" hcl:"resource_type,block"`

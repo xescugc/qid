@@ -44,6 +44,15 @@ type Service interface {
 	DeletePipeline(ctx context.Context, tc, pn string) error
 	ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipeline, error)
 
+	SetPipelinePublic(ctx context.Context, tc, pn string, public bool) error
+
+	GetPublicPipeline(ctx context.Context, tc, pn string) (*pipeline.Pipeline, error)
+	GetPublicPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error)
+	GetPublicPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error)
+	ListPublicJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error)
+	GetPublicPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error)
+	ListPublicResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error)
+
 	GetPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error)
 	CreatePipelineImage(ctx context.Context, tc string, pp []byte, vars map[string]interface{}, format string) ([]byte, error)
 

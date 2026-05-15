@@ -49,6 +49,7 @@ type UpdatePipelineRequest struct {
 	Name          string                 `json:"name"`
 	Config        []byte                 `json:"config"`
 	Vars          map[string]interface{} `json:"vars"`
+	Public        *bool                  `json:"public,omitempty"`
 }
 type UpdatePipelineResponse struct {
 	Pipeline *pipeline.Pipeline `json:"data,omitempty"`
@@ -65,15 +66,31 @@ func updatePipeline(s pikoci.Service) http.HandlerFunc {
 		)
 		vars := mux.Vars(r)
 		req.TeamCanonical = vars["team_canonical"]
+		req.Name = vars["pipeline_name"]
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			encodeResponse(UpdatePipelineResponse{Err: err.Error()}, w)
 			return
 		}
-		pp, err := s.UpdatePipeline(ctx, req.TeamCanonical, req.Name, req.Config, req.Vars)
+		var pp *pipeline.Pipeline
 		var errs string
-		if err != nil {
-			errs = err.Error()
+		if len(req.Config) > 0 {
+			pp, err = s.UpdatePipeline(ctx, req.TeamCanonical, req.Name, req.Config, req.Vars)
+			if err != nil {
+				errs = err.Error()
+			}
+		}
+		if err == nil && req.Public != nil {
+			err = s.SetPipelinePublic(ctx, req.TeamCanonical, req.Name, *req.Public)
+			if err != nil {
+				errs = err.Error()
+			}
+		}
+		if errs == "" && pp == nil {
+			pp, err = s.GetPipeline(ctx, req.TeamCanonical, req.Name)
+			if err != nil {
+				errs = err.Error()
+			}
 		}
 		encodeResponse(UpdatePipelineResponse{Pipeline: pp, Err: errs}, w)
 	}
@@ -126,7 +143,13 @@ func getPipeline(s pikoci.Service) http.HandlerFunc {
 		vars := mux.Vars(r)
 		req.Name = vars["pipeline_name"]
 		req.TeamCanonical = vars["team_canonical"]
-		pp, err := s.GetPipeline(ctx, req.TeamCanonical, req.Name)
+		var pp *pipeline.Pipeline
+		var err error
+		if isPublic, _ := ctx.Value(IsPublicAccessKey).(bool); isPublic {
+			pp, err = s.GetPublicPipeline(ctx, req.TeamCanonical, req.Name)
+		} else {
+			pp, err = s.GetPipeline(ctx, req.TeamCanonical, req.Name)
+		}
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -185,7 +208,13 @@ func getPipelineImage(s pikoci.Service) http.HandlerFunc {
 		req.TeamCanonical = vars["team_canonical"]
 		req.Name = vars["pipeline_name"]
 		req.Format = vars["format"]
-		img, err := s.GetPipelineImage(ctx, req.TeamCanonical, req.Name, req.Format)
+		var img []byte
+		var err error
+		if isPublic, _ := ctx.Value(IsPublicAccessKey).(bool); isPublic {
+			img, err = s.GetPublicPipelineImage(ctx, req.TeamCanonical, req.Name, req.Format)
+		} else {
+			img, err = s.GetPipelineImage(ctx, req.TeamCanonical, req.Name, req.Format)
+		}
 		var errs string
 		if err != nil {
 			errs = err.Error()
