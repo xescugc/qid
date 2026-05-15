@@ -15,6 +15,8 @@ Pipeline Resources are checked with the [`check_interval`](#check_interval) to s
 Job that depends on that Resource that changed. If there is, then the new job(s) will be queued for a Worker to do.
 Then when it finishes it checks if another job depends on it and queues that job(s) to be triggered.
 
+Resources can also be triggered immediately via [webhooks](#webhooks) instead of waiting for the next poll interval.
+
 When a job/resource is executed in a worker it creates a `$WORKDIR` `$XDG_CACHE_HOME/pikoci/{UUID}/` in which everything is executed.
 
 The execution of any action is done on a [`runner`](#runner)
@@ -426,6 +428,47 @@ resource "git" "my_repo" {
   check_interval = "@every 3s"
 }
 ```
+
+### Webhooks
+
+By default, PikoCI discovers new resource versions by polling at the `check_interval` (default: every 1 minute). Webhooks let external services (GitHub, GitLab, etc.) push notifications to PikoCI, triggering a resource check immediately.
+
+Each resource is automatically assigned a webhook token (UUID) on creation. The webhook endpoint is:
+
+```
+POST /webhooks/{webhook_token}
+```
+
+This endpoint is **public** (no JWT required) — the token itself acts as authentication. It accepts any POST request and ignores the body, making it compatible with any service that can send HTTP POST requests (GitHub webhooks, GitLab webhooks, curl scripts, etc.).
+
+#### Viewing the Webhook URL
+
+Team admins can view the webhook URL from the resource detail page by clicking the dropdown arrow next to the "Trigger Resource" button and selecting "Webhook URL". The panel shows the full URL and provides a "Copy" button.
+
+Non-admin users cannot see the webhook token — it is stripped from API responses.
+
+#### Regenerating the Token
+
+Admins can regenerate the webhook token from the same panel by clicking "Regenerate Token". This invalidates the previous URL immediately. The API endpoint for programmatic regeneration is:
+
+```
+POST /teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/webhook_token
+```
+
+This endpoint requires admin authorization.
+
+#### Example: GitHub Webhook
+
+1. Navigate to the resource detail page in PikoCI
+2. Click the dropdown arrow → "Webhook URL"
+3. Copy the URL
+4. In your GitHub repository, go to Settings → Webhooks → Add webhook
+5. Paste the PikoCI webhook URL
+6. Set Content type to `application/json`
+7. Select "Just the push event"
+8. Save
+
+Now every push to the repository will immediately trigger a resource check in PikoCI.
 
 ### Job
 
