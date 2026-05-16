@@ -95,7 +95,6 @@ secret_type "mock-vault" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "deploy" {
@@ -177,7 +176,6 @@ secret_type "my-file" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "deploy" {
@@ -252,7 +250,6 @@ secret_type "broken" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "deploy" {

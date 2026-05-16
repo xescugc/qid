@@ -144,3 +144,10 @@ func RunnerHCL(name string) ([]byte, bool) {
 	}
 	return data, true
 }
+
+// ServiceHCL returns the raw HCL bytes for a built-in service, if it exists.
+// No built-in services are shipped yet, but this supports the source resolution
+// pipeline for future additions and for https:// sources.
+func ServiceHCL(name string) ([]byte, bool) {
+	return nil, false
+}

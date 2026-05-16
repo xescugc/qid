@@ -257,7 +257,6 @@ func TestPikoCI(t *testing.T) {
 			pipeline.SendKeys(`
 resource "cron" "my_cron" {
   check_interval = "@every 1m"
-  params {}
 }
 
 job "gen" {
@@ -303,7 +302,6 @@ job "gen" {
 			pipeline.SendKeys(`
 resource "cron" "my_cron_edit" {
   check_interval = "@every 1m"
-  params {}
 }
 
 job "gen" {
@@ -445,7 +443,6 @@ job "gen" {
 				pipeline.SendKeys(`
 resource "cron" "my_cron" {
   check_interval = "@every 1m"
-  params {}
 }
 
 job "gen" {

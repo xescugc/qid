@@ -45,7 +45,6 @@ A cron resource checks for new versions every 10 seconds. When detected, it trig
 ```hcl
 resource "cron" "my_cron" {
   check_interval = "@every 10s"
-  params {}
 }
 
 job "echo" {

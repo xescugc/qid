@@ -72,7 +72,7 @@ func testPipeline() *pipeline.Pipeline {
 				Name:      "my-cron",
 				Type:      "cron",
 				Canonical: "cron.my-cron",
-				Params:    resource.Params{},
+				Params: &resource.Params{},
 			},
 		},
 		ResourceTypes: []restype.ResourceType{
@@ -761,7 +761,7 @@ func TestBuildPullParams_WithVersionID(t *testing.T) {
 	}
 	r := resource.Resource{
 		Canonical: "cron.my-cron",
-		Params: resource.Params{
+		Params: &resource.Params{
 			Params: map[string]string{"url": "http://example.com"},
 		},
 	}
@@ -882,7 +882,7 @@ func TestProcessJob_PutStep_Success(t *testing.T) {
 			},
 		},
 		Resources: []resource.Resource{
-			{ID: 1, Name: "repo", Type: "git", Canonical: "git.repo", Params: resource.Params{Params: map[string]string{"url": "http://example.com"}}},
+			{ID: 1, Name: "repo", Type: "git", Canonical: "git.repo", Params: &resource.Params{Params: map[string]string{"url": "http://example.com"}}},
 		},
 		ResourceTypes: []restype.ResourceType{
 			{

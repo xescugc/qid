@@ -9,6 +9,7 @@ PikoCI is a portable, self-hosted CI/CD system. One binary, any database, any qu
 - [Resource Types](Resource-Types) - Built-in and custom resource types
 - [Runners](Runners) - Built-in and custom runners
 - [Secret Types](Secret-Types) - Built-in and custom secret types
+- [Services](Services) - Ephemeral per-job services
 - [Server Configuration](Server) - Server flags and options
 - [Database Backends](Database) - Supported database systems
 - [Queue Backends](Queue) - Supported queue/pubsub systems

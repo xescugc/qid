@@ -88,7 +88,6 @@ A cron resource checks for new versions every 10 seconds. When a new version is 
 ```hcl
 resource "cron" "my_cron" {
   check_interval = "@every 10s"
-  params {}
 }
 
 job "gen" {

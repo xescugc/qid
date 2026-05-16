@@ -16,6 +16,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
 	"github.com/xescugc/pikoci/pikoci/sectype"
+	"github.com/xescugc/pikoci/pikoci/service"
 	"github.com/xescugc/pikoci/pikoci/source"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"github.com/zclconf/go-cty/cty"
@@ -69,10 +70,11 @@ type hclPutStep struct {
 
 // hclJob is the intermediate HCL-decoded job with separate get/task/put arrays.
 type hclJob struct {
-	Name string       `hcl:"name,label"`
-	Get  []hclGetStep `hcl:"get,block"`
-	Task []hclTaskStep `hcl:"task,block"`
-	Put  []hclPutStep `hcl:"put,block"`
+	Name    string           `hcl:"name,label"`
+	Get     []hclGetStep     `hcl:"get,block"`
+	Task    []hclTaskStep    `hcl:"task,block"`
+	Put     []hclPutStep     `hcl:"put,block"`
+	Service []hclServiceRef  `hcl:"service,block"`
 
 	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
@@ -152,6 +154,59 @@ func (hst hclSecretType) toSecretType() sectype.SecretType {
 	return st
 }
 
+// hclReadyCheck is the HCL-decoded ready_check block for a service.
+type hclReadyCheck struct {
+	Runner   string            `hcl:"runner,label"`
+	Args     []string          `hcl:"args,optional"`
+	Interval string            `hcl:"interval,optional"`
+	Timeout  string            `hcl:"timeout,optional"`
+	Params   map[string]string `hcl:",remain"`
+}
+
+// hclService is the HCL-decoded top-level service block.
+type hclService struct {
+	Name       string                `hcl:"name,label"`
+	Source     string                `hcl:"source,optional"`
+	Params     []string              `hcl:"params,optional"`
+	Start      []utils.RunnerCommand `hcl:"start,block"`
+	ReadyCheck []hclReadyCheck       `hcl:"ready_check,block"`
+	Stop       []utils.RunnerCommand `hcl:"stop,block"`
+}
+
+func (hs hclService) toService() service.Service {
+	s := service.Service{
+		Name:   hs.Name,
+		Source: hs.Source,
+		Params: hs.Params,
+	}
+	if len(hs.Start) > 0 {
+		s.Start = hs.Start[0]
+	}
+	if len(hs.Stop) > 0 {
+		s.Stop = hs.Stop[0]
+	}
+	if len(hs.ReadyCheck) > 0 {
+		rc := hs.ReadyCheck[0]
+		s.ReadyCheck = &service.ReadyCheck{
+			RunnerCommand: utils.RunnerCommand{
+				Runner: rc.Runner,
+				Args:   rc.Args,
+				Params: rc.Params,
+			},
+			Interval: rc.Interval,
+			Timeout:  rc.Timeout,
+		}
+	}
+	return s
+}
+
+// hclServiceRef is a service reference inside a job block.
+// Only param overrides are allowed (via Remain), no inline start/stop.
+type hclServiceRef struct {
+	Name   string   `hcl:"name,label"`
+	Remain hcl.Body `hcl:",remain"`
+}
+
 // hclPipeline is the intermediate HCL-decoded pipeline.
 type hclPipeline struct {
 	Name          string              `json:"name"`
@@ -160,6 +215,7 @@ type hclPipeline struct {
 	ResourceTypes []hclResourceType   `hcl:"resource_type,block"`
 	Runners       []hclRunnerDef      `hcl:"runner,block"`
 	SecretTypes   []hclSecretType     `hcl:"secret_type,block"`
+	Services      []hclService        `hcl:"service,block"`
 	Remain        hcl.Body            `hcl:",remain"`
 }
 
@@ -405,8 +461,36 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		}
 	}
 
+	var services []service.Service
+	for _, hs := range hp.Services {
+		if hs.Source != "" {
+			hasInline := len(hs.Start) > 0 || len(hs.Stop) > 0 || len(hs.ReadyCheck) > 0
+			if hasInline {
+				return nil, fmt.Errorf("service %q has both source and inline commands, which is not allowed", hs.Name)
+			}
+			resolved, err := source.ResolveService(ctx, hs.Source)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve source for service %q: %w", hs.Name, err)
+			}
+			resolved.Name = hs.Name
+			resolved.Source = hs.Source
+			if hs.Params != nil {
+				resolved.Params = hs.Params
+			}
+			services = append(services, *resolved)
+		} else {
+			if len(hs.Start) == 0 {
+				return nil, fmt.Errorf("service %q must have a start block", hs.Name)
+			}
+			if len(hs.Stop) == 0 {
+				return nil, fmt.Errorf("service %q must have a stop block", hs.Name)
+			}
+			services = append(services, hs.toService())
+		}
+	}
+
 	// Parse the raw HCL to determine block ordering within each job.
-	jobPlans, err := parseJobPlans(rpp, hp.Jobs)
+	jobPlans, expandedServices, err := parseJobPlans(rpp, hp.Jobs, services)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse job plans: %w", err)
 	}
@@ -416,6 +500,7 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		ResourceTypes: resourceTypes,
 		Runners:       runners,
 		SecretTypes:   secretTypes,
+		Services:      expandedServices,
 	}
 
 	for _, hj := range hp.Jobs {
@@ -437,10 +522,10 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 
 // parseJobPlans walks the raw HCL AST to extract get/task/put blocks in source
 // order for each job, then builds ordered PlanStep slices using the decoded data.
-func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, error) {
+func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (map[string][]job.PlanStep, []service.Service, error) {
 	file, diags := hclsyntax.ParseConfig(rpp, "pipeline.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, nil, diags
 	}
 
 	body := file.Body.(*hclsyntax.Body)
@@ -457,11 +542,54 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 		hj := hclJobs[jobIndex]
 		jobIndex++
 
+		// Build a lookup for services by name
+		serviceByName := make(map[string]service.Service)
+		for _, s := range services {
+			serviceByName[s.Name] = s
+		}
+
 		var plan []job.PlanStep
-		getIdx, taskIdx, putIdx := 0, 0, 0
+		getIdx, taskIdx, putIdx, serviceIdx := 0, 0, 0, 0
 
 		for _, innerBlock := range block.Body.Blocks {
 			switch innerBlock.Type {
+			case "service":
+				if serviceIdx >= len(hj.Service) {
+					continue
+				}
+				sr := hj.Service[serviceIdx]
+				serviceIdx++
+
+				if _, ok := serviceByName[sr.Name]; !ok {
+					return nil, nil, fmt.Errorf("service %q referenced in job %q does not exist", sr.Name, hj.Name)
+				}
+
+				// Parse param overrides from the remain body
+				params := make(map[string]string)
+				if sr.Remain != nil {
+					if body, ok := sr.Remain.(*hclsyntax.Body); ok {
+						for name, attr := range body.Attributes {
+							val, vdiags := attr.Expr.Value(nil)
+							if vdiags.HasErrors() {
+								return nil, nil, fmt.Errorf("failed to evaluate service param %q: %s", name, vdiags.Error())
+							}
+							params[name] = val.AsString()
+						}
+					}
+				}
+
+				var paramMap map[string]string
+				if len(params) > 0 {
+					paramMap = params
+				}
+
+				plan = append(plan, job.PlanStep{
+					Type: job.StepTypeService,
+					Service: &job.ServiceStep{
+						Name:   sr.Name,
+						Params: paramMap,
+					},
+				})
 			case "get":
 				if getIdx >= len(hj.Get) {
 					continue
@@ -473,11 +601,11 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 					var err error
 					timeout, err = time.ParseDuration(g.Timeout)
 					if err != nil {
-						return nil, fmt.Errorf("invalid timeout %q on get step %q: %w", g.Timeout, g.Name, err)
+						return nil, nil, fmt.Errorf("invalid timeout %q on get step %q: %w", g.Timeout, g.Name, err)
 					}
 				}
 				if g.Attempts < 0 {
-					return nil, fmt.Errorf("invalid attempts %d on get step %q: must be >= 0", g.Attempts, g.Name)
+					return nil, nil, fmt.Errorf("invalid attempts %d on get step %q: must be >= 0", g.Attempts, g.Name)
 				}
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypeGet,
@@ -505,11 +633,11 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 					var err error
 					timeout, err = time.ParseDuration(t.Timeout)
 					if err != nil {
-						return nil, fmt.Errorf("invalid timeout %q on task step %q: %w", t.Timeout, t.Name, err)
+						return nil, nil, fmt.Errorf("invalid timeout %q on task step %q: %w", t.Timeout, t.Name, err)
 					}
 				}
 				if t.Attempts < 0 {
-					return nil, fmt.Errorf("invalid attempts %d on task step %q: must be >= 0", t.Attempts, t.Name)
+					return nil, nil, fmt.Errorf("invalid attempts %d on task step %q: must be >= 0", t.Attempts, t.Name)
 				}
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypeTask,
@@ -535,11 +663,11 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 					var err error
 					timeout, err = time.ParseDuration(p.Timeout)
 					if err != nil {
-						return nil, fmt.Errorf("invalid timeout %q on put step %q: %w", p.Timeout, p.Name, err)
+						return nil, nil, fmt.Errorf("invalid timeout %q on put step %q: %w", p.Timeout, p.Name, err)
 					}
 				}
 				if p.Attempts < 0 {
-					return nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
+					return nil, nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
 				}
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypePut,
@@ -561,5 +689,5 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 		result[hj.Name] = plan
 	}
 
-	return result, nil
+	return result, services, nil
 }

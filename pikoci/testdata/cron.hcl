@@ -9,7 +9,6 @@ secret_type "my-file" {
 
 resource "cron" "my_cron" {
   check_interval = "@every 10s"
-  params {}
 }
 
 job "gen" {

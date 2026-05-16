@@ -1,6 +1,6 @@
 # Pipeline Reference
 
-Pipelines are defined in [HCL](https://github.com/hashicorp/hcl). A pipeline file contains `variable`, `resource_type`, `resource`, `runner`, `secret_type`, `secret`, and `job` blocks.
+Pipelines are defined in [HCL](https://github.com/hashicorp/hcl). A pipeline file contains `variable`, `resource_type`, `resource`, `runner`, `secret_type`, `secret`, `service`, and `job` blocks.
 
 ## variable
 
@@ -72,7 +72,6 @@ resource "git" "my_repo" {
 
 resource "cron" "every_10s" {
   check_interval = "@every 10s"
-  params {}
 }
 ```
 
@@ -80,7 +79,7 @@ resource "cron" "every_10s" {
 |------------------|----------|--------------------------------------------------|
 | `type`           | yes      | Label, must match a `resource_type` name         |
 | `name`           | yes      | Label, unique name for this resource              |
-| `params`         | yes      | Block with key/value pairs passed to the resource type |
+| `params`         | no       | Block with key/value pairs passed to the resource type |
 | `check_interval` | no       | Cron expression or `@every <duration>` for automatic checks |
 
 ## runner
@@ -143,9 +142,49 @@ task "migrate" {
 }
 ```
 
+## service
+
+Defines an ephemeral process that runs alongside a job's tasks. See [Services](Services).
+
+```hcl
+service "postgres" {
+  params = ["version"]
+
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "docker run -d --name pg-$BUILD_ID postgres:$param_version"]
+  }
+
+  ready_check "exec" {
+    path     = "/bin/sh"
+    args     = ["-ec", "docker exec pg-$BUILD_ID pg_isready"]
+    interval = "2s"
+    timeout  = "30s"
+  }
+
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "docker rm -f pg-$BUILD_ID"]
+  }
+}
+```
+
+| Field         | Required | Description                                                      |
+|---------------|----------|------------------------------------------------------------------|
+| `name`        | yes      | Label on the block                                               |
+| `source`      | no       | URL to fetch definition (mutually exclusive with inline commands) |
+| `params`      | no       | List of parameter names for per-job customization                |
+| `start`       | yes*     | Runner command to start the service                              |
+| `ready_check` | no       | Runner command polled until exit 0 or timeout                    |
+| `stop`        | yes*     | Runner command to stop the service (always runs)                 |
+
+\* Not required when `source` is set.
+
+The `ready_check` block accepts `interval` (default `"1s"`) and `timeout` (default `"60s"`) fields.
+
 ## job
 
-Jobs contain a plan of steps executed in order. Each step is one of `get`, `task`, or `put`.
+Jobs contain a plan of steps executed in order. Each step is one of `get`, `task`, `put`, or `service`.
 
 ```hcl
 job "build" {
@@ -244,6 +283,28 @@ put "git" "my_repo" {
 | `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
 | `secrets`  | no       | Map of secret_type name to path (e.g. `{"vault" = "secret/data/db"}`) |
 
+### service
+
+References a top-level service or defines an inline service for the job. Services are started before tasks and stopped unconditionally after.
+
+```hcl
+job "test" {
+  service "postgres" {
+    version = "16"
+  }
+
+  get "cron" "timer" { trigger = true }
+  task "run-tests" {
+    run "exec" {
+      path = "make"
+      args = ["test"]
+    }
+  }
+}
+```
+
+An empty body references a top-level `service` block by name. Attributes in the body are param overrides.
+
 ### Step hooks
 
 Each step (and the job itself) can have `on_success`, `on_failure`, and `ensure` blocks:
@@ -326,7 +387,6 @@ resource "git" "pikoci" {
 
 resource "cron" "schedule" {
   check_interval = "@every 10s"
-  params {}
 }
 
 job "test" {

@@ -26,7 +26,6 @@ resource "git" "repo" {
 
 resource "cron" "timer" {
   check_interval = "@every 10s"
-  params {}
 }
 
 job "build-and-push" {

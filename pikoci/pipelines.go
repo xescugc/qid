@@ -612,7 +612,7 @@ func sanitizePipelineForPublic(pp *pipeline.Pipeline) *pipeline.Pipeline {
 }
 
 func sanitizeResourceForPublic(r resource.Resource) resource.Resource {
-	r.Params = resource.Params{}
+	r.Params = nil
 	r.WebhookToken = ""
 	r.Logs = ""
 	return r

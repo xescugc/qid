@@ -9,9 +9,10 @@ import (
 type StepType string
 
 const (
-	StepTypeGet  StepType = "get"
-	StepTypeTask StepType = "task"
-	StepTypePut  StepType = "put"
+	StepTypeGet     StepType = "get"
+	StepTypeTask    StepType = "task"
+	StepTypePut     StepType = "put"
+	StepTypeService StepType = "service"
 )
 
 type Job struct {
@@ -54,6 +55,7 @@ type PlanStep struct {
 	Get       *GetStep              `json:"get,omitempty"`
 	Task      *TaskStep             `json:"task,omitempty"`
 	Put       *PutStep              `json:"put,omitempty"`
+	Service   *ServiceStep          `json:"service,omitempty"`
 	OnSuccess []utils.RunnerCommand `json:"on_success,omitempty"`
 	OnFailure []utils.RunnerCommand `json:"on_failure,omitempty"`
 	Ensure    []utils.RunnerCommand `json:"ensure,omitempty"`
@@ -83,4 +85,9 @@ type PutStep struct {
 
 func (p *PutStep) ResourceCanonical() string {
 	return utils.ResourceCanonical(p.Type, p.Name)
+}
+
+type ServiceStep struct {
+	Name   string            `json:"name"`
+	Params map[string]string `json:"params,omitempty"`
 }
