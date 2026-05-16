@@ -7,7 +7,7 @@ type Resource struct {
 	Type string `json:"type" hcl:"type,label"`
 	Name string `json:"name" hcl:"name,label"`
 
-	Params        Params `json:"params" hcl:"params,block"`
+	Params        *Params `json:"params,omitempty" hcl:"params,block"`
 	CheckInterval string `json:"check_interval" hcl:"check_interval,optional"`
 
 	Canonical string    `json:"canonical"`
@@ -15,6 +15,13 @@ type Resource struct {
 	LastCheck     time.Time `json:"last_check"`
 	NextCheck     time.Time `json:"next_check"`
 	WebhookToken  string    `json:"webhook_token"`
+}
+
+func (r Resource) GetParams() map[string]string {
+	if r.Params == nil {
+		return nil
+	}
+	return r.Params.Params
 }
 
 type Params struct {

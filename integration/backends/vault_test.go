@@ -172,7 +172,6 @@ secret_type "my-vault" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "deploy" {

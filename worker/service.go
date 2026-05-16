@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/adrg/xdg"
@@ -23,6 +24,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/service"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"gocloud.dev/pubsub"
 )
@@ -93,6 +95,17 @@ func (w *Worker) processMessage(ctx context.Context, m queue.Body, cwd string) {
 	if err != nil {
 		w.logger.Error("failed GetPipeline", "error", err)
 		return
+	}
+
+	// Parse services from the pipeline's raw HCL since they are not stored
+	// in a separate DB table.
+	if len(pp.Raw) > 0 && len(pp.Services) == 0 {
+		svcs, err := pipeline.ParseServicesFromRaw(ctx, pp.Raw)
+		if err != nil {
+			w.logger.Error("failed to parse services from pipeline raw", "error", err)
+		} else {
+			pp.Services = svcs
+		}
 	}
 
 	if m.PipelineName != "" && m.JobName != "" {
@@ -173,10 +186,39 @@ func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *bu
 	return true
 }
 
-// runPlan runs all plan steps (get/task/put) in order.
+// runPlan runs all plan steps (service/get/task/put) in order.
+// Service steps are collected and started before other steps, then stopped unconditionally after.
 // Returns true if the job failed during plan execution.
 func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job) bool {
+	// Collect service steps and remaining steps
+	var serviceSteps []job.ServiceStep
+	var remainingPlan []job.PlanStep
 	for _, ps := range j.Plan {
+		if ps.Type == job.StepTypeService && ps.Service != nil {
+			serviceSteps = append(serviceSteps, *ps.Service)
+		} else {
+			remainingPlan = append(remainingPlan, ps)
+		}
+	}
+
+	// Start all services, defer stop
+	if len(serviceSteps) > 0 {
+		startedServices := w.startServices(ctx, m, b, cwd, pp, serviceSteps)
+		defer w.stopServices(m, b, cwd, pp, startedServices)
+
+		// If any service failed to start, fail the build
+		if len(startedServices) != len(serviceSteps) {
+			return true
+		}
+
+		// Wait for ready checks
+		if !w.waitForServices(ctx, m, b, cwd, pp, startedServices) {
+			return true
+		}
+	}
+
+	// Run remaining plan steps (get/task/put)
+	for _, ps := range remainingPlan {
 		switch ps.Type {
 		case job.StepTypeGet:
 			if ps.Get == nil {
@@ -404,7 +446,7 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		params = make(map[string]string)
 	}
 	// Add resource-level params
-	for k, v := range r.Params.Params {
+	for k, v := range r.GetParams() {
 		if slices.Contains(rt.Params, k) {
 			params["param_"+k] = v
 		}
@@ -534,7 +576,7 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 		}
 	}
 
-	for k, v := range r.Params.Params {
+	for k, v := range r.GetParams() {
 		if slices.Contains(rt.Params, k) {
 			params["param_"+k] = v
 		}
@@ -623,7 +665,7 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 			params["version_"+k] = fmt.Sprintf("%s", v)
 		}
 	}
-	for k, v := range r.Params.Params {
+	for k, v := range r.GetParams() {
 		if slices.Contains(rt.Params, k) {
 			params["param_"+k] = v
 		}
@@ -847,6 +889,223 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 		}
 	}
 	return result, nil
+}
+
+// startServices starts all service steps and returns the successfully started service steps.
+func (w *Worker) startServices(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, serviceSteps []job.ServiceStep) []job.ServiceStep {
+	var started []job.ServiceStep
+	for _, ss := range serviceSteps {
+		svc, ok := pp.Service(ss.Name)
+		if !ok {
+			w.logger.Error("service not found", "service", ss.Name)
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, fmt.Errorf("service %q not found in pipeline", ss.Name))
+			return started
+		}
+
+		ru, ok := pp.Runner(svc.Start.Runner)
+		if !ok {
+			w.logger.Error("runner not found for service start", "runner", svc.Start.Runner, "service", ss.Name)
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, fmt.Errorf("runner %q not found for service %q start", svc.Start.Runner, ss.Name))
+			return started
+		}
+
+		params := w.serviceParams(b, m, svc.Start.Params, ss.Params)
+
+		rc := utils.RunnerCommand{
+			Runner: svc.Start.Runner,
+			Args:   svc.Start.Args,
+			Params: params,
+		}
+
+		out, d, err := w.runRunner(ctx, ru, cwd, rc)
+		if err != nil {
+			b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d})
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			w.logger.Error("failed to start service", "service", ss.Name, "error", err)
+			return started
+		}
+
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d})
+		if err := w.updateBuild(ctx, m, *b); err != nil {
+			return started
+		}
+		started = append(started, ss)
+	}
+	return started
+}
+
+// serviceParams builds the environment parameters for a service command,
+// merging the command's own params with build info and per-job overrides.
+func (w *Worker) serviceParams(b *build.Build, m queue.Body, cmdParams map[string]string, overrides map[string]string) map[string]string {
+	params := make(map[string]string)
+	for k, v := range cmdParams {
+		params[k] = v
+	}
+	params["BUILD_ID"] = fmt.Sprintf("%d", b.ID)
+	params["BUILD_JOB_NAME"] = m.JobName
+	params["BUILD_PIPELINE_NAME"] = m.PipelineName
+	for k, v := range overrides {
+		params["param_"+k] = v
+	}
+	return params
+}
+
+// waitForServices runs ready_check for all started services that have one.
+// Returns false if any ready_check times out.
+func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, startedServices []job.ServiceStep) bool {
+	type readyResult struct {
+		name string
+		out  string
+		d    time.Duration
+		err  error
+	}
+
+	var wg sync.WaitGroup
+	results := make(chan readyResult, len(startedServices))
+
+	for _, ss := range startedServices {
+		svc, ok := pp.Service(ss.Name)
+		if !ok || svc.ReadyCheck == nil {
+			continue
+		}
+
+		ru, ok := pp.Runner(svc.ReadyCheck.Runner)
+		if !ok {
+			continue
+		}
+
+		buildID := b.ID
+		wg.Add(1)
+		go func(svcName string, rc service.ReadyCheck, ru runner.Runner, overrides map[string]string) {
+			defer wg.Done()
+
+			interval := 1 * time.Second
+			if rc.Interval != "" {
+				if d, err := time.ParseDuration(rc.Interval); err == nil {
+					interval = d
+				}
+			}
+			timeout := 60 * time.Second
+			if rc.Timeout != "" {
+				if d, err := time.ParseDuration(rc.Timeout); err == nil {
+					timeout = d
+				}
+			}
+
+			params := make(map[string]string)
+			for k, v := range rc.Params {
+				params[k] = v
+			}
+			params["BUILD_ID"] = fmt.Sprintf("%d", buildID)
+			params["BUILD_JOB_NAME"] = m.JobName
+			params["BUILD_PIPELINE_NAME"] = m.PipelineName
+			for k, v := range overrides {
+				params["param_"+k] = v
+			}
+
+			runCmd := utils.RunnerCommand{
+				Runner: rc.Runner,
+				Args:   rc.Args,
+				Params: params,
+			}
+
+			deadline := time.After(timeout)
+			start := time.Now()
+			var lastOut string
+			var lastErr error
+			for {
+				select {
+				case <-deadline:
+					results <- readyResult{
+						name: svcName,
+						out:  lastOut + fmt.Sprintf("\nready_check timed out after %s", timeout),
+						d:    time.Since(start),
+						err:  fmt.Errorf("ready_check timed out after %s", timeout),
+					}
+					return
+				case <-ctx.Done():
+					results <- readyResult{
+						name: svcName,
+						out:  "context cancelled",
+						d:    time.Since(start),
+						err:  ctx.Err(),
+					}
+					return
+				default:
+				}
+
+				lastOut, _, lastErr = w.runRunner(ctx, ru, cwd, runCmd)
+				if lastErr == nil {
+					results <- readyResult{
+						name: svcName,
+						out:  lastOut,
+						d:    time.Since(start),
+					}
+					return
+				}
+				time.Sleep(interval)
+			}
+		}(ss.Name, *svc.ReadyCheck, ru, ss.Params)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	allReady := true
+	for r := range results {
+		if r.err != nil {
+			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d})
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			w.logger.Error("service ready_check failed", "service", r.name, "error", r.err)
+			allReady = false
+		} else {
+			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d})
+			w.updateBuild(ctx, m, *b)
+		}
+	}
+
+	return allReady
+}
+
+// stopServices stops all started services unconditionally.
+// Uses a fresh context to ensure cleanup runs even if the parent context is cancelled.
+func (w *Worker) stopServices(m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, startedServices []job.ServiceStep) {
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for _, ss := range startedServices {
+		svc, ok := pp.Service(ss.Name)
+		if !ok {
+			continue
+		}
+
+		ru, ok := pp.Runner(svc.Stop.Runner)
+		if !ok {
+			w.logger.Error("runner not found for service stop", "runner", svc.Stop.Runner, "service", ss.Name)
+			continue
+		}
+
+		params := w.serviceParams(b, m, svc.Stop.Params, ss.Params)
+
+		rc := utils.RunnerCommand{
+			Runner: svc.Stop.Runner,
+			Args:   svc.Stop.Args,
+			Params: params,
+		}
+
+		out, d, err := w.runRunner(stopCtx, ru, cwd, rc)
+		if err != nil {
+			w.logger.Error("failed to stop service", "service", ss.Name, "error", err)
+		}
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":stop", Logs: out, Duration: d})
+		w.updateBuild(stopCtx, m, *b)
+	}
 }
 
 func createKeyValuePairs(m map[string]string) string {

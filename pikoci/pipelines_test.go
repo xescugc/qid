@@ -122,7 +122,6 @@ resource "git" "repo" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "deploy" {
@@ -172,7 +171,6 @@ func TestCreatePipeline_BackwardsCompat_GetThenTask(t *testing.T) {
 	hclConfig := []byte(`
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -217,7 +215,6 @@ variable "greeting" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -269,7 +266,6 @@ resource_type "my-git" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -296,7 +292,6 @@ func TestCreatePipeline_WithTimeout(t *testing.T) {
 	hclConfig := []byte(`
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -337,7 +332,6 @@ func TestCreatePipeline_InvalidTimeout(t *testing.T) {
 	hclConfig := []byte(`
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -367,7 +361,6 @@ func TestCreatePipeline_WithAttempts(t *testing.T) {
 	hclConfig := []byte(`
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -408,7 +401,6 @@ func TestCreatePipeline_InvalidAttempts(t *testing.T) {
 	hclConfig := []byte(`
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -486,7 +478,6 @@ secret_type "vault" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "deploy" {
@@ -546,7 +537,6 @@ secret_type "vault" {
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
-  params {}
 }
 
 job "test" {
@@ -561,6 +551,208 @@ job "test" {
 `)
 
 	_, err := s.S.CreatePipeline(ctx, "main", "conflict-secret-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "both source and inline commands")
+}
+
+func TestCreatePipeline_WithServices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+service "test-db" {
+  params = ["version"]
+
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo starting"]
+  }
+
+  ready_check "exec" {
+    path     = "/bin/sh"
+    args     = ["-ec", "echo ready"]
+    interval = "1s"
+    timeout  = "10s"
+  }
+
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo stopping"]
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  service "test-db" {
+    version = "15"
+  }
+
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "run-tests" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "services-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 3) // service + get + task
+			assert.Equal(t, job.StepTypeService, j.Plan[0].Type)
+			assert.Equal(t, "test-db", j.Plan[0].Service.Name)
+			assert.Equal(t, map[string]string{"version": "15"}, j.Plan[0].Service.Params)
+			assert.Equal(t, job.StepTypeGet, j.Plan[1].Type)
+			assert.Equal(t, job.StepTypeTask, j.Plan[2].Type)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "services-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "services-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "services-pipeline"}, nil)
+
+	pp, err := s.S.CreatePipeline(ctx, "main", "services-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pp)
+}
+
+func TestCreatePipeline_ServiceNoInlineAllowed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	// Inline service definitions inside jobs are not supported.
+	// Services must be defined at the top level.
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  service "inline-db" {}
+
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "run-tests" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "no-inline-svc-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "service \"inline-db\" referenced in job")
+}
+
+func TestCreatePipeline_ServiceMissingReference(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  service "nonexistent" {}
+
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "run-tests" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "svc-missing-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "service \"nonexistent\" referenced in job")
+}
+
+func TestCreatePipeline_ServiceMissingStart(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+service "bad" {
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo stopping"]
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  service "bad" {}
+  get "cron" "timer" { trigger = true }
+  task "run-tests" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "svc-no-start-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must have a start block")
+}
+
+func TestCreatePipeline_ServiceSourceAndInlineConflict(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+service "bad" {
+  source = "https://example.com/service.hcl"
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo starting"]
+  }
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo stopping"]
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  service "bad" {}
+  get "cron" "timer" { trigger = true }
+  task "run-tests" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "svc-source-conflict-pipeline", hclConfig, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "both source and inline commands")
 }

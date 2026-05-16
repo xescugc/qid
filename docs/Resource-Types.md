@@ -144,7 +144,6 @@ The `cron` resource type is built in. You do not need to define it, just use it 
 ```hcl
 resource "cron" "every_minute" {
   check_interval = "@every 1m"
-  params {}
 }
 ```
 

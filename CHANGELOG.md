@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `service` blocks for ephemeral per-job processes. Services are started before tasks and stopped unconditionally after, with optional ready_check polling. Supports top-level definitions with per-job param overrides and `source` for URL-based definitions. Services use any runner (exec, docker, etc.) ([#227](https://github.com/xescugc/pikoci/issues/227))
 - Add `secret_type` and `secret` blocks for injecting secrets into pipeline steps. Secret types define how to fetch secrets via a `get` command, and secrets declare which secret to fetch with specific params. Steps declare `secrets = ["type.name"]` to have secret values injected as `secret_<key>` environment variables before execution. Includes built-in `pikoci://vault` and `pikoci://file` secret types. Supports `source` for remote secret type definitions. Also fixes PostgreSQL/MySQL migration issues, drops CockroachDB/TiDB support, and refactors test infrastructure ([#12](https://github.com/xescugc/pikoci/issues/12))
 - Add dedicated Secret Types documentation page with built-in vault/file reference and custom secret type examples ([#223](https://github.com/xescugc/pikoci/issues/223))
 - Redesign secrets: remove `secret` block, move connection config to `secret_type`, steps reference secret_type name + path inline via `secrets = {"vault" = "secret/data/db"}`. Vault built-in accepts address/token as config. Secrets render as note-shaped nodes in pipeline graph. Public pipeline responses sanitized ([#225](https://github.com/xescugc/pikoci/issues/225))
