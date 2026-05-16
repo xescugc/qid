@@ -55,5 +55,29 @@ func (p *PGQuerier) QueryContext(ctx context.Context, query string, args ...inte
 }
 
 func (p *PGQuerier) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	return p.db.ExecContext(ctx, rewritePlaceholders(query), args...)
+	q := rewritePlaceholders(query)
+	trimmed := strings.TrimSpace(strings.ToUpper(q))
+
+	// PostgreSQL doesn't support LastInsertId. For INSERT statements,
+	// append RETURNING id and use QueryRow to capture the generated ID.
+	if strings.HasPrefix(trimmed, "INSERT") && !strings.Contains(trimmed, "RETURNING") {
+		q = strings.TrimRight(q, "; \n\t") + " RETURNING id"
+		var id int64
+		err := p.db.QueryRowContext(ctx, q, args...).Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		return pgResult{id: id, rows: 1}, nil
+	}
+
+	return p.db.ExecContext(ctx, q, args...)
 }
+
+// pgResult implements sql.Result for PostgreSQL INSERT RETURNING.
+type pgResult struct {
+	id   int64
+	rows int64
+}
+
+func (r pgResult) LastInsertId() (int64, error) { return r.id, nil }
+func (r pgResult) RowsAffected() (int64, error) { return r.rows, nil }

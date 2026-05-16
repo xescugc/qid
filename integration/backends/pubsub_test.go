@@ -47,11 +47,23 @@ func TestPubSubBackends(t *testing.T) {
 
 				topic, err := pubsub.OpenTopic(ctx, topicURL)
 				require.NoError(t, err)
-				err = topic.Shutdown(ctx)
-				require.NoError(t, err)
 
 				sub, err := pubsub.OpenSubscription(ctx, subURL)
 				require.NoError(t, err)
+
+				// For rabbit/kafka: send a message to ensure the exchange/topic is created
+				err = topic.Send(ctx, &pubsub.Message{Body: []byte("init")})
+				require.NoError(t, err)
+
+				rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				msg, err := sub.Receive(rctx)
+				require.NoError(t, err)
+				msg.Ack()
+
+				err = topic.Shutdown(ctx)
+				require.NoError(t, err)
+
 				err = sub.Shutdown(ctx)
 				require.NoError(t, err)
 			})
@@ -73,7 +85,7 @@ func TestPubSubBackends(t *testing.T) {
 				err = topic.Send(ctx, &pubsub.Message{Body: body})
 				require.NoError(t, err)
 
-				rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				rctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 
 				msg, err := sub.Receive(rctx)
@@ -103,7 +115,7 @@ func TestPubSubBackends(t *testing.T) {
 
 				received := make(map[string]bool)
 				for range messages {
-					rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					rctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 					msg, err := sub.Receive(rctx)
 					cancel()
 					require.NoError(t, err)

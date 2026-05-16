@@ -34,17 +34,12 @@ services:
       - pikoci
 
   kafka:
-    image: bitnami/kafka
+    image: apache/kafka:latest
     networks:
       - pikoci
 
-  cockroachdb:
-    image: cockroachdb/cockroach
-    networks:
-      - pikoci
-
-  tidb:
-    image: pingcap/tidb
+  vault:
+    image: hashicorp/vault:latest
     networks:
       - pikoci
 

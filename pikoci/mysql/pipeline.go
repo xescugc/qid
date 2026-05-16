@@ -203,13 +203,17 @@ const pipelineQuery = `
 		j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure,
 		r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.logs, r.last_check, r.next_check,
 		rt.id, rt.name, rt.` + "`check`" + `, rt.pull, rt.push, rt.params,
-		ru.id, ru.name, ru.run
+		ru.id, ru.name, ru.run,
+		st.id, st.name, st.source, st.get, st.params,
+		s.id, s.name, s.type, s.canonical, s.params
 	FROM pipelines AS p
 	JOIN teams AS t ON p.team_id = t.id
 	LEFT JOIN jobs AS j ON j.pipeline_id = p.id
 	LEFT JOIN resources AS r ON r.pipeline_id = p.id
 	LEFT JOIN resource_types AS rt ON rt.pipeline_id = p.id
 	LEFT JOIN runners AS ru ON ru.pipeline_id = p.id
+	LEFT JOIN secret_types AS st ON st.pipeline_id = p.id
+	LEFT JOIN secrets AS s ON s.pipeline_id = p.id
 `
 
 func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
@@ -231,6 +235,8 @@ func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
 			r   dbResource
 			rt  dbResourceType
 			ru  dbRunner
+			st  dbSecretType
+			s   dbSecret
 		)
 
 		err := rows.Scan(
@@ -239,6 +245,8 @@ func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
 			&r.ID, &r.Name, &r.Type, &r.Canonical, &r.Params, &r.CheckInterval, &r.Logs, &r.LastCheck, &r.NextCheck,
 			&rt.ID, &rt.Name, &rt.Check, &rt.Pull, &rt.Push, &rt.Params,
 			&ru.ID, &ru.Name, &ru.Run,
+			&st.ID, &st.Name, &st.Source, &st.Get, &st.Params,
+			&s.ID, &s.Name, &s.Type, &s.Canonical, &s.Params,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan: %w", err)
@@ -278,6 +286,20 @@ func scanPipelines(rows *sql.Rows) ([]*pipeline.Pipeline, error) {
 			if !seen[k] {
 				seen[k] = true
 				p.Runners = append(p.Runners, *ru.toDomainEntity())
+			}
+		}
+		if st.ID.Valid {
+			k := seenKey{ppID, "st", uint32(st.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.SecretTypes = append(p.SecretTypes, *st.toDomainEntity())
+			}
+		}
+		if s.ID.Valid {
+			k := seenKey{ppID, "s", uint32(s.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Secrets = append(p.Secrets, *s.toDomainEntity())
 			}
 		}
 	}

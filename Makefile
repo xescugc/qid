@@ -14,12 +14,20 @@ help: Makefile ## This help dialog
 
 export GOCACHE
 
+.PHONY: test-services-up
+test-services-up: ## Start all external test services (DB, pubsub, vault)
+	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml up -d mariadb postgresql nats rabbitmq kafka vault
+
+.PHONY: test-services-down
+test-services-down: ## Stop all external test services
+	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml down -v --remove-orphans
+
 .PHONY: dev-env-up
-dev-env-up: ## Starts the dependencies
+dev-env-up: ## Starts the development dependencies
 	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml up -d mariadb
 
 .PHONY: nats-up
-nats-up: ## Starts the dependencies
+nats-up: ## Starts NATS for development
 	@docker-compose -f docker/docker-compose.yml -f docker/develop.yml up -d nats
 
 .PHONY: down
@@ -50,19 +58,22 @@ gen: ## Runs go generate
 lint: ## Runs staticcheck linter
 	@go tool staticcheck ./...
 
-ARGS ?= ./...
-
 .PHONY: test
-test: ## Runs all tests
-	@go test $(ARGS)
+test: ## Runs all tests (use test-services-up first for external backends)
+	@PIKOCI_TEST_DB_SYSTEMS=$${PIKOCI_TEST_DB_SYSTEMS:-mem,sqlite} \
+	PIKOCI_TEST_PUBSUB_SYSTEMS=$${PIKOCI_TEST_PUBSUB_SYSTEMS:-mem} \
+	go test ./... -timeout 120s
 
-.PHONY: test-backends
-test-backends: ## Run backend integration tests (mem-only, no external deps)
-	@go test ./integration/backends/ -v -timeout 60s
-
-.PHONY: test-backends-all
-test-backends-all: ## Run all backend integration tests (requires docker services)
-	@PIKOCI_TEST_DB_SYSTEMS=mem,sqlite,mysql,postgresql,cockroachdb,tidb PIKOCI_TEST_PUBSUB_SYSTEMS=mem,nats,rabbit,kafka go test ./integration/backends/ -v -timeout 120s
+.PHONY: test-all
+test-all: ## Runs all tests including external backends (requires test-services-up)
+	@PIKOCI_TEST_DB_SYSTEMS=mem,sqlite,mysql,postgresql \
+	PIKOCI_TEST_PUBSUB_SYSTEMS=mem,nats \
+	PIKOCI_TEST_VAULT=1 \
+	PIKOCI_TEST_VAULT_ADDR=http://127.0.0.1:8200 \
+	NATS_SERVER_URL=nats://127.0.0.1:4222 \
+	RABBIT_SERVER_URL=amqp://guest:guest@127.0.0.1:5672/ \
+	KAFKA_BROKERS=127.0.0.1:9092 \
+	go test ./... -timeout 120s
 
 PLATFORMS := linux/amd64 windows/amd64 darwin/amd64
 

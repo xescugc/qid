@@ -15,6 +15,8 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/source"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"github.com/zclconf/go-cty/cty"
@@ -31,6 +33,7 @@ type hclGetStep struct {
 	Trigger  bool     `json:"trigger" hcl:"trigger,optional"`
 	Timeout  string   `json:"timeout" hcl:"timeout,optional"`
 	Attempts int      `json:"attempts" hcl:"attempts,optional"`
+	Secrets  []string `json:"secrets" hcl:"secrets,optional"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -42,6 +45,7 @@ type hclTaskStep struct {
 	Name     string              `json:"name" hcl:"name,label"`
 	Timeout  string              `json:"timeout" hcl:"timeout,optional"`
 	Attempts int                 `json:"attempts" hcl:"attempts,optional"`
+	Secrets  []string            `json:"secrets" hcl:"secrets,optional"`
 	Run      utils.RunnerCommand `json:"run" hcl:"run,block"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
@@ -51,10 +55,11 @@ type hclTaskStep struct {
 
 // hclPutStep is the HCL-decoded put step.
 type hclPutStep struct {
-	Type     string `hcl:"type,label"`
-	Name     string `hcl:"name,label"`
-	Timeout  string `hcl:"timeout,optional"`
-	Attempts int    `hcl:"attempts,optional"`
+	Type     string   `hcl:"type,label"`
+	Name     string   `hcl:"name,label"`
+	Timeout  string   `hcl:"timeout,optional"`
+	Attempts int      `hcl:"attempts,optional"`
+	Secrets  []string `hcl:"secrets,optional"`
 
 	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
@@ -124,6 +129,35 @@ func (hrd hclRunnerDef) toRunner() runner.Runner {
 	return ru
 }
 
+// hclSecretType is an intermediate struct that allows optional get block
+// when source is provided.
+type hclSecretType struct {
+	Name   string   `json:"name" hcl:"name,label"`
+	Source string   `json:"source,omitempty" hcl:"source,optional"`
+	Params []string `json:"params" hcl:"params,optional"`
+
+	Get []utils.RunnerCommand `json:"get" hcl:"get,block"`
+}
+
+func (hst hclSecretType) toSecretType() sectype.SecretType {
+	st := sectype.SecretType{
+		Name:   hst.Name,
+		Source: hst.Source,
+		Params: hst.Params,
+	}
+	if len(hst.Get) > 0 {
+		st.Get = hst.Get[0]
+	}
+	return st
+}
+
+// hclSecret is the intermediate HCL-decoded secret.
+type hclSecret struct {
+	Type   string `hcl:"type,label"`
+	Name   string `hcl:"name,label"`
+	Remain hcl.Body `hcl:",remain"`
+}
+
 // hclPipeline is the intermediate HCL-decoded pipeline.
 type hclPipeline struct {
 	Name          string              `json:"name"`
@@ -131,6 +165,8 @@ type hclPipeline struct {
 	Resources     []resource.Resource `hcl:"resource,block"`
 	ResourceTypes []hclResourceType   `hcl:"resource_type,block"`
 	Runners       []hclRunnerDef      `hcl:"runner,block"`
+	SecretTypes   []hclSecretType     `hcl:"secret_type,block"`
+	Secrets       []hclSecret         `hcl:"secret,block"`
 	Remain        hcl.Body            `hcl:",remain"`
 }
 
@@ -317,6 +353,49 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		}
 	}
 
+	var secretTypes []sectype.SecretType
+	for _, hst := range hp.SecretTypes {
+		if hst.Source != "" {
+			hasInline := len(hst.Get) > 0
+			if hasInline {
+				return nil, fmt.Errorf("secret_type %q has both source and inline commands, which is not allowed", hst.Name)
+			}
+			resolved, err := source.ResolveSecretType(ctx, hst.Source)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve source for secret_type %q: %w", hst.Name, err)
+			}
+			resolved.Name = hst.Name
+			resolved.Source = hst.Source
+			secretTypes = append(secretTypes, *resolved)
+		} else {
+			secretTypes = append(secretTypes, hst.toSecretType())
+		}
+	}
+
+	var secrets []secret.Secret
+	for _, hs := range hp.Secrets {
+		params := make(map[string]string)
+		if hs.Remain != nil {
+			attrs, diags := hs.Remain.JustAttributes()
+			if diags.HasErrors() {
+				return nil, fmt.Errorf("failed to parse secret %q params: %s", hs.Name, diags.Error())
+			}
+			for k, attr := range attrs {
+				val, vdiags := attr.Expr.Value(ectx)
+				if vdiags.HasErrors() {
+					return nil, fmt.Errorf("failed to evaluate secret %q param %q: %s", hs.Name, k, vdiags.Error())
+				}
+				params[k] = val.AsString()
+			}
+		}
+		secrets = append(secrets, secret.Secret{
+			Type:      hs.Type,
+			Name:      hs.Name,
+			Canonical: utils.ResourceCanonical(hs.Type, hs.Name),
+			Params:    params,
+		})
+	}
+
 	// Parse the raw HCL to determine block ordering within each job.
 	jobPlans, err := parseJobPlans(rpp, hp.Jobs)
 	if err != nil {
@@ -327,6 +406,8 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		Resources:     hp.Resources,
 		ResourceTypes: resourceTypes,
 		Runners:       runners,
+		SecretTypes:   secretTypes,
+		Secrets:       secrets,
 	}
 
 	for _, hj := range hp.Jobs {
@@ -394,6 +475,7 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 					Type:     job.StepTypeGet,
 					Timeout:  timeout,
 					Attempts: g.Attempts,
+					Secrets:  g.Secrets,
 					Get: &job.GetStep{
 						Type:    g.Type,
 						Name:    g.Name,
@@ -425,6 +507,7 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 					Type:     job.StepTypeTask,
 					Timeout:  timeout,
 					Attempts: t.Attempts,
+					Secrets:  t.Secrets,
 					Task: &job.TaskStep{
 						Name: t.Name,
 						Run:  t.Run,
@@ -454,6 +537,7 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob) (map[string][]job.PlanStep, err
 					Type:     job.StepTypePut,
 					Timeout:  timeout,
 					Attempts: p.Attempts,
+					Secrets:  p.Secrets,
 					Put: &job.PutStep{
 						Type:   p.Type,
 						Name:   p.Name,

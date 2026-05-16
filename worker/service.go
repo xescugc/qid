@@ -226,6 +226,19 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
+	if len(ps.Secrets) > 0 {
+		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
+		if err != nil {
+			b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: err.Error()})
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			return true
+		}
+		for k, v := range secretEnvs {
+			params[k] = v
+		}
+	}
+
 	rc := utils.RunnerCommand{
 		Runner: rt.Pull.Runner,
 		Args:   rt.Pull.Args,
@@ -297,6 +310,22 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 	ru, ok := pp.Runner(t.Run.Runner)
 	if !ok {
 		return false
+	}
+
+	if len(ps.Secrets) > 0 {
+		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
+		if err != nil {
+			b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: err.Error()})
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			return true
+		}
+		if t.Run.Params == nil {
+			t.Run.Params = make(map[string]string)
+		}
+		for k, v := range secretEnvs {
+			t.Run.Params[k] = v
+		}
 	}
 
 	maxAttempts := ps.Attempts
@@ -382,6 +411,19 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 	ru, ok := pp.Runner(rt.Push.Runner)
 	if !ok {
 		return false
+	}
+
+	if len(ps.Secrets) > 0 {
+		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
+		if err != nil {
+			b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: err.Error()})
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			return true
+		}
+		for k, v := range secretEnvs {
+			params[k] = v
+		}
 	}
 
 	rc := utils.RunnerCommand{
@@ -742,6 +784,63 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc
 	w.logger.Debug("finished running command", "out", out)
 
 	return out, duration, err
+}
+
+// fetchSecrets resolves secret values for the given secret references and returns
+// them as a map of "secret_<key>" env vars.
+func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipeline, secretRefs []string) (map[string]string, error) {
+	result := make(map[string]string)
+	for _, ref := range secretRefs {
+		s, ok := pp.Secret(ref)
+		if !ok {
+			return nil, fmt.Errorf("secret %q not found in pipeline", ref)
+		}
+		st, ok := pp.SecretType(s.Type)
+		if !ok {
+			return nil, fmt.Errorf("secret_type %q not found in pipeline", s.Type)
+		}
+
+		// Build params from secret params filtered by secret_type.Params
+		params := make(map[string]string)
+		for k, v := range st.Get.Params {
+			params[k] = v
+		}
+		for k, v := range s.Params {
+			if slices.Contains(st.Params, k) {
+				params["param_"+k] = v
+			}
+		}
+
+		ru, ok := pp.Runner(st.Get.Runner)
+		if !ok {
+			return nil, fmt.Errorf("runner %q not found for secret_type %q", st.Get.Runner, st.Name)
+		}
+
+		rc := utils.RunnerCommand{
+			Runner: st.Get.Runner,
+			Args:   st.Get.Args,
+			Params: params,
+		}
+
+		out, _, err := w.runRunner(ctx, ru, cwd, rc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch secret %q: %s\n%w", ref, out, err)
+		}
+
+		// Parse last line of stdout as JSON object
+		sout := strings.Split(strings.Trim(out, "\n"), "\n")
+		rawJSON := sout[len(sout)-1]
+
+		var secretData map[string]string
+		if err := json.Unmarshal([]byte(rawJSON), &secretData); err != nil {
+			return nil, fmt.Errorf("failed to parse secret %q output as JSON: %w", ref, err)
+		}
+
+		for k, v := range secretData {
+			result["secret_"+k] = v
+		}
+	}
+	return result, nil
 }
 
 func createKeyValuePairs(m map[string]string) string {

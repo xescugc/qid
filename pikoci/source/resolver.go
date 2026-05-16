@@ -11,6 +11,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/builtin"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 )
 
 const (
@@ -24,6 +25,10 @@ type hclResourceType struct {
 
 type hclRunner struct {
 	Runners []runner.Runner `hcl:"runner,block"`
+}
+
+type hclSecretType struct {
+	SecretTypes []sectype.SecretType `hcl:"secret_type,block"`
 }
 
 func ResolveResourceType(ctx context.Context, src string) (*restype.ResourceType, error) {
@@ -60,6 +65,23 @@ func ResolveRunner(ctx context.Context, src string) (*runner.Runner, error) {
 	return &hr.Runners[0], nil
 }
 
+func ResolveSecretType(ctx context.Context, src string) (*sectype.SecretType, error) {
+	data, err := resolveHCL(ctx, src, "secret_types")
+	if err != nil {
+		return nil, err
+	}
+
+	var hst hclSecretType
+	err = hclsimple.Decode("source.hcl", data, nil, &hst)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode secret type from source %q: %w", src, err)
+	}
+	if len(hst.SecretTypes) == 0 {
+		return nil, fmt.Errorf("no secret_type block found in source %q", src)
+	}
+	return &hst.SecretTypes[0], nil
+}
+
 func resolveHCL(ctx context.Context, src, kind string) ([]byte, error) {
 	if strings.HasPrefix(src, pikoPrefix) {
 		name := strings.TrimPrefix(src, pikoPrefix)
@@ -71,6 +93,10 @@ func resolveHCL(ctx context.Context, src, kind string) ([]byte, error) {
 			}
 		case "runners":
 			if data, ok := builtin.RunnerHCL(name); ok {
+				return data, nil
+			}
+		case "secret_types":
+			if data, ok := builtin.SecretTypeHCL(name); ok {
 				return data, nil
 			}
 		}

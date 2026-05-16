@@ -1,6 +1,6 @@
 # Pipeline Reference
 
-Pipelines are defined in [HCL](https://github.com/hashicorp/hcl). A pipeline file contains `variable`, `resource_type`, `resource`, `runner`, and `job` blocks.
+Pipelines are defined in [HCL](https://github.com/hashicorp/hcl). A pipeline file contains `variable`, `resource_type`, `resource`, `runner`, `secret_type`, `secret`, and `job` blocks.
 
 ## variable
 
@@ -109,6 +109,47 @@ runner "docker" {
 
 When `source` is set, inline `run` block is not needed.
 
+## secret_type
+
+Defines how to fetch secrets. The `get` command should print a JSON object on its last stdout line with key-value pairs that become `secret_<key>` environment variables.
+
+```hcl
+secret_type "vault" {
+  params = ["path"]
+
+  get "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "vault kv get -format=json $param_path | jq '.data'"]
+  }
+}
+```
+
+| Field    | Required | Description                                         |
+|----------|----------|-----------------------------------------------------|
+| `name`   | yes      | Label on the block                                  |
+| `source` | no       | URL to fetch definition (e.g. `pikoci://vault`)     |
+| `params` | no       | List of parameter names passed as `param_<key>` env vars |
+
+When `source` is set, inline `get` block is not needed.
+
+## secret
+
+An instance of a secret type. Declares which secret to fetch with specific parameters.
+
+```hcl
+secret "vault" "db-creds" {
+  path = "secret/data/db"
+}
+```
+
+| Field  | Required | Description                                      |
+|--------|----------|--------------------------------------------------|
+| `type` | yes      | Label, must match a `secret_type` name           |
+| `name` | yes      | Label, unique name for this secret               |
+| other  | no       | Remaining attributes are passed as params filtered by secret_type.params |
+
+The secret canonical is `<type>.<name>` (e.g. `vault.db-creds`).
+
 ## job
 
 Jobs contain a plan of steps executed in order. Each step is one of `get`, `task`, or `put`.
@@ -168,6 +209,7 @@ get "git" "my_repo" {
 | `passed`   | no       | List of job names that must have run with this version first |
 | `timeout`  | no       | Maximum duration for the step (e.g. `"2m"`, `"30s"`) |
 | `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
+| `secrets`  | no       | List of secret canonicals to inject (e.g. `["vault.db-creds"]`) |
 
 ### task
 
@@ -187,6 +229,7 @@ task "test" {
 | `name`     | yes      | Label on the block                             |
 | `timeout`  | no       | Maximum duration for the step (e.g. `"10m"`, `"1h"`) |
 | `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
+| `secrets`  | no       | List of secret canonicals to inject (e.g. `["vault.db-creds"]`) |
 
 ### put
 
@@ -206,6 +249,7 @@ put "git" "my_repo" {
 | `name`     | yes      | Label, resource name                           |
 | `timeout`  | no       | Maximum duration for the step (e.g. `"5m"`, `"30s"`) |
 | `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
+| `secrets`  | no       | List of secret canonicals to inject (e.g. `["vault.db-creds"]`) |
 
 ### Step hooks
 

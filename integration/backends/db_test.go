@@ -11,8 +11,11 @@ import (
 	"github.com/xescugc/pikoci/pikoci/mysql"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/user"
+	"github.com/xescugc/pikoci/pikoci/utils"
 )
 
 func TestDBBackends(t *testing.T) {
@@ -187,6 +190,150 @@ func TestDBBackends(t *testing.T) {
 				require.NoError(t, err)
 				assert.Len(t, builds, 1)
 				assert.Equal(t, build.Started, builds[0].Status)
+			})
+
+			t.Run("SecretTypeRepository", func(t *testing.T) {
+				str := mysql.NewSecretTypeRepository(setup.querier)
+
+				// Create a secret type
+				stID, err := str.Create(ctx, "main", "test-pipeline", sectype.SecretType{
+					Name:   "vault",
+					Params: []string{"path"},
+					Get: utils.RunnerCommand{
+						Runner: "exec",
+						Args:   []string{"-ec", "echo '{\"user\":\"admin\"}'"},
+					},
+				})
+				require.NoError(t, err)
+				assert.NotZero(t, stID)
+
+				// Find secret type
+				st, err := str.Find(ctx, "main", "test-pipeline", "vault")
+				require.NoError(t, err)
+				assert.Equal(t, "vault", st.Name)
+				assert.Equal(t, []string{"path"}, st.Params)
+				assert.Equal(t, "exec", st.Get.Runner)
+
+				// Filter secret types
+				sts, err := str.Filter(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Len(t, sts, 1)
+
+				// Update secret type
+				err = str.Update(ctx, "main", "test-pipeline", "vault", sectype.SecretType{
+					Name:   "vault",
+					Params: []string{"path", "key"},
+					Get: utils.RunnerCommand{
+						Runner: "exec",
+						Args:   []string{"-ec", "echo '{\"user\":\"root\"}'"},
+					},
+				})
+				require.NoError(t, err)
+
+				st, err = str.Find(ctx, "main", "test-pipeline", "vault")
+				require.NoError(t, err)
+				assert.Equal(t, []string{"path", "key"}, st.Params)
+
+				// Create a second secret type to test delete
+				_, err = str.Create(ctx, "main", "test-pipeline", sectype.SecretType{
+					Name:   "aws-ssm",
+					Params: []string{"name"},
+					Get: utils.RunnerCommand{
+						Runner: "exec",
+						Args:   []string{"-ec", "echo '{}'"},
+					},
+				})
+				require.NoError(t, err)
+
+				sts, err = str.Filter(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Len(t, sts, 2)
+
+				// Delete secret type
+				err = str.Delete(ctx, "main", "test-pipeline", "aws-ssm")
+				require.NoError(t, err)
+
+				sts, err = str.Filter(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Len(t, sts, 1)
+			})
+
+			t.Run("SecretRepository", func(t *testing.T) {
+				sr := mysql.NewSecretRepository(setup.querier)
+
+				canonical := utils.ResourceCanonical("vault", "db-creds")
+
+				// Create a secret
+				sID, err := sr.Create(ctx, "main", "test-pipeline", secret.Secret{
+					Type:      "vault",
+					Name:      "db-creds",
+					Canonical: canonical,
+					Params:    map[string]string{"path": "secret/data/db"},
+				})
+				require.NoError(t, err)
+				assert.NotZero(t, sID)
+
+				// Find secret
+				s, err := sr.Find(ctx, "main", "test-pipeline", canonical)
+				require.NoError(t, err)
+				assert.Equal(t, "vault", s.Type)
+				assert.Equal(t, "db-creds", s.Name)
+				assert.Equal(t, canonical, s.Canonical)
+				assert.Equal(t, "secret/data/db", s.Params["path"])
+
+				// Filter secrets
+				ss, err := sr.Filter(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Len(t, ss, 1)
+
+				// Update secret
+				err = sr.Update(ctx, "main", "test-pipeline", canonical, secret.Secret{
+					Type:      "vault",
+					Name:      "db-creds",
+					Canonical: canonical,
+					Params:    map[string]string{"path": "secret/data/prod-db"},
+				})
+				require.NoError(t, err)
+
+				s, err = sr.Find(ctx, "main", "test-pipeline", canonical)
+				require.NoError(t, err)
+				assert.Equal(t, "secret/data/prod-db", s.Params["path"])
+
+				// Create a second secret to test delete
+				apiCanonical := utils.ResourceCanonical("vault", "api-key")
+				_, err = sr.Create(ctx, "main", "test-pipeline", secret.Secret{
+					Type:      "vault",
+					Name:      "api-key",
+					Canonical: apiCanonical,
+					Params:    map[string]string{"path": "secret/data/api"},
+				})
+				require.NoError(t, err)
+
+				ss, err = sr.Filter(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Len(t, ss, 2)
+
+				// Delete secret
+				err = sr.Delete(ctx, "main", "test-pipeline", apiCanonical)
+				require.NoError(t, err)
+
+				ss, err = sr.Filter(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Len(t, ss, 1)
+			})
+
+			t.Run("PipelineWithSecrets", func(t *testing.T) {
+				// Verify that secrets and secret_types are returned
+				// when finding a pipeline (via the JOIN query)
+				ppr := mysql.NewPipelineRepository(setup.querier)
+
+				pp, err := ppr.Find(ctx, "main", "test-pipeline")
+				require.NoError(t, err)
+				assert.Equal(t, "test-pipeline", pp.Name)
+				assert.Len(t, pp.SecretTypes, 1)
+				assert.Equal(t, "vault", pp.SecretTypes[0].Name)
+				assert.Len(t, pp.Secrets, 1)
+				assert.Equal(t, "vault.db-creds", pp.Secrets[0].Canonical)
 			})
 		})
 	}

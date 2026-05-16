@@ -22,7 +22,7 @@ const (
 
 // New returns a new sql.DB with the provided parameters. If the Ping to the DB fails
 // due to not existing DB it'll create the DB
-// IsPostgreSQL returns true if the system is PostgreSQL or CockroachDB (PG-compatible).
+// IsPostgreSQL returns true if the system is PostgreSQL.
 func IsPostgreSQL(system string) bool {
 	return system == PostgreSQL
 }
@@ -171,10 +171,10 @@ func pqQuoteIdentifier(s string) string {
 
 // Options list of options that can be assigned to the New function
 type Options struct {
-	DBName          string
-	ClientFoundRows bool
-	ParseTime       bool
-	MultiStatements bool
-	System          string
-	DBFile          string
+	DBName            string
+	ClientFoundRows   bool
+	ParseTime         bool
+	MultiStatements   bool
+	System            string
+	DBFile string
 }
