@@ -16,7 +16,7 @@ func (q *PikoCI) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.
 	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
-		return nil, fmt.Errorf("invalid Job Name format %q", pn)
+		return nil, fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
 	id, err := q.Builds.Create(ctx, tc, pn, jn, b)
@@ -35,7 +35,7 @@ func (q *PikoCI) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build
 	} else if !utils.ValidateCanonical(pn) {
 		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
-		return nil, fmt.Errorf("invalid Job Name format %q", pn)
+		return nil, fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
 	builds, err := q.Builds.Filter(ctx, tc, pn, jn)
@@ -54,7 +54,7 @@ func (q *PikoCI) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint
 	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
-		return fmt.Errorf("invalid Job Name format %q", pn)
+		return fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
 	if b.Status != build.Started && b.Duration == 0 {
@@ -75,7 +75,7 @@ func (q *PikoCI) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint
 	} else if !utils.ValidateCanonical(pn) {
 		return fmt.Errorf("invalid Pipeline Name format %q", pn)
 	} else if !utils.ValidateCanonical(jn) {
-		return fmt.Errorf("invalid Job Name format %q", pn)
+		return fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
 	err := q.Builds.Delete(ctx, tc, pn, jn, bID)

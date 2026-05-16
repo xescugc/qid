@@ -69,7 +69,7 @@ func (r *UserRepository) Update(ctx context.Context, un string, u user.User) err
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE users AS u
 		SET full_name = ?, username = ?, password = ?, admin = ?
-		WHERE p.username = ?
+		WHERE u.username = ?
 	`, dbu.FullName, dbu.Username, dbu.Password, dbu.Admin, un)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

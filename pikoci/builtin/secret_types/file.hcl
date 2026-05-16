@@ -5,7 +5,7 @@ secret_type "file" {
     path = "/bin/sh"
     args = [
       "-ec",
-      "cat $param_path"
+      "cat \"$param_path\""
     ]
   }
 }

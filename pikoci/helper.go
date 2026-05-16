@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -320,7 +319,7 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 				ctyv, _ := a.Expr.Value(ectx)
 				var n float64
 				err = gocty.FromCtyValue(ctyv, &n)
-				if !ok {
+				if err != nil {
 					return nil, fmt.Errorf("variable %q has an invalid default type, expected 'number'", v.Name)
 				}
 				ecvars[v.Name] = cty.NumberVal(big.NewFloat(n))
@@ -357,9 +356,6 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	var hp hclPipeline
 	err = hclsimple.Decode("pipeline.hcl", rpp, ectx, &hp)
 	if err != nil {
-		for _, e := range err.(hcl.Diagnostics).Errs() {
-			spew.Dump(e)
-		}
 		return nil, fmt.Errorf("failed to Decode Pipeline config: %w", err)
 	}
 
