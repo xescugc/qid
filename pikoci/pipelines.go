@@ -509,16 +509,14 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 				}
 			}
 		}
-		// Draw job→resource edges for put steps
-		for _, ps := range j.Plan {
-			if ps.Type == "put" && ps.Put != nil {
-				rCan := fmt.Sprintf(`"%s.%s"`, ps.Put.Type, ps.Put.Name)
-				err = graph.AddEdge(j.Name, rCan, false, map[string]string{
-					string(gographviz.Style): "solid",
-				})
-				if err != nil {
-					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
-				}
+		// Draw job→resource edges for all put steps (plan + hooks)
+		for _, p := range j.AllPutSteps() {
+			rCan := fmt.Sprintf(`"%s.%s"`, p.Type, p.Name)
+			err = graph.AddEdge(j.Name, rCan, false, map[string]string{
+				string(gographviz.Style): "solid",
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
 			}
 		}
 	}

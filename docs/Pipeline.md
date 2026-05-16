@@ -313,6 +313,8 @@ Each step (and the job itself) can have `on_success`, `on_failure`, and `ensure`
 - `on_failure` runs after the step fails
 - `ensure` always runs, regardless of success or failure
 
+Hooks can contain runner commands or `put` steps:
+
 ```hcl
 task "deploy" {
   run "exec" {
@@ -325,6 +327,33 @@ task "deploy" {
   }
 }
 ```
+
+Put steps in hooks use an unlabeled hook block:
+
+```hcl
+job "test" {
+  task "run-tests" {
+    run "exec" {
+      path = "make"
+      args = ["test"]
+    }
+  }
+
+  on_success {
+    put "github-check" "ci" {
+      conclusion = "success"
+    }
+  }
+
+  on_failure {
+    put "github-check" "ci" {
+      conclusion = "failure"
+    }
+  }
+}
+```
+
+Job-level hooks have access to `$BUILD_STATUS` (`succeeded` or `failed`) in addition to all other build metadata environment variables (`$BUILD_ID`, `$BUILD_JOB_NAME`, `$BUILD_PIPELINE_NAME`, `$BUILD_TEAM_NAME`).
 
 ### Step timeout
 

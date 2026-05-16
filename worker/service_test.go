@@ -37,6 +37,11 @@ func newTestWorker(ctrl *gomock.Controller) (*Worker, *mock.Service, *mock.Topic
 	return w, svc, topic
 }
 
+
+func runnerHook(rc utils.RunnerCommand) job.HookStep {
+	return job.HookStep{Type: job.StepTypeRunner, Runner: &rc}
+}
+
 func testPipeline() *pipeline.Pipeline {
 	return &pipeline.Pipeline{
 		ID:   1,
@@ -80,14 +85,14 @@ func testPipeline() *pipeline.Pipeline {
 				ID:     1,
 				Name:   "cron",
 				Params: []string{},
-				Check: utils.RunnerCommand{
+				Check: &utils.RunnerCommand{
 					Runner: "exec",
 					Args:   []string{"-ec", `echo "[{\"date\":\"now\"}]"`},
 					Params: map[string]string{
 						"path": "/bin/sh",
 					},
 				},
-				Pull: utils.RunnerCommand{
+				Pull: &utils.RunnerCommand{
 					Runner: "exec",
 					Params: map[string]string{},
 				},
@@ -197,7 +202,7 @@ func TestProcessJob_Success_WithGetAndTask(t *testing.T) {
 		ResourceTypes: []restype.ResourceType{
 			{
 				ID: 1, Name: "cron",
-				Pull: utils.RunnerCommand{
+				Pull: &utils.RunnerCommand{
 					Runner: "exec",
 					Args:   []string{"pulling"},
 					Params: map[string]string{"path": "echo"},
@@ -361,34 +366,34 @@ func TestProcessJob_TaskFailure_RunsHooks(t *testing.T) {
 								},
 							},
 						},
-						OnFailure: []utils.RunnerCommand{
-							{
+						OnFailure: []job.HookStep{
+							runnerHook(utils.RunnerCommand{
 								Runner: "exec",
 								Args:   []string{"task failed"},
 								Params: map[string]string{
 									"path": "echo",
 								},
-							},
+							}),
 						},
 					},
 				},
-				OnFailure: []utils.RunnerCommand{
-					{
+				OnFailure: []job.HookStep{
+					runnerHook(utils.RunnerCommand{
 						Runner: "exec",
 						Args:   []string{"job failed"},
 						Params: map[string]string{
 							"path": "echo",
 						},
-					},
+					}),
 				},
-				Ensure: []utils.RunnerCommand{
-					{
+				Ensure: []job.HookStep{
+					runnerHook(utils.RunnerCommand{
 						Runner: "exec",
 						Args:   []string{"always runs"},
 						Params: map[string]string{
 							"path": "echo",
 						},
-					},
+					}),
 				},
 			},
 		},
@@ -540,7 +545,7 @@ func TestProcessResourceCheck_NewVersions(t *testing.T) {
 		ResourceTypes: []restype.ResourceType{
 			{
 				ID: 1, Name: "cron",
-				Check: utils.RunnerCommand{
+				Check: &utils.RunnerCommand{
 					Runner: "exec",
 					Args:   []string{"-ec", `printf "[{\"date\":\"now\"}]\n"`},
 					Params: map[string]string{
@@ -631,9 +636,9 @@ func TestRunHooks(t *testing.T) {
 		Job:    []build.Step{},
 	}
 
-	hooks := []utils.RunnerCommand{
-		{Runner: "exec", Args: []string{"hook1"}, Params: map[string]string{"path": "echo"}},
-		{Runner: "exec", Args: []string{"hook2"}, Params: map[string]string{"path": "echo"}},
+	hooks := []job.HookStep{
+		runnerHook(utils.RunnerCommand{Runner: "exec", Args: []string{"hook1"}, Params: map[string]string{"path": "echo"}}),
+		runnerHook(utils.RunnerCommand{Runner: "exec", Args: []string{"hook2"}, Params: map[string]string{"path": "echo"}}),
 	}
 
 	// 2 hooks = 2 UpdateJobBuild calls
@@ -663,8 +668,8 @@ func TestRunHooks_SingleHook_NoIndex(t *testing.T) {
 
 	b := build.Build{ID: 61, Job: []build.Step{}}
 
-	hooks := []utils.RunnerCommand{
-		{Runner: "exec", Args: []string{"only"}, Params: map[string]string{"path": "echo"}},
+	hooks := []job.HookStep{
+		runnerHook(utils.RunnerCommand{Runner: "exec", Args: []string{"only"}, Params: map[string]string{"path": "echo"}}),
 	}
 
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(61), gomock.Any()).
@@ -692,8 +697,8 @@ func TestRunHooks_JobLevel_NoStepName(t *testing.T) {
 
 	b := build.Build{ID: 62, Job: []build.Step{}}
 
-	hooks := []utils.RunnerCommand{
-		{Runner: "exec", Args: []string{"job-level"}, Params: map[string]string{"path": "echo"}},
+	hooks := []job.HookStep{
+		runnerHook(utils.RunnerCommand{Runner: "exec", Args: []string{"job-level"}, Params: map[string]string{"path": "echo"}}),
 	}
 
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(62), gomock.Any()).
@@ -754,7 +759,7 @@ func TestBuildPullParams_WithVersionID(t *testing.T) {
 	b := build.Build{ID: 70}
 
 	rt := restype.ResourceType{
-		Pull: utils.RunnerCommand{
+		Pull: &utils.RunnerCommand{
 			Params: map[string]string{},
 		},
 		Params: []string{"url"},
@@ -792,7 +797,7 @@ func TestBuildPullParams_NoVersionID_UsesLatest(t *testing.T) {
 	b := build.Build{ID: 71}
 
 	rt := restype.ResourceType{
-		Pull: utils.RunnerCommand{
+		Pull: &utils.RunnerCommand{
 			Params: map[string]string{},
 		},
 	}
@@ -824,7 +829,7 @@ func TestBuildPullParams_NoVersions_Fails(t *testing.T) {
 	b := build.Build{ID: 72}
 
 	rt := restype.ResourceType{
-		Pull: utils.RunnerCommand{Params: map[string]string{}},
+		Pull: &utils.RunnerCommand{Params: map[string]string{}},
 	}
 	r := resource.Resource{Canonical: "cron.my-cron"}
 	g := job.GetStep{}
@@ -888,7 +893,7 @@ func TestProcessJob_PutStep_Success(t *testing.T) {
 			{
 				ID: 1, Name: "git",
 				Params: []string{"url"},
-				Push: utils.RunnerCommand{
+				Push: &utils.RunnerCommand{
 					Runner: "exec",
 					Args:   []string{"pushing"},
 					Params: map[string]string{"path": "echo"},
@@ -958,11 +963,11 @@ func TestProcessJob_OrderedPlan_GetTaskPut(t *testing.T) {
 		ResourceTypes: []restype.ResourceType{
 			{
 				ID: 1, Name: "cron",
-				Pull: utils.RunnerCommand{Runner: "exec", Args: []string{"pulling"}, Params: map[string]string{"path": "echo"}},
+				Pull: &utils.RunnerCommand{Runner: "exec", Args: []string{"pulling"}, Params: map[string]string{"path": "echo"}},
 			},
 			{
 				ID: 2, Name: "git",
-				Push: utils.RunnerCommand{Runner: "exec", Args: []string{"pushing"}, Params: map[string]string{"path": "echo"}},
+				Push: &utils.RunnerCommand{Runner: "exec", Args: []string{"pushing"}, Params: map[string]string{"path": "echo"}},
 			},
 		},
 		Runners: []runner.Runner{
@@ -1019,19 +1024,19 @@ func TestProcessJob_TaskTimeout(t *testing.T) {
 								},
 							},
 						},
-						OnFailure: []utils.RunnerCommand{
-							{
+						OnFailure: []job.HookStep{
+							runnerHook(utils.RunnerCommand{
 								Runner: "exec",
 								Args:   []string{"task failed due to timeout"},
 								Params: map[string]string{"path": "echo"},
-							},
+							}),
 						},
-						Ensure: []utils.RunnerCommand{
-							{
+						Ensure: []job.HookStep{
+							runnerHook(utils.RunnerCommand{
 								Runner: "exec",
 								Args:   []string{"ensure runs"},
 								Params: map[string]string{"path": "echo"},
-							},
+							}),
 						},
 					},
 				},
@@ -1098,7 +1103,7 @@ func TestProcessJob_GetTimeout(t *testing.T) {
 		ResourceTypes: []restype.ResourceType{
 			{
 				ID: 1, Name: "cron",
-				Pull: utils.RunnerCommand{
+				Pull: &utils.RunnerCommand{
 					Runner: "exec",
 					Args:   []string{"10"},
 					Params: map[string]string{"path": "sleep"},
@@ -1296,12 +1301,12 @@ func TestProcessJob_TaskRetry_ExhaustsAttempts(t *testing.T) {
 								Params: map[string]string{"path": "false"},
 							},
 						},
-						OnFailure: []utils.RunnerCommand{
-							{
+						OnFailure: []job.HookStep{
+							runnerHook(utils.RunnerCommand{
 								Runner: "exec",
 								Args:   []string{"failed after retries"},
 								Params: map[string]string{"path": "echo"},
-							},
+							}),
 						},
 					},
 				},

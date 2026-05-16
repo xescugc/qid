@@ -148,11 +148,15 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 			return
 		}
 		w.triggerDownstreamJobs(ctx, m, &b, pp, j)
-		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnSuccess, "on_success")
+		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnSuccess, "on_success", "succeeded")
 	} else {
-		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnFailure, "on_failure")
+		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnFailure, "on_failure", "failed")
 	}
-	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.Ensure, "ensure")
+	status := "succeeded"
+	if b.Status == build.Failed {
+		status = "failed"
+	}
+	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.Ensure, "ensure", status)
 }
 
 // checkPassedConstraints verifies that all jobs in the "passed" list have a
@@ -258,6 +262,10 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
+	if rt.Pull == nil {
+		return false
+	}
+
 	params := w.buildPullParams(ctx, m, b, rt, r, g)
 	if params == nil {
 		return true
@@ -282,6 +290,10 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		for k, v := range secretEnvs {
 			params[k] = v
 		}
+	}
+
+	for k, v := range buildMetadataParams(b, m) {
+		params[k] = v
 	}
 
 	rc := utils.RunnerCommand{
@@ -376,6 +388,13 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		}
 	}
 
+	if t.Run.Params == nil {
+		t.Run.Params = make(map[string]string)
+	}
+	for k, v := range buildMetadataParams(b, m) {
+		t.Run.Params[k] = v
+	}
+
 	maxAttempts := ps.Attempts
 	if maxAttempts <= 0 {
 		maxAttempts = 1
@@ -441,9 +460,13 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
-	params := rt.Push.Params
-	if params == nil {
-		params = make(map[string]string)
+	if rt.Push == nil {
+		return false
+	}
+
+	params := make(map[string]string)
+	for k, v := range rt.Push.Params {
+		params[k] = v
 	}
 	// Add resource-level params
 	for k, v := range r.GetParams() {
@@ -454,6 +477,9 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 	// Add put-step-level params with put_ prefix
 	for k, v := range p.Params {
 		params["put_"+k] = v
+	}
+	for k, v := range buildMetadataParams(b, m) {
+		params[k] = v
 	}
 
 	ru, ok := pp.Runner(rt.Push.Runner)
@@ -539,8 +565,13 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 // buildPullParams assembles the environment parameters needed to pull a resource version.
 // Returns nil if an error occurred (error is already handled via failBuild).
 func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Build, rt restype.ResourceType, r resource.Resource, g job.GetStep) map[string]string {
-	params := rt.Pull.Params
-	if params == nil {
+	var params map[string]string
+	if rt.Pull != nil && rt.Pull.Params != nil {
+		params = make(map[string]string)
+		for k, v := range rt.Pull.Params {
+			params[k] = v
+		}
+	} else {
 		params = make(map[string]string)
 	}
 
@@ -615,13 +646,46 @@ func (w *Worker) triggerDownstreamJobs(ctx context.Context, m queue.Body, b *bui
 
 // runHooks runs a list of hooks (on_success, on_failure, ensure) and appends
 // the results as build steps.
-func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, steps *[]build.Step, cwd string, pp *pipeline.Pipeline, stepName string, hooks []utils.RunnerCommand, hookType string) {
+func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, steps *[]build.Step, cwd string, pp *pipeline.Pipeline, stepName string, hooks []job.HookStep, hookType string, buildStatus ...string) {
 	for i, h := range hooks {
-		ru, ok := pp.Runner(h.Runner)
-		if !ok {
+		var out string
+		var d time.Duration
+
+		switch h.Type {
+		case job.StepTypeRunner:
+			if h.Runner == nil {
+				continue
+			}
+			ru, ok := pp.Runner(h.Runner.Runner)
+			if !ok {
+				continue
+			}
+			rc := *h.Runner
+			params := make(map[string]string)
+			for k, v := range rc.Params {
+				params[k] = v
+			}
+			for k, v := range buildMetadataParams(b, m) {
+				params[k] = v
+			}
+			rc.Params = params
+			if len(buildStatus) > 0 {
+				rc.Params["BUILD_STATUS"] = buildStatus[0]
+			}
+			out, d, _ = w.runRunner(ctx, ru, cwd, rc)
+		case job.StepTypePut:
+			if h.Put == nil {
+				continue
+			}
+			ps := job.PlanStep{
+				Type: job.StepTypePut,
+				Put:  h.Put,
+			}
+			w.runPutStep(ctx, m, b, cwd, pp, *h.Put, ps)
+			continue
+		default:
 			continue
 		}
-		out, d, _ := w.runRunner(ctx, ru, cwd, h)
 
 		name := hookType
 		if stepName != "" {
@@ -653,7 +717,14 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 		return
 	}
 
-	params := rt.Check.Params
+	if rt.Check == nil {
+		return
+	}
+
+	params := make(map[string]string)
+	for k, v := range rt.Check.Params {
+		params[k] = v
+	}
 
 	dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 	if err != nil {
@@ -937,6 +1008,16 @@ func (w *Worker) startServices(ctx context.Context, m queue.Body, b *build.Build
 	return started
 }
 
+// buildMetadataParams returns the standard build metadata environment variables.
+func buildMetadataParams(b *build.Build, m queue.Body) map[string]string {
+	return map[string]string{
+		"BUILD_ID":            fmt.Sprintf("%d", b.ID),
+		"BUILD_JOB_NAME":     m.JobName,
+		"BUILD_PIPELINE_NAME": m.PipelineName,
+		"BUILD_TEAM_NAME":    m.TeamCanonical,
+	}
+}
+
 // serviceParams builds the environment parameters for a service command,
 // merging the command's own params with build info and per-job overrides.
 func (w *Worker) serviceParams(b *build.Build, m queue.Body, cmdParams map[string]string, overrides map[string]string) map[string]string {
@@ -944,9 +1025,9 @@ func (w *Worker) serviceParams(b *build.Build, m queue.Body, cmdParams map[strin
 	for k, v := range cmdParams {
 		params[k] = v
 	}
-	params["BUILD_ID"] = fmt.Sprintf("%d", b.ID)
-	params["BUILD_JOB_NAME"] = m.JobName
-	params["BUILD_PIPELINE_NAME"] = m.PipelineName
+	for k, v := range buildMetadataParams(b, m) {
+		params[k] = v
+	}
 	for k, v := range overrides {
 		params["param_"+k] = v
 	}
@@ -999,9 +1080,10 @@ func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Bui
 			for k, v := range rc.Params {
 				params[k] = v
 			}
-			params["BUILD_ID"] = fmt.Sprintf("%d", buildID)
-			params["BUILD_JOB_NAME"] = m.JobName
-			params["BUILD_PIPELINE_NAME"] = m.PipelineName
+			bm := buildMetadataParams(&build.Build{ID: buildID}, m)
+			for k, v := range bm {
+				params[k] = v
+			}
 			for k, v := range overrides {
 				params["param_"+k] = v
 			}

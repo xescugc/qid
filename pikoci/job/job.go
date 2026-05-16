@@ -13,16 +13,25 @@ const (
 	StepTypeTask    StepType = "task"
 	StepTypePut     StepType = "put"
 	StepTypeService StepType = "service"
+	StepTypeRunner  StepType = "runner"
 )
+
+// HookStep represents a single step inside a hook (on_success, on_failure, ensure).
+// It can be either a runner command or a put step.
+type HookStep struct {
+	Type   StepType             `json:"type"`
+	Runner *utils.RunnerCommand `json:"runner,omitempty"`
+	Put    *PutStep             `json:"put,omitempty"`
+}
 
 type Job struct {
 	ID   uint32 `json:"id"`
 	Name string `json:"name" hcl:"name,label"`
 	Plan []PlanStep `json:"plan"`
 
-	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
-	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
-	Ensure    []utils.RunnerCommand `json:"ensure" hcl:"ensure,block"`
+	OnSuccess []HookStep `json:"on_success,omitempty"`
+	OnFailure []HookStep `json:"on_failure,omitempty"`
+	Ensure    []HookStep `json:"ensure,omitempty"`
 }
 
 // GetSteps returns all get steps from the plan in order.
@@ -33,6 +42,42 @@ func (j *Job) GetSteps() []GetStep {
 			steps = append(steps, *p.Get)
 		}
 	}
+	return steps
+}
+
+// AllPutSteps returns all put steps from the plan and from hooks (on_success,
+// on_failure, ensure) at both step and job level.
+func (j *Job) AllPutSteps() []PutStep {
+	seen := make(map[string]bool)
+	var steps []PutStep
+	add := func(p *PutStep) {
+		if p == nil {
+			return
+		}
+		key := p.Type + "." + p.Name
+		if !seen[key] {
+			seen[key] = true
+			steps = append(steps, *p)
+		}
+	}
+	collectHooks := func(hooks []HookStep) {
+		for _, h := range hooks {
+			if h.Type == StepTypePut {
+				add(h.Put)
+			}
+		}
+	}
+	for _, p := range j.Plan {
+		if p.Type == StepTypePut {
+			add(p.Put)
+		}
+		collectHooks(p.OnSuccess)
+		collectHooks(p.OnFailure)
+		collectHooks(p.Ensure)
+	}
+	collectHooks(j.OnSuccess)
+	collectHooks(j.OnFailure)
+	collectHooks(j.Ensure)
 	return steps
 }
 
@@ -56,9 +101,9 @@ type PlanStep struct {
 	Task      *TaskStep             `json:"task,omitempty"`
 	Put       *PutStep              `json:"put,omitempty"`
 	Service   *ServiceStep          `json:"service,omitempty"`
-	OnSuccess []utils.RunnerCommand `json:"on_success,omitempty"`
-	OnFailure []utils.RunnerCommand `json:"on_failure,omitempty"`
-	Ensure    []utils.RunnerCommand `json:"ensure,omitempty"`
+	OnSuccess []HookStep `json:"on_success,omitempty"`
+	OnFailure []HookStep `json:"on_failure,omitempty"`
+	Ensure    []HookStep `json:"ensure,omitempty"`
 }
 
 type GetStep struct {

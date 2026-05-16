@@ -100,13 +100,13 @@ func (hrt hclResourceType) toResourceType() restype.ResourceType {
 		Params: hrt.Params,
 	}
 	if len(hrt.Check) > 0 {
-		rt.Check = hrt.Check[0]
+		rt.Check = &hrt.Check[0]
 	}
 	if len(hrt.Pull) > 0 {
-		rt.Pull = hrt.Pull[0]
+		rt.Pull = &hrt.Pull[0]
 	}
 	if len(hrt.Push) > 0 {
-		rt.Push = hrt.Push[0]
+		rt.Push = &hrt.Push[0]
 	}
 	return rt
 }
@@ -490,7 +490,7 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	}
 
 	// Parse the raw HCL to determine block ordering within each job.
-	jobPlans, expandedServices, err := parseJobPlans(rpp, hp.Jobs, services)
+	jobPlans, jobHooksMap, expandedServices, err := parseJobPlans(rpp, ectx, hp.Jobs, services)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse job plans: %w", err)
 	}
@@ -504,12 +504,13 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	}
 
 	for _, hj := range hp.Jobs {
+		jh := jobHooksMap[hj.Name]
 		j := job.Job{
 			Name:      hj.Name,
 			Plan:      jobPlans[hj.Name],
-			OnSuccess: hj.OnSuccess,
-			OnFailure: hj.OnFailure,
-			Ensure:    hj.Ensure,
+			OnSuccess: jh.OnSuccess,
+			OnFailure: jh.OnFailure,
+			Ensure:    jh.Ensure,
 		}
 		pp.Jobs = append(pp.Jobs, j)
 	}
@@ -520,16 +521,89 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	return &pp, nil
 }
 
+// runnerCmdsToHookSteps converts a slice of RunnerCommand to HookStep.
+func runnerCmdsToHookSteps(cmds []utils.RunnerCommand) []job.HookStep {
+	if len(cmds) == 0 {
+		return nil
+	}
+	steps := make([]job.HookStep, 0, len(cmds))
+	for _, c := range cmds {
+		c := c
+		steps = append(steps, job.HookStep{
+			Type:   job.StepTypeRunner,
+			Runner: &c,
+		})
+	}
+	return steps
+}
+
+// jobHooks holds parsed hook steps for a job.
+type jobHooks struct {
+	OnSuccess []job.HookStep
+	OnFailure []job.HookStep
+	Ensure    []job.HookStep
+}
+
+// parseHookPuts finds put blocks inside a specific hook type (on_success, on_failure, ensure)
+// within the given AST block. Returns HookSteps for any put blocks found.
+// parseHookPuts finds put blocks inside unlabeled hook blocks (on_success, on_failure, ensure).
+// Labeled hook blocks (e.g. on_success "exec" { ... }) are runner commands decoded by HCL.
+// Unlabeled hook blocks (e.g. on_success { put "type" "name" { ... } }) contain put steps.
+func parseHookPuts(block *hclsyntax.Block, ectx *hcl.EvalContext, hookType string) []job.HookStep {
+	var steps []job.HookStep
+	for _, b := range block.Body.Blocks {
+		if b.Type != hookType || len(b.Labels) != 0 {
+			continue
+		}
+		for _, inner := range b.Body.Blocks {
+			if inner.Type != "put" || len(inner.Labels) != 2 {
+				continue
+			}
+			putType := inner.Labels[0]
+			putName := inner.Labels[1]
+			params := make(map[string]string)
+			for name, attr := range inner.Body.Attributes {
+				val, vdiags := attr.Expr.Value(ectx)
+				if vdiags.HasErrors() {
+					continue
+				}
+				params[name] = val.AsString()
+			}
+			steps = append(steps, job.HookStep{
+				Type: job.StepTypePut,
+				Put: &job.PutStep{
+					Type:   putType,
+					Name:   putName,
+					Params: params,
+				},
+			})
+		}
+	}
+	return steps
+}
+
+// mergeHookSteps combines two hook step slices, returning nil if both are empty.
+func mergeHookSteps(a, b []job.HookStep) []job.HookStep {
+	if len(a) == 0 && len(b) == 0 {
+		return nil
+	}
+	result := make([]job.HookStep, 0, len(a)+len(b))
+	result = append(result, a...)
+	result = append(result, b...)
+	return result
+}
+
 // parseJobPlans walks the raw HCL AST to extract get/task/put blocks in source
 // order for each job, then builds ordered PlanStep slices using the decoded data.
-func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (map[string][]job.PlanStep, []service.Service, error) {
+func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services []service.Service) (map[string][]job.PlanStep, map[string]jobHooks, []service.Service, error) {
 	file, diags := hclsyntax.ParseConfig(rpp, "pipeline.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, nil, diags
+		return nil, nil, nil, diags
 	}
 
 	body := file.Body.(*hclsyntax.Body)
 	result := make(map[string][]job.PlanStep)
+	jobHooksMap := make(map[string]jobHooks)
 
 	jobIndex := 0
 	for _, block := range body.Blocks {
@@ -561,7 +635,7 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 				serviceIdx++
 
 				if _, ok := serviceByName[sr.Name]; !ok {
-					return nil, nil, fmt.Errorf("service %q referenced in job %q does not exist", sr.Name, hj.Name)
+					return nil, nil, nil, fmt.Errorf("service %q referenced in job %q does not exist", sr.Name, hj.Name)
 				}
 
 				// Parse param overrides from the remain body
@@ -571,7 +645,7 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 						for name, attr := range body.Attributes {
 							val, vdiags := attr.Expr.Value(nil)
 							if vdiags.HasErrors() {
-								return nil, nil, fmt.Errorf("failed to evaluate service param %q: %s", name, vdiags.Error())
+								return nil, nil, nil, fmt.Errorf("failed to evaluate service param %q: %s", name, vdiags.Error())
 							}
 							params[name] = val.AsString()
 						}
@@ -601,11 +675,11 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 					var err error
 					timeout, err = time.ParseDuration(g.Timeout)
 					if err != nil {
-						return nil, nil, fmt.Errorf("invalid timeout %q on get step %q: %w", g.Timeout, g.Name, err)
+						return nil, nil, nil, fmt.Errorf("invalid timeout %q on get step %q: %w", g.Timeout, g.Name, err)
 					}
 				}
 				if g.Attempts < 0 {
-					return nil, nil, fmt.Errorf("invalid attempts %d on get step %q: must be >= 0", g.Attempts, g.Name)
+					return nil, nil, nil, fmt.Errorf("invalid attempts %d on get step %q: must be >= 0", g.Attempts, g.Name)
 				}
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypeGet,
@@ -618,9 +692,9 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 						Passed:  g.Passed,
 						Trigger: g.Trigger,
 					},
-					OnSuccess: g.OnSuccess,
-					OnFailure: g.OnFailure,
-					Ensure:    g.Ensure,
+					OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(g.OnSuccess), parseHookPuts(innerBlock, ectx, "on_success")),
+					OnFailure: mergeHookSteps(runnerCmdsToHookSteps(g.OnFailure), parseHookPuts(innerBlock, ectx, "on_failure")),
+					Ensure:    mergeHookSteps(runnerCmdsToHookSteps(g.Ensure), parseHookPuts(innerBlock, ectx, "ensure")),
 				})
 			case "task":
 				if taskIdx >= len(hj.Task) {
@@ -633,11 +707,11 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 					var err error
 					timeout, err = time.ParseDuration(t.Timeout)
 					if err != nil {
-						return nil, nil, fmt.Errorf("invalid timeout %q on task step %q: %w", t.Timeout, t.Name, err)
+						return nil, nil, nil, fmt.Errorf("invalid timeout %q on task step %q: %w", t.Timeout, t.Name, err)
 					}
 				}
 				if t.Attempts < 0 {
-					return nil, nil, fmt.Errorf("invalid attempts %d on task step %q: must be >= 0", t.Attempts, t.Name)
+					return nil, nil, nil, fmt.Errorf("invalid attempts %d on task step %q: must be >= 0", t.Attempts, t.Name)
 				}
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypeTask,
@@ -648,9 +722,9 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 						Name: t.Name,
 						Run:  t.Run,
 					},
-					OnSuccess: t.OnSuccess,
-					OnFailure: t.OnFailure,
-					Ensure:    t.Ensure,
+					OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(t.OnSuccess), parseHookPuts(innerBlock, ectx, "on_success")),
+					OnFailure: mergeHookSteps(runnerCmdsToHookSteps(t.OnFailure), parseHookPuts(innerBlock, ectx, "on_failure")),
+					Ensure:    mergeHookSteps(runnerCmdsToHookSteps(t.Ensure), parseHookPuts(innerBlock, ectx, "ensure")),
 				})
 			case "put":
 				if putIdx >= len(hj.Put) {
@@ -663,11 +737,11 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 					var err error
 					timeout, err = time.ParseDuration(p.Timeout)
 					if err != nil {
-						return nil, nil, fmt.Errorf("invalid timeout %q on put step %q: %w", p.Timeout, p.Name, err)
+						return nil, nil, nil, fmt.Errorf("invalid timeout %q on put step %q: %w", p.Timeout, p.Name, err)
 					}
 				}
 				if p.Attempts < 0 {
-					return nil, nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
+					return nil, nil, nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
 				}
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypePut,
@@ -679,15 +753,23 @@ func parseJobPlans(rpp []byte, hclJobs []hclJob, services []service.Service) (ma
 						Name:   p.Name,
 						Params: p.Params,
 					},
-					OnSuccess: p.OnSuccess,
-					OnFailure: p.OnFailure,
-					Ensure:    p.Ensure,
+					OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(p.OnSuccess), parseHookPuts(innerBlock, ectx, "on_success")),
+					OnFailure: mergeHookSteps(runnerCmdsToHookSteps(p.OnFailure), parseHookPuts(innerBlock, ectx, "on_failure")),
+					Ensure:    mergeHookSteps(runnerCmdsToHookSteps(p.Ensure), parseHookPuts(innerBlock, ectx, "ensure")),
 				})
 			}
 		}
 
 		result[hj.Name] = plan
+
+		// Parse job-level hooks
+		jh := jobHooks{
+			OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(hj.OnSuccess), parseHookPuts(block, ectx, "on_success")),
+			OnFailure: mergeHookSteps(runnerCmdsToHookSteps(hj.OnFailure), parseHookPuts(block, ectx, "on_failure")),
+			Ensure:    mergeHookSteps(runnerCmdsToHookSteps(hj.Ensure), parseHookPuts(block, ectx, "ensure")),
+		}
+		jobHooksMap[hj.Name] = jh
 	}
 
-	return result, services, nil
+	return result, jobHooksMap, services, nil
 }
