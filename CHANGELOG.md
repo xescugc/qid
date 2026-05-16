@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `github-check` resource type for reporting build status to GitHub as check runs via a GitHub App. Fetched via `source = "pikoci://github-check"` (not embedded, resolved from GitHub raw URL)
+- Add `put` step support in hooks (`on_success`, `on_failure`, `ensure`). Hooks can now contain both runner commands and put steps, enabling patterns like updating GitHub check runs on build completion
+- Add build metadata environment variables (`BUILD_ID`, `BUILD_JOB_NAME`, `BUILD_PIPELINE_NAME`, `BUILD_TEAM_NAME`) to all step types (get, task, put) and hooks. Hooks also receive `BUILD_STATUS` (`succeeded` or `failed`) ([#179](https://github.com/xescugc/pikoci/issues/179))
+- Make `check`, `pull`, and `push` blocks optional on resource types. Resource types that only define `push` can be used exclusively with `put` steps
 - Add `service` blocks for ephemeral per-job processes. Services are started before tasks and stopped unconditionally after, with optional ready_check polling. Supports top-level definitions with per-job param overrides and `source` for URL-based definitions. Services use any runner (exec, docker, etc.) ([#227](https://github.com/xescugc/pikoci/issues/227))
 - Add `secret_type` and `secret` blocks for injecting secrets into pipeline steps. Secret types define how to fetch secrets via a `get` command, and secrets declare which secret to fetch with specific params. Steps declare `secrets = ["type.name"]` to have secret values injected as `secret_<key>` environment variables before execution. Includes built-in `pikoci://vault` and `pikoci://file` secret types. Supports `source` for remote secret type definitions. Also fixes PostgreSQL/MySQL migration issues, drops CockroachDB/TiDB support, and refactors test infrastructure ([#12](https://github.com/xescugc/pikoci/issues/12))
 - Add dedicated Secret Types documentation page with built-in vault/file reference and custom secret type examples ([#223](https://github.com/xescugc/pikoci/issues/223))

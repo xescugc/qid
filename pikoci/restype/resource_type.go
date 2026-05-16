@@ -8,7 +8,7 @@ type ResourceType struct {
 	Source string   `json:"source,omitempty" hcl:"source,optional"`
 	Params []string `json:"params" hcl:"params,optional"`
 
-	Check utils.RunnerCommand `json:"check" hcl:"check,block"`
-	Pull  utils.RunnerCommand `json:"pull" hcl:"pull,block"`
-	Push  utils.RunnerCommand `json:"push" hcl:"push,block"`
+	Check *utils.RunnerCommand `json:"check,omitempty" hcl:"check,block"`
+	Pull  *utils.RunnerCommand `json:"pull,omitempty" hcl:"pull,block"`
+	Push  *utils.RunnerCommand `json:"push,omitempty" hcl:"push,block"`
 }

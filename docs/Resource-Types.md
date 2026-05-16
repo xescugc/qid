@@ -30,11 +30,11 @@ resource_type "git" {
 | `name`   | yes      | Label on the block                                  |
 | `source` | no       | URL to fetch the definition from (mutually exclusive with inline commands) |
 | `params` | no       | List of parameter names the resource type accepts   |
-| `check`  | yes*     | Runner command to detect new versions               |
-| `pull`   | yes*     | Runner command to fetch a specific version           |
+| `check`  | no       | Runner command to detect new versions               |
+| `pull`   | no       | Runner command to fetch a specific version           |
 | `push`   | no       | Runner command to publish (used by `put` steps)     |
 
-\* Not required when `source` is set.
+All three operations are optional. A resource type that only defines `push` can be used exclusively with `put` steps (e.g. `github-check`). When `source` is set, inline commands are not needed.
 
 ### Operations
 
@@ -54,11 +54,16 @@ Inside `check`, `pull`, and `push` commands, PikoCI exposes:
 
 | Variable            | Description                                  |
 |---------------------|----------------------------------------------|
-| `$param_<name>`     | Resource instance parameter value            |
-| `$version_<key>`    | Version field from the last check (pull/push only) |
-| `$put_<key>`        | Put step parameter value (push only)         |
-| `$WORKDIR`          | Temporary working directory for the job      |
-| `$path`, `$args`    | Runner `run` block values (for the exec runner) |
+| `$param_<name>`      | Resource instance parameter value            |
+| `$version_<key>`     | Version field from the last check (pull/push only) |
+| `$put_<key>`         | Put step parameter value (push only)         |
+| `$WORKDIR`           | Temporary working directory for the job      |
+| `$BUILD_ID`          | Numeric ID of the current build              |
+| `$BUILD_JOB_NAME`    | Name of the current job                      |
+| `$BUILD_PIPELINE_NAME` | Name of the current pipeline              |
+| `$BUILD_TEAM_NAME`   | Canonical name of the team                   |
+| `$BUILD_STATUS`      | Build status: `succeeded` or `failed` (hooks only) |
+| `$path`, `$args`     | Runner `run` block values (for the exec runner) |
 
 ## Sourcing from URL
 
@@ -292,3 +297,89 @@ job "ci" {
   }
 }
 ```
+
+## github-check
+
+The `github-check` resource type reports build status back to GitHub as check runs. It uses a GitHub App for authentication and only defines a `push` operation (no check or pull).
+
+To use it, declare the resource type with `source = "pikoci://github-check"`:
+
+```hcl
+variable "github_app_key" {
+  type = string
+}
+
+resource_type "github-check" {
+  source = "pikoci://github-check"
+}
+
+resource "github-check" "ci" {
+  params {
+    app_id          = "12345"
+    installation_id = "67890"
+    private_key     = var.github_app_key
+    repository      = "org/repo"
+  }
+}
+
+job "test" {
+  get "git" "repo" { trigger = true }
+
+  put "github-check" "ci" {
+    status = "in_progress"
+  }
+
+  task "run-tests" {
+    run "exec" {
+      path = "make"
+      args = ["test"]
+    }
+  }
+
+  on_success {
+    put "github-check" "ci" {
+      conclusion = "success"
+    }
+  }
+
+  on_failure {
+    put "github-check" "ci" {
+      conclusion = "failure"
+    }
+  }
+}
+```
+
+### Resource params
+
+| Param             | Required | Description                                      |
+|-------------------|----------|--------------------------------------------------|
+| `app_id`          | yes      | GitHub App ID                                    |
+| `installation_id` | yes      | GitHub App installation ID                       |
+| `private_key`     | yes      | GitHub App private key (PEM format)              |
+| `repository`      | yes      | Repository in `owner/repo` format                |
+
+### Put params
+
+| Param        | Required | Description                                      |
+|--------------|----------|--------------------------------------------------|
+| `status`     | no       | Set to `in_progress` to create a check run       |
+| `conclusion` | no       | Set to `success`, `failure`, etc. to complete a check run |
+| `head_sha`   | no       | Commit SHA (defaults to `git rev-parse HEAD`)    |
+| `name`       | no       | Check run name (defaults to `pipeline/job`)      |
+| `details_url`| no       | URL linked from the check run                    |
+
+Either `status` or `conclusion` must be set. Use `status = "in_progress"` first to create the check run, then `conclusion` in hooks to update it.
+
+### GitHub App setup
+
+1. Go to **GitHub Settings > Developer settings > GitHub Apps > New GitHub App**
+2. Set the app name and homepage URL
+3. Under **Permissions**, grant **Checks** read & write
+4. Uncheck **Active** under Webhook (no webhook needed)
+5. Create the app and note the **App ID** from the settings page
+6. Click **Generate a private key** (downloads a `.pem` file). This is the `private_key` value
+7. Install the app on the target repository or organization
+8. Note the **Installation ID** from the URL after installing, or via `GET /app/installations`
+
+Pass credentials securely via pipeline variables or secret types, not hardcoded in the pipeline file.
