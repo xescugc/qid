@@ -15,7 +15,6 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
-	"github.com/xescugc/pikoci/pikoci/secret"
 	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/source"
 	"github.com/xescugc/pikoci/pikoci/utils"
@@ -33,7 +32,7 @@ type hclGetStep struct {
 	Trigger  bool     `json:"trigger" hcl:"trigger,optional"`
 	Timeout  string   `json:"timeout" hcl:"timeout,optional"`
 	Attempts int      `json:"attempts" hcl:"attempts,optional"`
-	Secrets  []string `json:"secrets" hcl:"secrets,optional"`
+	Secrets  map[string]string `json:"secrets" hcl:"secrets,optional"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -45,7 +44,7 @@ type hclTaskStep struct {
 	Name     string              `json:"name" hcl:"name,label"`
 	Timeout  string              `json:"timeout" hcl:"timeout,optional"`
 	Attempts int                 `json:"attempts" hcl:"attempts,optional"`
-	Secrets  []string            `json:"secrets" hcl:"secrets,optional"`
+	Secrets  map[string]string   `json:"secrets" hcl:"secrets,optional"`
 	Run      utils.RunnerCommand `json:"run" hcl:"run,block"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
@@ -59,7 +58,7 @@ type hclPutStep struct {
 	Name     string   `hcl:"name,label"`
 	Timeout  string   `hcl:"timeout,optional"`
 	Attempts int      `hcl:"attempts,optional"`
-	Secrets  []string `hcl:"secrets,optional"`
+	Secrets  map[string]string `hcl:"secrets,optional"`
 
 	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
@@ -130,13 +129,15 @@ func (hrd hclRunnerDef) toRunner() runner.Runner {
 }
 
 // hclSecretType is an intermediate struct that allows optional get block
-// when source is provided.
+// when source is provided. Config attributes (address, token, etc.) are
+// captured via Remain.
 type hclSecretType struct {
 	Name   string   `json:"name" hcl:"name,label"`
 	Source string   `json:"source,omitempty" hcl:"source,optional"`
 	Params []string `json:"params" hcl:"params,optional"`
 
-	Get []utils.RunnerCommand `json:"get" hcl:"get,block"`
+	Get    []utils.RunnerCommand `json:"get" hcl:"get,block"`
+	Remain hcl.Body              `hcl:",remain"`
 }
 
 func (hst hclSecretType) toSecretType() sectype.SecretType {
@@ -151,13 +152,6 @@ func (hst hclSecretType) toSecretType() sectype.SecretType {
 	return st
 }
 
-// hclSecret is the intermediate HCL-decoded secret.
-type hclSecret struct {
-	Type   string `hcl:"type,label"`
-	Name   string `hcl:"name,label"`
-	Remain hcl.Body `hcl:",remain"`
-}
-
 // hclPipeline is the intermediate HCL-decoded pipeline.
 type hclPipeline struct {
 	Name          string              `json:"name"`
@@ -166,7 +160,6 @@ type hclPipeline struct {
 	ResourceTypes []hclResourceType   `hcl:"resource_type,block"`
 	Runners       []hclRunnerDef      `hcl:"runner,block"`
 	SecretTypes   []hclSecretType     `hcl:"secret_type,block"`
-	Secrets       []hclSecret         `hcl:"secret,block"`
 	Remain        hcl.Body            `hcl:",remain"`
 }
 
@@ -353,8 +346,41 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		}
 	}
 
+	// Parse secret_type config attributes from the raw HCL AST.
+	// Known fields (name, source, params, get) are handled by hclsimple.
+	// Any extra attributes are config values (address, token, etc.).
+	knownSecretTypeAttrs := map[string]bool{"source": true, "params": true}
+	secretTypeConfigs := make(map[int]map[string]string)
+	{
+		file, diags := hclsyntax.ParseConfig(rpp, "pipeline.hcl", hcl.Pos{Line: 1, Column: 1})
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("failed to parse pipeline HCL: %s", diags.Error())
+		}
+		stIdx := 0
+		for _, block := range file.Body.(*hclsyntax.Body).Blocks {
+			if block.Type != "secret_type" {
+				continue
+			}
+			config := make(map[string]string)
+			for name, attr := range block.Body.Attributes {
+				if knownSecretTypeAttrs[name] {
+					continue
+				}
+				val, vdiags := attr.Expr.Value(ectx)
+				if vdiags.HasErrors() {
+					return nil, fmt.Errorf("failed to evaluate secret_type config %q: %s", name, vdiags.Error())
+				}
+				config[name] = val.AsString()
+			}
+			if len(config) > 0 {
+				secretTypeConfigs[stIdx] = config
+			}
+			stIdx++
+		}
+	}
+
 	var secretTypes []sectype.SecretType
-	for _, hst := range hp.SecretTypes {
+	for i, hst := range hp.SecretTypes {
 		if hst.Source != "" {
 			hasInline := len(hst.Get) > 0
 			if hasInline {
@@ -366,34 +392,17 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 			}
 			resolved.Name = hst.Name
 			resolved.Source = hst.Source
+			if cfg, ok := secretTypeConfigs[i]; ok {
+				resolved.Config = cfg
+			}
 			secretTypes = append(secretTypes, *resolved)
 		} else {
-			secretTypes = append(secretTypes, hst.toSecretType())
-		}
-	}
-
-	var secrets []secret.Secret
-	for _, hs := range hp.Secrets {
-		params := make(map[string]string)
-		if hs.Remain != nil {
-			attrs, diags := hs.Remain.JustAttributes()
-			if diags.HasErrors() {
-				return nil, fmt.Errorf("failed to parse secret %q params: %s", hs.Name, diags.Error())
+			st := hst.toSecretType()
+			if cfg, ok := secretTypeConfigs[i]; ok {
+				st.Config = cfg
 			}
-			for k, attr := range attrs {
-				val, vdiags := attr.Expr.Value(ectx)
-				if vdiags.HasErrors() {
-					return nil, fmt.Errorf("failed to evaluate secret %q param %q: %s", hs.Name, k, vdiags.Error())
-				}
-				params[k] = val.AsString()
-			}
+			secretTypes = append(secretTypes, st)
 		}
-		secrets = append(secrets, secret.Secret{
-			Type:      hs.Type,
-			Name:      hs.Name,
-			Canonical: utils.ResourceCanonical(hs.Type, hs.Name),
-			Params:    params,
-		})
 	}
 
 	// Parse the raw HCL to determine block ordering within each job.
@@ -407,7 +416,6 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		ResourceTypes: resourceTypes,
 		Runners:       runners,
 		SecretTypes:   secretTypes,
-		Secrets:       secrets,
 	}
 
 	for _, hj := range hp.Jobs {

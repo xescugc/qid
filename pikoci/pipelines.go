@@ -15,7 +15,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/scheduler"
-	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/utils"
 )
@@ -102,16 +102,6 @@ func (q *PikoCI) CreatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 			_, err = uow.SecretTypes().Create(ctx, tc, pn, st)
 			if err != nil {
 				return fmt.Errorf("failed to create SecretType %q: %w", st.Name, err)
-			}
-		}
-
-		for _, s := range pp.Secrets {
-			if !utils.ValidateCanonical(s.Name) {
-				return fmt.Errorf("invalid Secret Name format %q", s.Name)
-			}
-			_, err = uow.Secrets().Create(ctx, tc, pn, s)
-			if err != nil {
-				return fmt.Errorf("failed to create Secret %q: %w", s.Canonical, err)
 			}
 		}
 
@@ -314,34 +304,6 @@ func (q *PikoCI) UpdatePipeline(ctx context.Context, tc, pn string, rpp []byte, 
 			err = uow.SecretTypes().Delete(ctx, tc, pn, stn)
 			if err != nil {
 				return fmt.Errorf("failed to delete SecretType %q: %w", stn, err)
-			}
-		}
-
-		dbss := make(map[string]secret.Secret)
-		for _, s := range dbpp.Secrets {
-			dbss[s.Canonical] = s
-		}
-		for _, s := range pp.Secrets {
-			if !utils.ValidateCanonical(s.Name) {
-				return fmt.Errorf("invalid Secret Name format %q", s.Name)
-			}
-			if _, ok := dbss[s.Canonical]; ok {
-				delete(dbss, s.Canonical)
-				err = uow.Secrets().Update(ctx, tc, pn, s.Canonical, s)
-				if err != nil {
-					return fmt.Errorf("failed to update Secret %q: %w", s.Canonical, err)
-				}
-			} else {
-				_, err = uow.Secrets().Create(ctx, tc, pn, s)
-				if err != nil {
-					return fmt.Errorf("failed to create Secret %q: %w", s.Canonical, err)
-				}
-			}
-		}
-		for sc := range dbss {
-			err = uow.Secrets().Delete(ctx, tc, pn, sc)
-			if err != nil {
-				return fmt.Errorf("failed to delete Secret %q: %w", sc, err)
 			}
 		}
 
@@ -637,6 +599,15 @@ func sanitizePipelineForPublic(pp *pipeline.Pipeline) *pipeline.Pipeline {
 		}
 	}
 	cp.ResourceTypes = rts
+	sts := make([]sectype.SecretType, len(cp.SecretTypes))
+	for i, st := range cp.SecretTypes {
+		sts[i] = sectype.SecretType{
+			ID:     st.ID,
+			Name:   st.Name,
+			Source: st.Source,
+		}
+	}
+	cp.SecretTypes = sts
 	return &cp
 }
 
@@ -699,7 +670,18 @@ func (q *PikoCI) ListPublicJobBuilds(ctx context.Context, tc, pn, jn string) ([]
 		return nil, fmt.Errorf("pipeline not found or not public: %w", err)
 	}
 
-	return q.ListJobBuilds(ctx, tc, pn, jn)
+	builds, err := q.ListJobBuilds(ctx, tc, pn, jn)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range builds {
+		for i, s := range b.Steps {
+			if s.Type == "secret" {
+				b.Steps[i].Logs = ""
+			}
+		}
+	}
+	return builds, nil
 }
 
 func (q *PikoCI) GetPublicPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error) {

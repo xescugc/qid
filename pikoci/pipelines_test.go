@@ -10,9 +10,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/resource"
-	"github.com/xescugc/pikoci/pikoci/secret"
 	"github.com/xescugc/pikoci/pikoci/sectype"
-	"github.com/xescugc/pikoci/pikoci/utils"
 	"go.uber.org/mock/gomock"
 )
 
@@ -478,14 +476,12 @@ func TestCreatePipeline_WithSecrets(t *testing.T) {
 	hclConfig := []byte(`
 secret_type "vault" {
   params = ["path"]
+  address = "http://vault:8200"
+  token   = "my-token"
   get "exec" {
     path = "/bin/sh"
     args = ["-ec", "echo '{\"username\":\"admin\"}'"]
   }
-}
-
-secret "vault" "db-creds" {
-  path = "secret/data/db"
 }
 
 resource "cron" "timer" {
@@ -498,7 +494,9 @@ job "deploy" {
     trigger = true
   }
   task "migrate" {
-    secrets = ["vault.db-creds"]
+    secrets = {
+      "vault" = "secret/data/db"
+    }
     run "exec" {
       path = "make"
       args = ["migrate"]
@@ -512,7 +510,7 @@ job "deploy" {
 		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
 			require.Len(t, j.Plan, 2)
 			assert.Equal(t, job.StepTypeTask, j.Plan[1].Type)
-			assert.Equal(t, []string{"vault.db-creds"}, j.Plan[1].Secrets)
+			assert.Equal(t, map[string]string{"vault": "secret/data/db"}, j.Plan[1].Secrets)
 			return uint32(1), nil
 		})
 	s.Resources.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).Return(uint32(1), nil)
@@ -520,15 +518,9 @@ job "deploy" {
 		func(ctx context.Context, tc, pn string, st sectype.SecretType) (uint32, error) {
 			assert.Equal(t, "vault", st.Name)
 			assert.Equal(t, []string{"path"}, st.Params)
+			assert.Equal(t, "http://vault:8200", st.Config["address"])
+			assert.Equal(t, "my-token", st.Config["token"])
 			assert.Equal(t, "exec", st.Get.Runner)
-			return uint32(1), nil
-		})
-	s.Secrets.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).DoAndReturn(
-		func(ctx context.Context, tc, pn string, sec secret.Secret) (uint32, error) {
-			assert.Equal(t, "vault", sec.Type)
-			assert.Equal(t, "db-creds", sec.Name)
-			assert.Equal(t, utils.ResourceCanonical("vault", "db-creds"), sec.Canonical)
-			assert.Equal(t, "secret/data/db", sec.Params["path"])
 			return uint32(1), nil
 		})
 	s.Pipelines.EXPECT().Find(ctx, "main", "secrets-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "secrets-pipeline"}, nil)

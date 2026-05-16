@@ -19,8 +19,7 @@ type MockService struct {
 	ResourceTypes *mock.ResourceTypeRepository
 	Builds        *mock.BuildRepository
 	Runners       *mock.RunnerRepository
-	SecretTypes   *mock.SecretTypeRepository
-	Secrets       *mock.SecretRepository
+	SecretTypes *mock.SecretTypeRepository
 
 	S pikoci.Service
 }
@@ -35,7 +34,6 @@ func newService(ctrl *gomock.Controller) MockService {
 	br := mock.NewBuildRepository(ctrl)
 	rur := mock.NewRunnerRepository(ctrl)
 	str := mock.NewSecretTypeRepository(ctrl)
-	sr := mock.NewSecretRepository(ctrl)
 	t := mock.NewTopic(ctrl)
 
 	suow := unitwork.NewNoopStartUnitOfWork(unitwork.Repositories{
@@ -47,8 +45,7 @@ func newService(ctrl *gomock.Controller) MockService {
 		ResourceTypesRepo: rtr,
 		BuildsRepo:        br,
 		RunnersRepo:       rur,
-		SecretTypesRepo:   str,
-		SecretsRepo:       sr,
+		SecretTypesRepo: str,
 	})
 
 	return MockService{
@@ -61,9 +58,8 @@ func newService(ctrl *gomock.Controller) MockService {
 		ResourceTypes: rtr,
 		Builds:        br,
 		Runners:       rur,
-		SecretTypes:   str,
-		Secrets:       sr,
+		SecretTypes: str,
 
-		S: pikoci.New(context.TODO(), t, ur, tr, pr, jr, rr, rtr, br, rur, str, sr, suow, []byte("test-secret"), nil),
+		S: pikoci.New(context.TODO(), t, ur, tr, pr, jr, rr, rtr, br, rur, str, suow, []byte("test-secret"), nil),
 	}
 }

@@ -227,13 +227,16 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 
 	if len(ps.Secrets) > 0 {
+		start := time.Now()
 		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
+		d := time.Since(start)
 		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: err.Error()})
+			b.Steps = append(b.Steps, build.Step{Type: "secret", Name: g.Name, Logs: err.Error(), Duration: d})
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			return true
 		}
+		b.Steps = append(b.Steps, build.Step{Type: "secret", Name: g.Name, Duration: d})
 		for k, v := range secretEnvs {
 			params[k] = v
 		}
@@ -313,13 +316,16 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 	}
 
 	if len(ps.Secrets) > 0 {
+		start := time.Now()
 		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
+		d := time.Since(start)
 		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: err.Error()})
+			b.Steps = append(b.Steps, build.Step{Type: "secret", Name: t.Name, Logs: err.Error(), Duration: d})
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			return true
 		}
+		b.Steps = append(b.Steps, build.Step{Type: "secret", Name: t.Name, Duration: d})
 		if t.Run.Params == nil {
 			t.Run.Params = make(map[string]string)
 		}
@@ -414,13 +420,16 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 
 	if len(ps.Secrets) > 0 {
+		start := time.Now()
 		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
+		d := time.Since(start)
 		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: err.Error()})
+			b.Steps = append(b.Steps, build.Step{Type: "secret", Name: p.Name, Logs: err.Error(), Duration: d})
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			return true
 		}
+		b.Steps = append(b.Steps, build.Step{Type: "secret", Name: p.Name, Duration: d})
 		for k, v := range secretEnvs {
 			params[k] = v
 		}
@@ -786,30 +795,27 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc
 	return out, duration, err
 }
 
-// fetchSecrets resolves secret values for the given secret references and returns
-// them as a map of "secret_<key>" env vars.
-func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipeline, secretRefs []string) (map[string]string, error) {
+// fetchSecrets resolves secret values for the given secrets map (secret_type name -> path)
+// and returns them as a map of "secret_<key>" env vars.
+func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipeline, secrets map[string]string) (map[string]string, error) {
 	result := make(map[string]string)
-	for _, ref := range secretRefs {
-		s, ok := pp.Secret(ref)
+	for stName, path := range secrets {
+		st, ok := pp.SecretType(stName)
 		if !ok {
-			return nil, fmt.Errorf("secret %q not found in pipeline", ref)
-		}
-		st, ok := pp.SecretType(s.Type)
-		if !ok {
-			return nil, fmt.Errorf("secret_type %q not found in pipeline", s.Type)
+			return nil, fmt.Errorf("secret_type %q not found in pipeline", stName)
 		}
 
-		// Build params from secret params filtered by secret_type.Params
+		// Build params: config values + path param
 		params := make(map[string]string)
 		for k, v := range st.Get.Params {
 			params[k] = v
 		}
-		for k, v := range s.Params {
-			if slices.Contains(st.Params, k) {
-				params["param_"+k] = v
-			}
+		// Add config values as param_<key>
+		for k, v := range st.Config {
+			params["param_"+k] = v
 		}
+		// Add path as param_path (the dynamic per-step value)
+		params["param_path"] = path
 
 		ru, ok := pp.Runner(st.Get.Runner)
 		if !ok {
@@ -824,7 +830,7 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 
 		out, _, err := w.runRunner(ctx, ru, cwd, rc)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch secret %q: %s\n%w", ref, out, err)
+			return nil, fmt.Errorf("failed to fetch secret from %q at %q: %s\n%w", stName, path, out, err)
 		}
 
 		// Parse last line of stdout as JSON object
@@ -833,7 +839,7 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 
 		var secretData map[string]string
 		if err := json.Unmarshal([]byte(rawJSON), &secretData); err != nil {
-			return nil, fmt.Errorf("failed to parse secret %q output as JSON: %w", ref, err)
+			return nil, fmt.Errorf("failed to parse secret output from %q as JSON: %w", stName, err)
 		}
 
 		for k, v := range secretData {
