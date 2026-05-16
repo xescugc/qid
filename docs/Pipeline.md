@@ -111,7 +111,7 @@ When `source` is set, inline `run` block is not needed.
 
 ## secret_type
 
-Defines how to fetch secrets. The `get` command should print a JSON object on its last stdout line with key-value pairs that become `secret_<key>` environment variables.
+Defines how to fetch secrets. See [Secret Types](Secret-Types). The `get` command should print a JSON object on its last stdout line with key-value pairs that become `secret_<key>` environment variables.
 
 ```hcl
 secret_type "vault" {
