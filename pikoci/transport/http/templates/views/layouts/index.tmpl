@@ -13,7 +13,6 @@
   <body>
     <div id="app">
     </div>
-    <h1>
 
     <script type = "text/javascript" src="/js/jquery.min.js"></script>
     <script type = "text/javascript" src="/js/underscorejs.min.js"></script>
@@ -546,7 +545,7 @@
 
         var hours = Math.floor(duration / hourConst)
         var minutes = Math.floor((duration-(hours*hourConst))/minConst)
-        var seconds = Math.floor((duration-(minutes*minConst))/secConst)
+        var seconds = Math.floor((duration-(hours*hourConst)-(minutes*minConst))/secConst)
         hours = hours || "00"
         minutes = minutes || "00"
         seconds = seconds || "00"
@@ -795,7 +794,7 @@
         }
       });
       app.Resources = Backbone.Collection.extend({
-        model: app.Build,
+        model: app.Resource,
         url: function() {
           return this.pipeline.url() + "/resources"
         },
@@ -1798,9 +1797,9 @@
           $.when.apply($, complete).done(function() {
             that.contentView = new app.PipelinesNewView({collection: pps, model: new app.Pipeline(null, {team: t})});
             $('#main').html(that.contentView.render().el)
-            $('#breadcrumb').html(new app.BreadcrumbView().render({
+            $('#breadcrumb').html(new app.BreadcrumbView({
               team: t.toJSON(),
-            }).el)
+            }).render().el)
           })
         },
         pipelinesEdit: function(tc, pn) {
@@ -1982,7 +1981,8 @@
         }
         var optError = options.error
         options.error = function(response){
-          app.apiError.set({error: response.responseJSON.error})
+          var msg = (response.responseJSON && response.responseJSON.error) || response.statusText || "Unknown error";
+          app.apiError.set({error: msg})
           if (optError) {
             optError(response)
           }

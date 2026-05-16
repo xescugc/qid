@@ -14,6 +14,9 @@ func ValidateCanonical(c string) bool {
 
 func ValidateResourceCanonical(rc string) bool {
 	rcs := strings.Split(rc, ".")
+	if len(rcs) != 2 {
+		return false
+	}
 	return ValidateCanonical(rcs[0]) && ValidateCanonical(rcs[1])
 }
 

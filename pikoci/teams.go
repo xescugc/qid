@@ -141,7 +141,7 @@ func (q *PikoCI) UpdateTeamMember(ctx context.Context, tc, mu string, tm team.Me
 
 	err := q.Teams.UpdateMember(ctx, tc, mu, tm)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create member: %w", err)
+		return nil, fmt.Errorf("failed to update member: %w", err)
 	}
 
 	rtm, err := q.Teams.FindMember(ctx, tc, mu)
@@ -156,14 +156,14 @@ func (q *PikoCI) DeleteTeamMember(ctx context.Context, tc, mu string) error {
 	if !utils.ValidateCanonical(tc) {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
 	} else if !utils.ValidateCanonical(mu) {
-		return fmt.Errorf("invalid Team Member Username format %q", tc)
+		return fmt.Errorf("invalid Team Member Username format %q", mu)
 	} else if err := q.validateTeamAdmins(ctx, tc, mu, nil); err != nil {
 		return err
 	}
 
 	err := q.Teams.DeleteMember(ctx, tc, mu)
 	if err != nil {
-		return fmt.Errorf("failed to create member: %w", err)
+		return fmt.Errorf("failed to delete member: %w", err)
 	}
 
 	return nil

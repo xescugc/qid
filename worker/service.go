@@ -317,15 +317,18 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		}
 
 		runCtx := ctx
+		var cancel context.CancelFunc
 		if ps.Timeout > 0 {
-			var cancel context.CancelFunc
 			runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
-			defer cancel()
 		}
 
 		var attemptOut string
 		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc)
 		out += attemptOut
+
+		if cancel != nil {
+			cancel()
+		}
 
 		if err == nil {
 			break
@@ -410,15 +413,18 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		}
 
 		runCtx := ctx
+		var cancel context.CancelFunc
 		if ps.Timeout > 0 {
-			var cancel context.CancelFunc
 			runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
-			defer cancel()
 		}
 
 		var attemptOut string
 		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, t.Run)
 		out += attemptOut
+
+		if cancel != nil {
+			cancel()
+		}
 
 		if err == nil {
 			break
@@ -524,15 +530,18 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		}
 
 		runCtx := ctx
+		var cancel context.CancelFunc
 		if ps.Timeout > 0 {
-			var cancel context.CancelFunc
 			runCtx, cancel = context.WithTimeout(ctx, ps.Timeout)
-			defer cancel()
 		}
 
 		var attemptOut string
 		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc)
 		out += attemptOut
+
+		if cancel != nil {
+			cancel()
+		}
 
 		if err == nil {
 			break
@@ -891,8 +900,9 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc
 
 	cmd := exec.CommandContext(ctx, cmdPath, args...)
 	cmd.Dir = cwd
+	cmd.Env = cmd.Environ()
 	for k, v := range envs {
-		cmd.Env = append(cmd.Environ(), fmt.Sprintf("%s=%s", k, v))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	w.logger.Debug("running command", "cmd", cmd.String(), "envs", createKeyValuePairs(envs))
