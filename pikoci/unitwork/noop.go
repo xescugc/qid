@@ -9,7 +9,6 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
-	"github.com/xescugc/pikoci/pikoci/secret"
 	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/user"
@@ -37,4 +36,3 @@ func (u *noopUnitOfWork) ResourceTypes() restype.Repository {
 func (u *noopUnitOfWork) Builds() build.Repository     { return u.repos.BuildsRepo }
 func (u *noopUnitOfWork) Runners() runner.Repository   { return u.repos.RunnersRepo }
 func (u *noopUnitOfWork) SecretTypes() sectype.Repository { return u.repos.SecretTypesRepo }
-func (u *noopUnitOfWork) Secrets() secret.Repository     { return u.repos.SecretsRepo }

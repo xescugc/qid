@@ -162,12 +162,11 @@ var (
 			br := mysql.NewBuildRepository(querier)
 			rur := mysql.NewRunnerRepository(querier)
 			str := mysql.NewSecretTypeRepository(querier)
-			sr := mysql.NewSecretRepository(querier)
 
 			suow := unitwork.NewStartUnitOfWork(db, cfg.DBSystem)
 
 			logger.Info("initializing service")
-			var svc = pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, str, sr, suow, cfg.JWTSecret, logger)
+			var svc = pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, str, suow, cfg.JWTSecret, logger)
 			svc.StartScheduler(ctx)
 			logger.Info("initialized service")
 

@@ -138,10 +138,9 @@ func TestSecretsVaultE2E(t *testing.T) {
 	br := mysql.NewBuildRepository(db)
 	rur := mysql.NewRunnerRepository(db)
 	str := mysql.NewSecretTypeRepository(db)
-	sr := mysql.NewSecretRepository(db)
 	suow := unitwork.NewStartUnitOfWork(db, mysql.Mem)
 
-	svc := pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, str, sr, suow, []byte("jwt"), logger)
+	svc := pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, str, suow, []byte("jwt"), logger)
 	svc.StartScheduler(ctx)
 
 	_, _ = svc.CreateUser(ctx, user.User{
@@ -154,14 +153,6 @@ func TestSecretsVaultE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer subscription.Shutdown(ctx)
 
-	// Set env vars so the worker's exec runner inherits them
-	os.Setenv("VAULT_ADDR", vaultAddr)
-	os.Setenv("VAULT_TOKEN", vaultToken)
-	t.Cleanup(func() {
-		os.Unsetenv("VAULT_ADDR")
-		os.Unsetenv("VAULT_TOKEN")
-	})
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -171,13 +162,12 @@ func TestSecretsVaultE2E(t *testing.T) {
 	}()
 
 	// Create pipeline using built-in pikoci://vault secret_type
-	hclConfig := []byte(`
+	// Address and token are config on the secret_type, path is inline at step level
+	hclConfig := []byte(fmt.Sprintf(`
 secret_type "my-vault" {
-  source = "pikoci://vault"
-}
-
-secret "my-vault" "db-creds" {
-  path = "secret/db-creds"
+  source  = "pikoci://vault"
+  address = "%s"
+  token   = "%s"
 }
 
 resource "cron" "timer" {
@@ -190,14 +180,16 @@ job "deploy" {
     trigger = true
   }
   task "use-vault-secrets" {
-    secrets = ["my-vault.db-creds"]
+    secrets = {
+      "my-vault" = "secret/db-creds"
+    }
     run "exec" {
       path = "/bin/sh"
       args = ["-ec", "echo username=$secret_username password=$secret_password"]
     }
   }
 }
-`)
+`, vaultAddr, vaultToken))
 
 	pp, err := svc.CreatePipeline(ctx, "main", "vault-e2e", hclConfig, nil)
 	require.NoError(t, err)

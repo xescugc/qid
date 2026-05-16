@@ -53,11 +53,10 @@ func TestSecretsE2E(t *testing.T) {
 	br := mysql.NewBuildRepository(db)
 	rur := mysql.NewRunnerRepository(db)
 	str := mysql.NewSecretTypeRepository(db)
-	sr := mysql.NewSecretRepository(db)
 	suow := unitwork.NewStartUnitOfWork(db, mysql.Mem)
 
 	jwtSecret := []byte("test-secret")
-	svc := pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, str, sr, suow, jwtSecret, logger)
+	svc := pikoci.New(ctx, topic, ur, tr, ppr, jr, rr, rt, br, rur, str, suow, jwtSecret, logger)
 	svc.StartScheduler(ctx)
 
 	// Migration already creates admin user and "main" team.
@@ -93,9 +92,6 @@ secret_type "mock-vault" {
   }
 }
 
-secret "mock-vault" "db-creds" {
-  path = "secret/data/db"
-}
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
@@ -107,7 +103,9 @@ job "deploy" {
     trigger = true
   }
   task "use-secrets" {
-    secrets = ["mock-vault.db-creds"]
+    secrets = {
+      "mock-vault" = "secret/data/db"
+    }
     run "exec" {
       path = "/bin/sh"
       args = ["-ec", "echo secret_username=$secret_username secret_password=$secret_password"]
@@ -120,9 +118,6 @@ job "deploy" {
 		require.NotNil(t, pp)
 		assert.Len(t, pp.SecretTypes, 1)
 		assert.Equal(t, "mock-vault", pp.SecretTypes[0].Name)
-		assert.Len(t, pp.Secrets, 1)
-		assert.Equal(t, "mock-vault.db-creds", pp.Secrets[0].Canonical)
-
 		// Trigger resource check to create a version (required by the get step)
 		err = svc.TriggerPipelineResource(ctx, "main", "secrets-e2e", "cron.timer")
 		require.NoError(t, err)
@@ -147,14 +142,20 @@ job "deploy" {
 		b := builds[0]
 		assert.Equal(t, build.Succeeded, b.Status, "build should succeed, error: %s", b.Error)
 
-		// Find the task step and verify secret values are in the logs
+		// Verify a secret step exists (emitted before the task)
+		var secretStep *build.Step
 		var taskStep *build.Step
 		for i, s := range b.Steps {
+			if s.Type == "secret" && s.Name == "use-secrets" {
+				secretStep = &b.Steps[i]
+			}
 			if s.Type == "task" && s.Name == "use-secrets" {
 				taskStep = &b.Steps[i]
-				break
 			}
 		}
+		require.NotNil(t, secretStep, "secret step should exist in build steps")
+		assert.Empty(t, secretStep.Logs, "secret step logs should be empty on success")
+
 		require.NotNil(t, taskStep, "task step 'use-secrets' should exist in build steps")
 		assert.True(t, strings.Contains(taskStep.Logs, "secret_username=admin"), "logs should contain secret_username=admin, got: %s", taskStep.Logs)
 		assert.True(t, strings.Contains(taskStep.Logs, "secret_password=s3cret"), "logs should contain secret_password=s3cret, got: %s", taskStep.Logs)
@@ -173,9 +174,6 @@ secret_type "my-file" {
   source = "pikoci://file"
 }
 
-secret "my-file" "api-creds" {
-  path = "%s"
-}
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
@@ -187,7 +185,9 @@ job "deploy" {
     trigger = true
   }
   task "use-file-secrets" {
-    secrets = ["my-file.api-creds"]
+    secrets = {
+      "my-file" = "%s"
+    }
     run "exec" {
       path = "/bin/sh"
       args = ["-ec", "echo api_key=$secret_api_key api_secret=$secret_api_secret"]
@@ -249,9 +249,6 @@ secret_type "broken" {
   }
 }
 
-secret "broken" "creds" {
-  path = "does/not/matter"
-}
 
 resource "cron" "timer" {
   check_interval = "@every 1h"
@@ -263,7 +260,9 @@ job "deploy" {
     trigger = true
   }
   task "will-fail" {
-    secrets = ["broken.creds"]
+    secrets = {
+      "broken" = "does/not/matter"
+    }
     run "exec" {
       path = "echo"
       args = ["should not reach here"]
@@ -297,16 +296,16 @@ job "deploy" {
 		b := builds[0]
 		assert.Equal(t, build.Failed, b.Status, "build should fail when secret fetch fails")
 
-		// The task step should have error about secret fetch failure
-		var taskStep *build.Step
+		// The secret step should have error about secret fetch failure
+		var secretStep *build.Step
 		for i, s := range b.Steps {
-			if s.Type == "task" && s.Name == "will-fail" {
-				taskStep = &b.Steps[i]
+			if s.Type == "secret" && s.Name == "will-fail" {
+				secretStep = &b.Steps[i]
 				break
 			}
 		}
-		require.NotNil(t, taskStep)
-		assert.True(t, strings.Contains(taskStep.Logs, "failed to fetch secret"), "logs should mention secret fetch failure, got: %s", taskStep.Logs)
+		require.NotNil(t, secretStep, "secret step should exist")
+		assert.Contains(t, secretStep.Logs, "failed to fetch secret", "logs should mention secret fetch failure, got: %s", secretStep.Logs)
 	})
 
 	cancel()

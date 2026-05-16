@@ -11,7 +11,6 @@ import (
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
 	"github.com/xescugc/pikoci/pikoci/scheduler"
-	"github.com/xescugc/pikoci/pikoci/secret"
 	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
@@ -87,7 +86,6 @@ type PikoCI struct {
 	Builds        build.Repository
 	Runners       runner.Repository
 	SecretTypes   sectype.Repository
-	Secrets       secret.Repository
 	StartUoW      unitwork.StartUnitOfWork
 	Ctx           context.Context
 
@@ -97,7 +95,7 @@ type PikoCI struct {
 	logger    *slog.Logger
 }
 
-func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, str sectype.Repository, sr secret.Repository, suow unitwork.StartUnitOfWork, js []byte, l *slog.Logger) *PikoCI {
+func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Repository, pr pipeline.Repository, jr job.Repository, rr resource.Repository, rt restype.Repository, br build.Repository, rur runner.Repository, str sectype.Repository, suow unitwork.StartUnitOfWork, js []byte, l *slog.Logger) *PikoCI {
 	return &PikoCI{
 		Ctx:           ctx,
 		Topic:         t,
@@ -110,7 +108,6 @@ func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Reposit
 		Builds:        br,
 		Runners:       rur,
 		SecretTypes:   str,
-		Secrets:       sr,
 		StartUoW:      suow,
 		JWTSecret:     js,
 		logger:        l,

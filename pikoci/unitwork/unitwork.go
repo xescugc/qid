@@ -9,7 +9,6 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
-	"github.com/xescugc/pikoci/pikoci/secret"
 	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/user"
@@ -27,7 +26,6 @@ type UnitOfWork interface {
 	Builds() build.Repository
 	Runners() runner.Repository
 	SecretTypes() sectype.Repository
-	Secrets() secret.Repository
 }
 
 // Repositories holds all repository interfaces, used to construct a noop UoW for testing.
@@ -40,6 +38,5 @@ type Repositories struct {
 	ResourceTypesRepo restype.Repository
 	BuildsRepo        build.Repository
 	RunnersRepo       runner.Repository
-	SecretTypesRepo   sectype.Repository
-	SecretsRepo       secret.Repository
+	SecretTypesRepo sectype.Repository
 }
