@@ -11,7 +11,7 @@ var V0Initial = Migration{
 				name VARCHAR(255),
 				raw TEXT,
 
-				CONSTRAINT uq__name UNIQUE ( name )
+				CONSTRAINT uq__pipelines__name UNIQUE ( name )
 		);
 
 		CREATE TABLE IF NOT EXISTS jobs (
@@ -22,7 +22,7 @@ var V0Initial = Migration{
 
 				pipeline_id INT UNSIGNED NOT NULL,
 
-				CONSTRAINT uq__name UNIQUE ( pipeline_id, name ),
+				CONSTRAINT uq__jobs__pipeline__name UNIQUE ( pipeline_id, name ),
 
 				CONSTRAINT fk__jobs__pipelines
 						FOREIGN KEY (pipeline_id) REFERENCES pipelines (id)
@@ -83,7 +83,7 @@ var V0Initial = Migration{
 
 				pipeline_id INT UNSIGNED NOT NULL,
 
-				CONSTRAINT uq__name UNIQUE ( pipeline_id, name ),
+				CONSTRAINT uq__resource_types__pipeline__name UNIQUE ( pipeline_id, name ),
 
 				CONSTRAINT fk__resource_types__pipelines
 						FOREIGN KEY (pipeline_id) REFERENCES pipelines (id)

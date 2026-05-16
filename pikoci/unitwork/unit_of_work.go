@@ -12,6 +12,8 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/user"
 )
@@ -28,6 +30,8 @@ type unitOfWork struct {
 	resourceTypes restype.Repository
 	builds        build.Repository
 	runners       runner.Repository
+	secretTypes   sectype.Repository
+	secrets       secret.Repository
 }
 
 func NewStartUnitOfWork(db *sql.DB, dbSystem string) StartUnitOfWork {
@@ -108,4 +112,18 @@ func (u *unitOfWork) Runners() runner.Repository {
 		u.runners = mysql.NewRunnerRepository(u.tx)
 	}
 	return u.runners
+}
+
+func (u *unitOfWork) SecretTypes() sectype.Repository {
+	if u.secretTypes == nil {
+		u.secretTypes = mysql.NewSecretTypeRepository(u.tx)
+	}
+	return u.secretTypes
+}
+
+func (u *unitOfWork) Secrets() secret.Repository {
+	if u.secrets == nil {
+		u.secrets = mysql.NewSecretRepository(u.tx)
+	}
+	return u.secrets
 }

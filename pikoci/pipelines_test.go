@@ -10,6 +10,9 @@ import (
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
+	"github.com/xescugc/pikoci/pikoci/utils"
 	"go.uber.org/mock/gomock"
 )
 
@@ -465,4 +468,107 @@ job "test" {
 
 	_, err := s.S.CreatePipeline(ctx, "main", "source-pipeline", hclConfig, nil)
 	require.NoError(t, err)
+}
+
+func TestCreatePipeline_WithSecrets(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+secret_type "vault" {
+  params = ["path"]
+  get "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo '{\"username\":\"admin\"}'"]
+  }
+}
+
+secret "vault" "db-creds" {
+  path = "secret/data/db"
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "deploy" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "migrate" {
+    secrets = ["vault.db-creds"]
+    run "exec" {
+      path = "make"
+      args = ["migrate"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 2)
+			assert.Equal(t, job.StepTypeTask, j.Plan[1].Type)
+			assert.Equal(t, []string{"vault.db-creds"}, j.Plan[1].Secrets)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.SecretTypes.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, st sectype.SecretType) (uint32, error) {
+			assert.Equal(t, "vault", st.Name)
+			assert.Equal(t, []string{"path"}, st.Params)
+			assert.Equal(t, "exec", st.Get.Runner)
+			return uint32(1), nil
+		})
+	s.Secrets.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, sec secret.Secret) (uint32, error) {
+			assert.Equal(t, "vault", sec.Type)
+			assert.Equal(t, "db-creds", sec.Name)
+			assert.Equal(t, utils.ResourceCanonical("vault", "db-creds"), sec.Canonical)
+			assert.Equal(t, "secret/data/db", sec.Params["path"])
+			return uint32(1), nil
+		})
+	s.Pipelines.EXPECT().Find(ctx, "main", "secrets-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "secrets-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "secrets-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_SecretTypeSourceAndInlineConflict(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+secret_type "vault" {
+  source = "pikoci://vault"
+  params = ["path"]
+  get "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo test"]
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {}
+}
+
+job "test" {
+  get "cron" "timer" { trigger = true }
+  task "echo" {
+    run "exec" {
+      path = "echo"
+      args = ["hello"]
+    }
+  }
+}
+`)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "conflict-secret-pipeline", hclConfig, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "both source and inline commands")
 }

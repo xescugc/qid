@@ -39,8 +39,6 @@ pikoci server \
   --db-name pikoci
 ```
 
-TiDB is compatible with the MySQL protocol and works with `--db-system mysql`.
-
 | Flag | Description |
 |------|-------------|
 | `--db-host` | MySQL host |
@@ -63,8 +61,6 @@ pikoci server \
   --db-password secret \
   --db-name pikoci
 ```
-
-CockroachDB is compatible with the PostgreSQL protocol and works with `--db-system postgresql`.
 
 | Flag | Description |
 |------|-------------|

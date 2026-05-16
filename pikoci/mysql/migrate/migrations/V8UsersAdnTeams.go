@@ -14,18 +14,18 @@ var V8UsersAdnTeams = Migration{
 				CONSTRAINT uq__username UNIQUE ( username )
 		);
 		INSERT INTO users (full_name, username, password, admin)
-		VALUES ("Admin", "admin", "$2a$14$FoV/2Z0CRgQyiDJLMcErd.cC/DtWCKMWtxZEaL6HQd/rrtU2DZpAu", true);
+		VALUES ('Admin', 'admin', '$2a$14$FoV/2Z0CRgQyiDJLMcErd.cC/DtWCKMWtxZEaL6HQd/rrtU2DZpAu', true);
 
 		CREATE TABLE IF NOT EXISTS teams (
 				id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 				name VARCHAR(255),
 				canonical VARCHAR(255),
 
-				CONSTRAINT uq__name UNIQUE ( name ),
-				CONSTRAINT uq__canonical UNIQUE ( canonical )
+				CONSTRAINT uq__teams__name UNIQUE ( name ),
+				CONSTRAINT uq__teams__canonical UNIQUE ( canonical )
 		);
 		INSERT INTO teams (name, canonical)
-		VALUES ("Main", "main");
+		VALUES ('Main', 'main');
 
 		CREATE TABLE IF NOT EXISTS teams_users (
 				id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +62,7 @@ var V8UsersAdnTeams = Migration{
 		);
 		
 		INSERT INTO pipelines_new (id, name, raw, team_id) SELECT id, name, raw, 1 FROM pipelines;
-		DROP TABLE pipelines;
+		DROP TABLE IF EXISTS pipelines CASCADE;
 		ALTER TABLE pipelines_new RENAME TO pipelines;
 	`,
 }

@@ -70,45 +70,39 @@ func openDB(t *testing.T, system string) *dbSetup {
 		user = envOr("PIKOCI_TEST_PG_USER", "postgres")
 		password = envOr("PIKOCI_TEST_PG_PASSWORD", "postgres123")
 		dbName = fmt.Sprintf("qid_test_%s_%d", system, os.Getpid())
-	case "cockroachdb":
-		hp := envOr("PIKOCI_TEST_COCKROACH_HOST", "127.0.0.1:26257")
-		parts := strings.Split(hp, ":")
-		host = parts[0]
-		port, _ = strconv.Atoi(parts[1])
-		user = "root"
-		password = ""
-		dbName = fmt.Sprintf("qid_test_%s_%d", system, os.Getpid())
-	case "tidb":
-		hp := envOr("PIKOCI_TEST_TIDB_HOST", "127.0.0.1:4001")
-		parts := strings.Split(hp, ":")
-		host = parts[0]
-		port, _ = strconv.Atoi(parts[1])
-		user = "root"
-		password = ""
-		dbName = fmt.Sprintf("qid_test_%s_%d", system, os.Getpid())
 	default:
 		t.Fatalf("unknown db system: %s", system)
-	}
-
-	// Map compatible systems to their underlying driver system
-	driverSystem := system
-	switch system {
-	case "cockroachdb":
-		driverSystem = mysql.PostgreSQL
-	case "tidb":
-		driverSystem = mysql.MySQL
 	}
 
 	opts := mysql.Options{
 		DBName:          dbName,
 		MultiStatements: true,
 		ClientFoundRows: true,
-		System:          driverSystem,
+		System:          system,
 	}
 
 	if system == "sqlite" {
 		tmpFile := t.TempDir() + "/test.db"
 		opts.DBFile = tmpFile
+	}
+
+	// Drop any leftover test database from a previous run
+	if dbName != "" {
+		switch system {
+		case mysql.MySQL:
+			dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?multiStatements=true", user, password, host, port)
+			if cleanDB, err := sql.Open("mysql", dsn); err == nil {
+				cleanDB.Exec("DROP DATABASE IF EXISTS " + dbName)
+				cleanDB.Close()
+			}
+		case mysql.PostgreSQL:
+			dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=disable", host, port, user, password)
+			if cleanDB, err := sql.Open("postgres", dsn); err == nil {
+				cleanDB.Exec(fmt.Sprintf("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s' AND pid <> pg_backend_pid()", dbName))
+				cleanDB.Exec("DROP DATABASE IF EXISTS " + dbName)
+				cleanDB.Close()
+			}
+		}
 	}
 
 	db, err := mysql.New(host, port, user, password, opts)
@@ -117,7 +111,6 @@ func openDB(t *testing.T, system string) *dbSetup {
 	}
 
 	t.Cleanup(func() {
-		// Drop test database for non-memory/sqlite backends
 		if system != "mem" && system != "sqlite" {
 			db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", dbName))
 		}
@@ -125,14 +118,14 @@ func openDB(t *testing.T, system string) *dbSetup {
 	})
 
 	var querier sqlr.Querier = db
-	if mysql.IsPostgreSQL(driverSystem) {
+	if mysql.IsPostgreSQL(system) {
 		querier = mysql.NewPGQuerier(db)
 	}
 
 	return &dbSetup{
 		db:      db,
 		querier: querier,
-		system:  driverSystem,
+		system:  system,
 	}
 }
 

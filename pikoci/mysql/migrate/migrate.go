@@ -42,10 +42,12 @@ func Migrate(db *sql.DB, system string) error {
 func adaptSQL(sql, system string) string {
 	switch system {
 	case mysql.Mem, mysql.SQLite:
-		sql = strings.Replace(sql, "SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';", "", 1)
+		sql = strings.ReplaceAll(sql, "SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';", "")
 		sql = strings.ReplaceAll(sql, "id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,", "id INTEGER PRIMARY KEY,")
+		// SQLite doesn't support CASCADE on DROP TABLE
+		sql = strings.ReplaceAll(sql, "DROP TABLE IF EXISTS pipelines CASCADE;", "DROP TABLE IF EXISTS pipelines;")
 	case mysql.PostgreSQL:
-		sql = strings.Replace(sql, "SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';", "", 1)
+		sql = strings.ReplaceAll(sql, "SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';", "")
 		sql = strings.ReplaceAll(sql, "id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,", "id SERIAL PRIMARY KEY,")
 		sql = strings.ReplaceAll(sql, "INT UNSIGNED NOT NULL", "INTEGER NOT NULL")
 		sql = strings.ReplaceAll(sql, "INT UNSIGNED", "INTEGER")
@@ -55,7 +57,10 @@ func adaptSQL(sql, system string) string {
 		// PostgreSQL doesn't support RENAME COLUMN with the same syntax in older versions,
 		// but ALTER TABLE ... RENAME COLUMN is standard and works in PG 9.6+
 	case mysql.MySQL:
-		// No changes needed for MySQL/MariaDB
+		// MySQL/MariaDB doesn't support CASCADE on DROP TABLE,
+		// but SET FOREIGN_KEY_CHECKS=0 achieves the same effect
+		sql = strings.ReplaceAll(sql, "DROP TABLE IF EXISTS pipelines CASCADE;",
+			"SET FOREIGN_KEY_CHECKS = 0; DROP TABLE IF EXISTS pipelines; SET FOREIGN_KEY_CHECKS = 1;")
 	}
 	return sql
 }

@@ -7,6 +7,8 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 )
 
 type Pipeline struct {
@@ -17,6 +19,8 @@ type Pipeline struct {
 	Resources     []resource.Resource    `json:"resources" hcl:"resource,block"`
 	ResourceTypes []restype.ResourceType `json:"resource_types" hcl:"resource_type,block"`
 	Runners       []runner.Runner        `json:"runners" hcl:"runner,block"`
+	SecretTypes   []sectype.SecretType   `json:"secret_types" hcl:"secret_type,block"`
+	Secrets       []secret.Secret        `json:"secrets" hcl:"secret,block"`
 	Remain        hcl.Body               `json:"-" hcl:",remain"`
 	Raw           []byte                 `json:"raw"`
 }
@@ -67,4 +71,24 @@ func (pp *Pipeline) Runner(run string) (runner.Runner, bool) {
 	}
 
 	return runner.Runner{}, false
+}
+
+func (pp *Pipeline) SecretType(stn string) (sectype.SecretType, bool) {
+	for _, st := range pp.SecretTypes {
+		if st.Name == stn {
+			return st, true
+		}
+	}
+
+	return sectype.SecretType{}, false
+}
+
+func (pp *Pipeline) Secret(sCan string) (secret.Secret, bool) {
+	for _, s := range pp.Secrets {
+		if s.Canonical == sCan {
+			return s, true
+		}
+	}
+
+	return secret.Secret{}, false
 }
