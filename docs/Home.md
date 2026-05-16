@@ -8,11 +8,12 @@ PikoCI is a portable, self-hosted CI/CD system. One binary, any database, any qu
 - [Pipeline Reference](Pipeline) - HCL pipeline configuration
 - [Resource Types](Resource-Types) - Built-in and custom resource types
 - [Runners](Runners) - Built-in and custom runners
+- [Secret Types](Secret-Types) - Built-in and custom secret types
 - [Server Configuration](Server) - Server flags and options
 - [Database Backends](Database) - Supported database systems
 - [Queue Backends](Queue) - Supported queue/pubsub systems
 - [Functions](Functions) - HCL functions available in pipelines
-- [Variables and Secrets](Variables) - Pipeline variables
+- [Variables](Variables) - Pipeline variables
 - [CLI Reference](CLI) - Client commands and flags
 - [Public Pipelines](Public-Pipelines) - Sharing pipeline status publicly
 - [Running Workers Separately](Workers) - Distributed worker setup
