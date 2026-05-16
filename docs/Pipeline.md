@@ -115,11 +115,11 @@ Defines how to fetch secrets. See [Secret Types](Secret-Types). The `get` comman
 
 ```hcl
 secret_type "vault" {
-  params = ["path"]
+  params = ["path", "address", "token"]
 
   get "exec" {
     path = "/bin/sh"
-    args = ["-ec", "vault kv get -format=json $param_path | jq '.data'"]
+    args = ["-ec", "VAULT_ADDR=$param_address VAULT_TOKEN=$param_token vault kv get -format=json $param_path | jq -c '.data.data // .data'"]
   }
 }
 ```
@@ -138,7 +138,9 @@ An instance of a secret type. Declares which secret to fetch with specific param
 
 ```hcl
 secret "vault" "db-creds" {
-  path = "secret/data/db"
+  path    = "secret/data/db"
+  address = var.vault_address
+  token   = var.vault_token
 }
 ```
 

@@ -16,6 +16,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/scheduler"
 	"github.com/xescugc/pikoci/pikoci/secret"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/utils"
 )
@@ -403,6 +404,8 @@ var (
 	colorDefault        = `"#83769C"`
 	colorDefaultBorder  = `"#5F574F"`
 	colorError          = `"#FF004D"`
+	colorSecret         = `"#FFCCAA"`
+	colorSecretBorder   = `"#CC8200"`
 )
 
 func (q *PikoCI) GetPipelineImage(ctx context.Context, tc, pn, format string) ([]byte, error) {
@@ -468,6 +471,37 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to add node to Graph: %w", err)
+		}
+	}
+
+	// Collect which secrets are used by which jobs (for edge drawing)
+	secretJobs := make(map[string]map[string]bool) // secret canonical -> set of job names
+	for _, j := range pp.Jobs {
+		for _, ps := range j.Plan {
+			for _, sCan := range ps.Secrets {
+				if secretJobs[sCan] == nil {
+					secretJobs[sCan] = make(map[string]bool)
+				}
+				secretJobs[sCan][j.Name] = true
+			}
+		}
+	}
+
+	// Print all the secrets
+	for _, s := range pp.Secrets {
+		if _, used := secretJobs[s.Canonical]; !used {
+			continue
+		}
+		err = graph.AddNode(pn, fmt.Sprintf(`"%s"`, s.Canonical), map[string]string{
+			string(gographviz.Margin):    "0.2",
+			string(gographviz.Shape):     "note",
+			string(gographviz.FillColor): colorSecret,
+			string(gographviz.Style):     "filled",
+			string(gographviz.FontColor): `"#1D2B53"`,
+			string(gographviz.Color):     colorSecretBorder,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to add secret node to Graph: %w", err)
 		}
 	}
 
@@ -559,6 +593,22 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 				}
 			}
 		}
+		// Draw secret→job edges for steps with secrets
+		drawnSecrets := make(map[string]bool)
+		for _, ps := range j.Plan {
+			for _, sCan := range ps.Secrets {
+				if drawnSecrets[sCan] {
+					continue
+				}
+				drawnSecrets[sCan] = true
+				err = graph.AddEdge(fmt.Sprintf(`"%s"`, sCan), j.Name, false, map[string]string{
+					string(gographviz.Style): "dotted",
+				})
+				if err != nil {
+					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
+				}
+			}
+		}
 	}
 
 	// Now we print all the jobs interconnections depending on resources
@@ -637,6 +687,25 @@ func sanitizePipelineForPublic(pp *pipeline.Pipeline) *pipeline.Pipeline {
 		}
 	}
 	cp.ResourceTypes = rts
+	sts := make([]sectype.SecretType, len(cp.SecretTypes))
+	for i, st := range cp.SecretTypes {
+		sts[i] = sectype.SecretType{
+			ID:     st.ID,
+			Name:   st.Name,
+			Source: st.Source,
+		}
+	}
+	cp.SecretTypes = sts
+	ss := make([]secret.Secret, len(cp.Secrets))
+	for i, s := range cp.Secrets {
+		ss[i] = secret.Secret{
+			ID:        s.ID,
+			Type:      s.Type,
+			Name:      s.Name,
+			Canonical: s.Canonical,
+		}
+	}
+	cp.Secrets = ss
 	return &cp
 }
 

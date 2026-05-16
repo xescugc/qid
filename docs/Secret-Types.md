@@ -6,11 +6,11 @@ A secret type defines how PikoCI fetches secrets from an external system (e.g. V
 
 ```hcl
 secret_type "vault" {
-  params = ["path"]
+  params = ["path", "address", "token"]
 
   get "exec" {
     path = "/bin/sh"
-    args = ["-ec", "vault kv get -format=json $param_path | jq -c '.data.data // .data'"]
+    args = ["-ec", "VAULT_ADDR=$param_address VAULT_TOKEN=$param_token vault kv get -format=json $param_path | jq -c '.data.data // .data'"]
   }
 }
 ```
@@ -67,7 +67,9 @@ A secret is an instance of a secret type with concrete parameter values:
 
 ```hcl
 secret "vault" "db-creds" {
-  path = "secret/data/db"
+  path    = "secret/data/db"
+  address = var.vault_address
+  token   = var.vault_token
 }
 ```
 
@@ -111,22 +113,36 @@ secret_type "my-vault" {
 }
 
 secret "my-vault" "db-creds" {
-  path = "secret/data/db"
+  path    = "secret/data/db"
+  address = var.vault_address
+  token   = var.vault_token
 }
 ```
 
 ### Params
 
-| Param  | Required | Description                                      |
-|--------|----------|--------------------------------------------------|
-| `path` | yes      | Vault KV path to read (e.g. `secret/data/db`)   |
+| Param     | Required | Description                                      |
+|-----------|----------|--------------------------------------------------|
+| `path`    | yes      | Vault KV path to read (e.g. `secret/data/db`)   |
+| `address` | yes      | Vault server address (e.g. `http://vault:8200`)  |
+| `token`   | yes      | Vault authentication token                       |
 
-### Vault configuration
+### Vault authentication
 
-The worker must have the `VAULT_ADDR` and `VAULT_TOKEN` (or another auth method) environment variables set. The built-in `get` command runs:
+There are three ways to provide Vault credentials:
+
+1. **Pipeline variables** (recommended): pass `address` and `token` as pipeline variables, provided via a vars file at pipeline creation time. This keeps secrets out of the HCL.
+
+2. **Worker environment variables**: set `VAULT_ADDR` and `VAULT_TOKEN` on the worker process. In this case, pass empty strings for `address` and `token` in the secret block, or define a custom secret_type that omits those params.
+
+3. **Vault agent/AppRole**: run Vault Agent on the worker with auto-auth configured. The agent manages token renewal and writes a token file that the Vault CLI reads automatically.
+
+### How it works
+
+The built-in `get` command runs:
 
 ```sh
-vault kv get -format=json "$param_path" | jq -c '.data.data // .data'
+VAULT_ADDR=$param_address VAULT_TOKEN=$param_token vault kv get -format=json "$param_path" | jq -c '.data.data // .data'
 ```
 
 This handles both KV v1 (`.data`) and KV v2 (`.data.data`) secret engines.
@@ -134,30 +150,38 @@ This handles both KV v1 (`.data`) and KV v2 (`.data.data`) secret engines.
 ### Example
 
 ```hcl
-variable "vault_path" {
+variable "vault_address" {
   type    = string
-  default = "secret/data/app"
+  default = "http://vault:8200"
+}
+
+variable "vault_token" {
+  type = string
 }
 
 secret_type "my-vault" {
   source = "pikoci://vault"
 }
 
-secret "my-vault" "app-secrets" {
-  path = var.vault_path
+secret "my-vault" "db-creds" {
+  path    = "secret/data/db"
+  address = var.vault_address
+  token   = var.vault_token
 }
 
 job "deploy" {
   get "cron" "timer" { trigger = true }
-  task "deploy" {
-    secrets = ["my-vault.app-secrets"]
+  task "migrate" {
+    secrets = ["my-vault.db-creds"]
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "echo Deploying with user=$secret_username"]
+      args = ["-ec", "DATABASE_URL=postgres://$secret_username:$secret_password@localhost/app make migrate"]
     }
   }
 }
 ```
+
+Provide the token in your vars file: `{"vault_token": "hvs.CAESI..."}`.
 
 ## Built-in: file
 
@@ -220,7 +244,12 @@ secret_type "aws-ssm" {
     path = "/bin/sh"
     args = [
       "-ec",
-      "aws ssm get-parameter --name $param_name --region $param_region --with-decryption --query 'Parameter.Value' --output text"
+      <<-EOT
+      VALUE=$(aws ssm get-parameter --name $param_name \
+        --region $param_region --with-decryption \
+        --query 'Parameter.Value' --output text)
+      echo "{\"value\": \"$VALUE\"}"
+      EOT
     ]
   }
 }

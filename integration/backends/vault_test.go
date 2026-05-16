@@ -154,14 +154,6 @@ func TestSecretsVaultE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer subscription.Shutdown(ctx)
 
-	// Set env vars so the worker's exec runner inherits them
-	os.Setenv("VAULT_ADDR", vaultAddr)
-	os.Setenv("VAULT_TOKEN", vaultToken)
-	t.Cleanup(func() {
-		os.Unsetenv("VAULT_ADDR")
-		os.Unsetenv("VAULT_TOKEN")
-	})
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -171,13 +163,16 @@ func TestSecretsVaultE2E(t *testing.T) {
 	}()
 
 	// Create pipeline using built-in pikoci://vault secret_type
-	hclConfig := []byte(`
+	// Pass address and token as secret params (not env vars)
+	hclConfig := []byte(fmt.Sprintf(`
 secret_type "my-vault" {
   source = "pikoci://vault"
 }
 
 secret "my-vault" "db-creds" {
-  path = "secret/db-creds"
+  path    = "secret/db-creds"
+  address = "%s"
+  token   = "%s"
 }
 
 resource "cron" "timer" {
@@ -197,7 +192,7 @@ job "deploy" {
     }
   }
 }
-`)
+`, vaultAddr, vaultToken))
 
 	pp, err := svc.CreatePipeline(ctx, "main", "vault-e2e", hclConfig, nil)
 	require.NoError(t, err)
