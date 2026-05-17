@@ -180,7 +180,7 @@ Provide the token in your vars file: `{"vault_token": "hvs.CAESI..."}`.
 
 ## Built-in: file
 
-The `file` secret type is built in. It reads a JSON file from disk and exposes its keys for extraction by secret-backed variables.
+The `file` secret type is built in. It reads a file from disk and exposes its keys for extraction by secret-backed variables.
 
 ```hcl
 secret_type "my-file" {
@@ -188,7 +188,13 @@ secret_type "my-file" {
 }
 ```
 
-No config attributes needed. The file path comes from the variable's secret block:
+### Config
+
+| Attribute | Required | Default | Description                                      |
+|-----------|----------|---------|--------------------------------------------------|
+| `format`  | no       | `json`  | File format: `json` or `env`                     |
+
+The file path comes from the variable's secret block:
 
 ```hcl
 variable "db_user" {
@@ -200,10 +206,40 @@ variable "db_user" {
 }
 ```
 
-The file must contain a JSON object:
+### JSON format (default)
+
+When `format` is omitted or set to `"json"`, the file must contain a JSON object:
 
 ```json
 {"username": "admin", "password": "s3cret", "host": "db.example.com"}
+```
+
+### `.env` format
+
+When `format = "env"`, the file is parsed as a `.env` file with `KEY=VALUE` lines:
+
+```hcl
+secret_type "env-creds" {
+  source = "pikoci://file"
+  format = "env"
+}
+
+variable "db_password" {
+  type = string
+  secret "env-creds" {
+    path = "/run/secrets/db.env"
+    key  = "DB_PASSWORD"
+  }
+}
+```
+
+The `.env` file uses one `KEY=VALUE` per line. Comment lines (starting with `#`), blank lines, and any lines not matching a valid variable name are safely ignored. Values may optionally be wrapped in single or double quotes, which are stripped:
+
+```
+# Database credentials
+DB_HOST=db.example.com
+DB_PASSWORD=s3cret
+DB_USER="admin"
 ```
 
 ## Example: custom secret type

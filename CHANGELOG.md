@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `.env` format support to the built-in `file` secret type via `format = "env"` config attribute. The default format remains `json` (backwards compatible)
 - Add secret-backed variables: variables can declare a `secret` block to resolve their value lazily from a secret type at runtime. This gives secrets universal reach through the existing `var.<name>` syntax — resource params, task args, etc. Vars file overrides take precedence for local development. Deprecates step-level `secrets = {}` on get/task/put steps in favor of the simpler declare-once-use-everywhere variable approach
 - Replace `urfave/cli` + `koanf` with `cobra` + `viper` for CLI and config management. Environment variables now use simple uppercase names (e.g., `JWT_SECRET`, `DB_SYSTEM`) ([#238](https://github.com/xescugc/pikoci/issues/238))
 - Replace `mattn/go-sqlite3` (CGO) with `modernc.org/sqlite` (pure Go) to enable cross-compilation without a C compiler
