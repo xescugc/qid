@@ -160,7 +160,7 @@ scp "$DEPLOY_DIR/prometheus.yml" "$SSH_HOST":/opt/pikoci/prometheus.yml
 
 echo "==> Syncing env file..."
 scp "$DEPLOY_DIR/pikoci.env" "$SSH_HOST":/etc/pikoci/pikoci.env
-ssh "$SSH_HOST" 'chmod 600 /etc/pikoci/pikoci.env'
+ssh "$SSH_HOST" 'chown pikoci:pikoci /etc/pikoci/pikoci.env && chmod 600 /etc/pikoci/pikoci.env'
 scp "$DEPLOY_DIR/pikoci.env" "$SSH_HOST":/opt/pikoci/pikoci.env
 ssh "$SSH_HOST" 'chmod 600 /opt/pikoci/pikoci.env'
 ssh "$SSH_HOST" 'rm -f /opt/pikoci/.env && grep -E "^(PIKOCI_DOMAIN|PIKOCI_GRAFANA_DOMAIN|GF_)" /opt/pikoci/pikoci.env > /opt/pikoci/.env'
