@@ -252,6 +252,112 @@ job "deploy" {
 		assert.True(t, strings.Contains(taskStep.Logs, "api_secret=xyz789"), "logs should contain api_secret=xyz789, got: %s", taskStep.Logs)
 	})
 
+	t.Run("SecretBackedVariableWithFileSourceEnvFormat", func(t *testing.T) {
+		// Uses the built-in "file" secret_type with format = "env"
+		tmpDir := t.TempDir()
+		secretFile := tmpDir + "/secret.env"
+		err := os.WriteFile(secretFile, []byte("# Database credentials\nDB_HOST=db.example.com\nDB_PASSWORD=s3cret\nDB_USER=\"admin\"\nDB_CONN=host=db;port=5432\n"), 0644)
+		require.NoError(t, err)
+
+		hclConfig := []byte(fmt.Sprintf(`
+secret_type "env-file" {
+  source = "pikoci://file"
+  format = "env"
+}
+
+variable "db_host" {
+  type = string
+  secret "env-file" {
+    path = "%s"
+    key  = "DB_HOST"
+  }
+}
+
+variable "db_password" {
+  type = string
+  secret "env-file" {
+    path = "%s"
+    key  = "DB_PASSWORD"
+  }
+}
+
+variable "db_user" {
+  type = string
+  secret "env-file" {
+    path = "%s"
+    key  = "DB_USER"
+  }
+}
+
+variable "db_conn" {
+  type = string
+  secret "env-file" {
+    path = "%s"
+    key  = "DB_CONN"
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "use-env-secrets" {
+    run "exec" {
+      path = "/bin/sh"
+      args = ["-ec", "echo db_host=${var.db_host} db_password=${var.db_password} db_user=${var.db_user} db_conn=${var.db_conn}"]
+    }
+  }
+}
+`, secretFile, secretFile, secretFile, secretFile))
+
+		pp, err := svc.CreatePipeline(ctx, "main", "secrets-env-file-e2e", hclConfig, nil)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		assert.Len(t, pp.SecretTypes, 1)
+		assert.Equal(t, "env-file", pp.SecretTypes[0].Name)
+		assert.Equal(t, "pikoci://file", pp.SecretTypes[0].Source)
+
+		// Trigger resource check to create a version
+		err = svc.TriggerPipelineResource(ctx, "main", "secrets-env-file-e2e", "cron.timer")
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			vers, err := svc.ListResourceVersions(ctx, "main", "secrets-env-file-e2e", "cron.timer")
+			return err == nil && len(vers) > 0
+		}, 10*time.Second, 200*time.Millisecond)
+
+		// Wait for the build triggered by the resource to finish
+		var builds []*build.Build
+		require.Eventually(t, func() bool {
+			builds, err = svc.ListJobBuilds(ctx, "main", "secrets-env-file-e2e", "deploy")
+			if err != nil || len(builds) == 0 {
+				return false
+			}
+			return builds[0].Status != build.Started
+		}, 15*time.Second, 200*time.Millisecond)
+
+		require.NotEmpty(t, builds)
+		b := builds[0]
+		assert.Equal(t, build.Succeeded, b.Status, "build should succeed, error: %s", b.Error)
+
+		var taskStep *build.Step
+		for i, s := range b.Steps {
+			if s.Type == "task" && s.Name == "use-env-secrets" {
+				taskStep = &b.Steps[i]
+				break
+			}
+		}
+		require.NotNil(t, taskStep, "task step 'use-env-secrets' should exist in build steps")
+		assert.True(t, strings.Contains(taskStep.Logs, "db_host=db.example.com"), "logs should contain db_host=db.example.com, got: %s", taskStep.Logs)
+		assert.True(t, strings.Contains(taskStep.Logs, "db_password=s3cret"), "logs should contain db_password=s3cret, got: %s", taskStep.Logs)
+		assert.True(t, strings.Contains(taskStep.Logs, "db_user=admin"), "logs should contain db_user=admin (quotes stripped), got: %s", taskStep.Logs)
+		assert.True(t, strings.Contains(taskStep.Logs, "db_conn=host=db;port=5432"), "logs should contain db_conn=host=db;port=5432 (value with = sign), got: %s", taskStep.Logs)
+	})
+
 	cancel()
 	wg.Wait()
 }
