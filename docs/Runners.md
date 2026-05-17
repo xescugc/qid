@@ -5,7 +5,7 @@ Runners define how commands are executed. A runner wraps process execution so yo
 ## Defining a runner
 
 ```hcl
-runner "docker" {
+runner_type "docker" {
   run {
     path = "docker"
     args = [
@@ -45,7 +45,7 @@ For example, when a task uses `run "docker" { image = "golang:1.25" cmd = "make 
 Instead of defining the runner inline, you can point to an external HCL file:
 
 ```hcl
-runner "my-docker" {
+runner_type "my-docker" {
   source = "pikoci://docker"
 }
 ```
@@ -59,12 +59,12 @@ When `source` is set, you must not define an inline `run` block. PikoCI will err
 
 ## Overriding built-ins
 
-All built-in runners (`exec`, `docker`) can be overridden by defining a `runner` block with the same name in your pipeline. Inline definitions always take precedence over built-ins.
+All built-in runners (`exec`, `docker`) can be overridden by defining a `runner_type` block with the same name in your pipeline. Inline definitions always take precedence over built-ins.
 
 This is useful when you need different default behavior. For example, the built-in `docker` runner uses `/bin/sh -ec` to run commands. If you want to always run with `--network=host` or use a different shell:
 
 ```hcl
-runner "docker" {
+runner_type "docker" {
   run {
     path = "docker"
     args = [
@@ -120,7 +120,7 @@ The exec runner expands `$path` and `$args` from the `run` block:
 
 ```go
 // Built-in exec runner definition
-runner "exec" {
+runner_type "exec" {
   run {
     path = "$path"
     args = ["$args"]
@@ -210,7 +210,7 @@ task "test" {
 ## Example: custom shell runner
 
 ```hcl
-runner "bash" {
+runner_type "bash" {
   run {
     path = "/bin/bash"
     args = ["-c", "$script"]

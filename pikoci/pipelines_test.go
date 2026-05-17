@@ -692,7 +692,7 @@ func TestCreatePipeline_WithServices(t *testing.T) {
 	ctx := context.TODO()
 
 	hclConfig := []byte(`
-service "test-db" {
+service_type "test-db" {
   params = ["version"]
 
   start "exec" {
@@ -782,7 +782,7 @@ job "deploy" {
 
 	_, err := s.S.CreatePipeline(ctx, "main", "no-inline-svc-pipeline", hclConfig, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service \"inline-db\" referenced in job")
+	assert.Contains(t, err.Error(), "service_type \"inline-db\" referenced in job")
 }
 
 func TestCreatePipeline_ServiceMissingReference(t *testing.T) {
@@ -812,7 +812,7 @@ job "deploy" {
 
 	_, err := s.S.CreatePipeline(ctx, "main", "svc-missing-pipeline", hclConfig, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service \"nonexistent\" referenced in job")
+	assert.Contains(t, err.Error(), "service_type \"nonexistent\" referenced in job")
 }
 
 func TestCreatePipeline_ServiceMissingStart(t *testing.T) {
@@ -821,7 +821,7 @@ func TestCreatePipeline_ServiceMissingStart(t *testing.T) {
 	ctx := context.TODO()
 
 	hclConfig := []byte(`
-service "bad" {
+service_type "bad" {
   stop "exec" {
     path = "/bin/sh"
     args = ["-ec", "echo stopping"]
@@ -855,7 +855,7 @@ func TestCreatePipeline_ServiceSourceAndInlineConflict(t *testing.T) {
 	ctx := context.TODO()
 
 	hclConfig := []byte(`
-service "bad" {
+service_type "bad" {
   source = "https://example.com/service.hcl"
   start "exec" {
     path = "/bin/sh"

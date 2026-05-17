@@ -984,8 +984,11 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 		for k, v := range st.Config {
 			params["param_"+k] = v
 		}
-		// Add path as param_path (the dynamic per-step value)
-		params["param_path"] = path
+		// Add path as param_path (the dynamic per-step value), only if set.
+		// When empty, the secret_type's config path (from st.Config) is used as default.
+		if path != "" {
+			params["param_path"] = path
+		}
 
 		ru, ok := pp.Runner(st.Get.Runner)
 		if !ok {

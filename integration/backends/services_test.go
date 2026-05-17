@@ -1,3 +1,5 @@
+//go:build integration
+
 package backends_test
 
 import (
@@ -80,7 +82,7 @@ func TestServicesE2E(t *testing.T) {
 		markerFile := tmpDir + "/service-marker"
 
 		hclConfig := []byte(fmt.Sprintf(`
-service "test-svc" {
+service_type "test-svc" {
   start "exec" {
     path = "/bin/sh"
     args = ["-ec", "touch %s && echo started"]
@@ -164,7 +166,7 @@ job "use-service" {
 
 	t.Run("ServiceReadyCheckTimeout", func(t *testing.T) {
 		hclConfig := []byte(`
-service "slow-svc" {
+service_type "slow-svc" {
   start "exec" {
     path = "/bin/sh"
     args = ["-ec", "echo started"]
@@ -252,7 +254,7 @@ job "use-slow-service" {
 		versionFile := tmpDir + "/version"
 
 		hclConfig := []byte(fmt.Sprintf(`
-service "param-svc" {
+service_type "param-svc" {
   params = ["version"]
 
   start "exec" {
@@ -325,7 +327,7 @@ job "use-param-service" {
 
 	t.Run("ServiceStopOnTaskFailure", func(t *testing.T) {
 		hclConfig := []byte(`
-service "fail-svc" {
+service_type "fail-svc" {
   start "exec" {
     path = "/bin/sh"
     args = ["-ec", "echo started"]

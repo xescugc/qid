@@ -50,7 +50,7 @@ jobs:
 
 **PikoCI:**
 ```hcl
-runner "docker" {
+runner_type "docker" {
   run {
     path = "docker"
     args = ["run", "--rm", "-v", "$WORKDIR:/workdir", "-w", "/workdir", "$image", "$cmd"]

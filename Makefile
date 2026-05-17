@@ -60,10 +60,14 @@ lint: ## Runs staticcheck linter
 	@go tool staticcheck ./...
 
 .PHONY: test
-test: ## Runs all tests (use test-services-up first for external backends)
+test: ## Runs unit tests only (no external services needed)
+	@go test ./... -timeout 120s
+
+.PHONY: test-integration
+test-integration: ## Runs integration tests (in-memory backends, no external services)
 	@PIKOCI_TEST_DB_SYSTEMS=$${PIKOCI_TEST_DB_SYSTEMS:-mem,sqlite} \
 	PIKOCI_TEST_PUBSUB_SYSTEMS=$${PIKOCI_TEST_PUBSUB_SYSTEMS:-mem} \
-	go test ./... -timeout 120s
+	go test -tags integration ./... -timeout 120s
 
 .PHONY: test-all
 test-all: ## Runs all tests including external backends (requires test-services-up)
@@ -74,7 +78,7 @@ test-all: ## Runs all tests including external backends (requires test-services-
 	NATS_SERVER_URL=nats://127.0.0.1:4222 \
 	RABBIT_SERVER_URL=amqp://guest:guest@127.0.0.1:5672/ \
 	KAFKA_BROKERS=127.0.0.1:9092 \
-	go test ./... -timeout 120s
+	go test -tags integration ./... -timeout 120s
 
 PLATFORMS := linux/amd64 windows/amd64 darwin/amd64
 

@@ -209,9 +209,9 @@ type hclPipeline struct {
 	Jobs          []hclJob            `hcl:"job,block"`
 	Resources     []resource.Resource `hcl:"resource,block"`
 	ResourceTypes []hclResourceType   `hcl:"resource_type,block"`
-	Runners       []hclRunnerDef      `hcl:"runner,block"`
+	Runners       []hclRunnerDef      `hcl:"runner_type,block"`
 	SecretTypes   []hclSecretType     `hcl:"secret_type,block"`
-	Services      []hclService        `hcl:"service,block"`
+	Services      []hclService        `hcl:"service_type,block"`
 	Remain        hcl.Body            `hcl:",remain"`
 }
 
@@ -387,11 +387,11 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		if hrd.Source != "" {
 			hasInline := len(hrd.Run) > 0
 			if hasInline {
-				return nil, fmt.Errorf("runner %q has both source and inline commands, which is not allowed", hrd.Name)
+				return nil, fmt.Errorf("runner_type %q has both source and inline commands, which is not allowed", hrd.Name)
 			}
 			resolved, err := source.ResolveRunner(ctx, hrd.Source)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve source for runner %q: %w", hrd.Name, err)
+				return nil, fmt.Errorf("failed to resolve source for runner_type %q: %w", hrd.Name, err)
 			}
 			resolved.Name = hrd.Name
 			resolved.Source = hrd.Source
@@ -465,11 +465,11 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		if hs.Source != "" {
 			hasInline := len(hs.Start) > 0 || len(hs.Stop) > 0 || len(hs.ReadyCheck) > 0
 			if hasInline {
-				return nil, fmt.Errorf("service %q has both source and inline commands, which is not allowed", hs.Name)
+				return nil, fmt.Errorf("service_type %q has both source and inline commands, which is not allowed", hs.Name)
 			}
 			resolved, err := source.ResolveService(ctx, hs.Source)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve source for service %q: %w", hs.Name, err)
+				return nil, fmt.Errorf("failed to resolve source for service_type %q: %w", hs.Name, err)
 			}
 			resolved.Name = hs.Name
 			resolved.Source = hs.Source
@@ -479,10 +479,10 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 			services = append(services, *resolved)
 		} else {
 			if len(hs.Start) == 0 {
-				return nil, fmt.Errorf("service %q must have a start block", hs.Name)
+				return nil, fmt.Errorf("service_type %q must have a start block", hs.Name)
 			}
 			if len(hs.Stop) == 0 {
-				return nil, fmt.Errorf("service %q must have a stop block", hs.Name)
+				return nil, fmt.Errorf("service_type %q must have a stop block", hs.Name)
 			}
 			services = append(services, hs.toService())
 		}
@@ -635,7 +635,7 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 				serviceIdx++
 
 				if _, ok := serviceByName[sr.Name]; !ok {
-					return nil, nil, nil, fmt.Errorf("service %q referenced in job %q does not exist", sr.Name, hj.Name)
+					return nil, nil, nil, fmt.Errorf("service_type %q referenced in job %q does not exist", sr.Name, hj.Name)
 				}
 
 				// Parse param overrides from the remain body

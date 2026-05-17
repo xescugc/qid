@@ -25,7 +25,7 @@ type hclResourceType struct {
 }
 
 type hclRunner struct {
-	Runners []runner.Runner `hcl:"runner,block"`
+	Runners []runner.Runner `hcl:"runner_type,block"`
 }
 
 type hclSecretType struct {
@@ -33,7 +33,7 @@ type hclSecretType struct {
 }
 
 type hclService struct {
-	Services []service.Service `hcl:"service,block"`
+	Services []service.Service `hcl:"service_type,block"`
 }
 
 func ResolveResourceType(ctx context.Context, src string) (*restype.ResourceType, error) {
@@ -65,7 +65,7 @@ func ResolveRunner(ctx context.Context, src string) (*runner.Runner, error) {
 		return nil, fmt.Errorf("failed to decode runner from source %q: %w", src, err)
 	}
 	if len(hr.Runners) == 0 {
-		return nil, fmt.Errorf("no runner block found in source %q", src)
+		return nil, fmt.Errorf("no runner_type block found in source %q", src)
 	}
 	return &hr.Runners[0], nil
 }
@@ -99,7 +99,7 @@ func ResolveService(ctx context.Context, src string) (*service.Service, error) {
 		return nil, fmt.Errorf("failed to decode service from source %q: %w", src, err)
 	}
 	if len(hs.Services) == 0 {
-		return nil, fmt.Errorf("no service block found in source %q", src)
+		return nil, fmt.Errorf("no service_type block found in source %q", src)
 	}
 	return &hs.Services[0], nil
 }

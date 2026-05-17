@@ -1,13 +1,13 @@
 # Services
 
-A service is an ephemeral process that runs alongside a job's tasks. Services are started before tasks and stopped unconditionally after, regardless of whether the tasks succeed or fail. Common use cases include databases, caches, message brokers, or any dependency that needs to be running while tasks execute.
+A service type defines an ephemeral process that runs alongside a job's tasks. Services are started before tasks and stopped unconditionally after, regardless of whether the tasks succeed or fail. Common use cases include databases, caches, message brokers, or any dependency that needs to be running while tasks execute.
 
-## Defining a service
+## Defining a service type
 
-Services are runner-agnostic. You can start any process: a local daemon, a container, a background script, etc.
+Service types are runner-agnostic. You can start any process: a local daemon, a container, a background script, etc.
 
 ```hcl
-service "postgres" {
+service_type "postgres" {
   start "exec" {
     path = "/bin/sh"
     args = ["-ec", "pg_ctl -D $WORKDIR/pgdata -l $WORKDIR/pg.log start"]
@@ -60,7 +60,7 @@ The `stop` block runs unconditionally after all tasks complete, whether they suc
 Instead of defining `start`/`stop` commands inline, you can point to an external HCL file:
 
 ```hcl
-service "postgres" {
+service_type "postgres" {
   source = "https://example.com/services/postgres.hcl"
   params = ["version"]
 }
@@ -73,9 +73,9 @@ Two URL formats are supported:
 
 When `source` is set, you must not define inline `start`, `stop`, or `ready_check` blocks. PikoCI will error if both are present.
 
-## Referencing services in jobs
+## Referencing service types in jobs
 
-Reference a top-level service by name in a job:
+Reference a top-level service type by name in a job:
 
 ```hcl
 job "test" {
@@ -142,7 +142,7 @@ Services appear in the build as steps with type "service" and names like "postgr
 Start PostgreSQL directly on the worker. No containers needed:
 
 ```hcl
-service "postgres" {
+service_type "postgres" {
   start "exec" {
     path = "/bin/sh"
     args = ["-ec", "initdb -D $WORKDIR/pgdata && pg_ctl -D $WORKDIR/pgdata -l $WORKDIR/pg.log start"]
@@ -167,7 +167,7 @@ service "postgres" {
 Use podman for rootless, daemonless containers:
 
 ```hcl
-service "postgres" {
+service_type "postgres" {
   params = ["version"]
 
   start "exec" {
@@ -194,7 +194,7 @@ service "postgres" {
 A simple Redis instance with no ready check (starts fast enough):
 
 ```hcl
-service "redis" {
+service_type "redis" {
   start "exec" {
     path = "/bin/sh"
     args = ["-ec", "redis-server --daemonize yes --dir $WORKDIR"]

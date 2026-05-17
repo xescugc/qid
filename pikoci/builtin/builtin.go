@@ -25,7 +25,7 @@ type hclResourceType struct {
 }
 
 type hclRunner struct {
-	Runners []runner.Runner `hcl:"runner,block"`
+	Runners []runner.Runner `hcl:"runner_type,block"`
 }
 
 type hclSecretType struct {

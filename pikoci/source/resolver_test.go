@@ -77,7 +77,7 @@ func TestResolveRunner_PikoCI(t *testing.T) {
 
 func TestResolveRunner_HTTP(t *testing.T) {
 	hcl := `
-runner "myrunner" {
+runner_type "myrunner" {
   run {
     path = "/usr/bin/env"
     args = ["bash", "-c", "$script"]
