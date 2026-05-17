@@ -64,14 +64,14 @@ Save as `pipeline.hcl` and start the server with the command above.
 
 ## Add users
 
-The default user is `admin` / `admin123` (created by the initial database migration). To add more users:
+The default user is `admin` / `admin123` (created by the initial database migration). Use `--users` to add new users or change existing passwords:
 
 ```bash
 # Generate a hashed password
 ./pikoci user-password -u myuser -p mypassword
 # Output: myuser:$2a$10$...
 
-# Pass it to the server
+# Pass it to the server (also works to update the default admin password)
 ./pikoci server --jwt-secret my-secret --users 'myuser:$2a$10$...'
 ```
 
