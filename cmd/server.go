@@ -213,7 +213,7 @@ var (
 				for _, u := range users {
 					us := strings.Split(u, userPasswordSeparator)
 					isHashed := true
-					_, err = svc.CreateUser(ctx, user.User{FullName: us[0], Username: us[0], Password: us[1]}, isHashed)
+					_, err = svc.CreateOrUpdateUser(ctx, user.User{FullName: us[0], Username: us[0], Password: us[1]}, isHashed)
 					if err != nil {
 						return fmt.Errorf("failed to creat user %q: %w", us[0], err)
 					}
