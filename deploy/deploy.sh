@@ -165,7 +165,17 @@ scp "$DEPLOY_DIR/pikoci.env" "$SSH_HOST":/opt/pikoci/pikoci.env
 ssh "$SSH_HOST" 'chmod 600 /opt/pikoci/pikoci.env'
 ssh "$SSH_HOST" 'rm -f /opt/pikoci/.env && grep -E "^(PIKOCI_DOMAIN|PIKOCI_GRAFANA_DOMAIN|GF_)" /opt/pikoci/pikoci.env > /opt/pikoci/.env'
 
-# --- Install Docker if not present ---
+# --- Install required packages ---
+
+if ! ssh "$SSH_HOST" 'command -v jq &>/dev/null'; then
+    echo "==> Installing jq on $SSH_HOST..."
+    ssh "$SSH_HOST" 'apt-get install -y jq || apk add jq || dnf install -y jq'
+fi
+
+if ! ssh "$SSH_HOST" 'command -v git &>/dev/null'; then
+    echo "==> Installing git on $SSH_HOST..."
+    ssh "$SSH_HOST" 'apt-get install -y git || apk add git || dnf install -y git'
+fi
 
 if ! ssh "$SSH_HOST" 'command -v docker &>/dev/null'; then
     echo "==> Installing Docker on $SSH_HOST..."
