@@ -108,6 +108,17 @@ func (w *Worker) processMessage(ctx context.Context, m queue.Body, cwd string) {
 		}
 	}
 
+	// Parse secret-backed variables from the pipeline's raw HCL since they
+	// are not stored in a separate DB table.
+	if len(pp.Raw) > 0 && len(pp.SecretVars) == 0 {
+		svars, err := pipeline.ParseSecretVarsFromRaw(pp.Raw, nil)
+		if err != nil {
+			w.logger.Error("failed to parse secret vars from pipeline raw", "error", err)
+		} else {
+			pp.SecretVars = svars
+		}
+	}
+
 	if m.PipelineName != "" && m.JobName != "" {
 		w.processJob(ctx, m, cwd, pp)
 	} else if m.PipelineName != "" && m.ResourceCanonical != "" {
@@ -221,6 +232,13 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 		}
 	}
 
+	// Resolve secret-backed variables once for the entire job execution.
+	resolved, err := w.resolveSecretVars(ctx, cwd, pp)
+	if err != nil {
+		w.failBuild(ctx, m, *b, fmt.Errorf("failed to resolve secret vars: %w", err))
+		return true
+	}
+
 	// Run remaining plan steps (get/task/put)
 	for _, ps := range remainingPlan {
 		switch ps.Type {
@@ -228,21 +246,21 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 			if ps.Get == nil {
 				continue
 			}
-			if w.runGetStep(ctx, m, b, cwd, pp, *ps.Get, ps) {
+			if w.runGetStep(ctx, m, b, cwd, pp, *ps.Get, ps, resolved) {
 				return true
 			}
 		case job.StepTypeTask:
 			if ps.Task == nil {
 				continue
 			}
-			if w.runTaskStep(ctx, m, b, cwd, pp, *ps.Task, ps) {
+			if w.runTaskStep(ctx, m, b, cwd, pp, *ps.Task, ps, resolved) {
 				return true
 			}
 		case job.StepTypePut:
 			if ps.Put == nil {
 				continue
 			}
-			if w.runPutStep(ctx, m, b, cwd, pp, *ps.Put, ps) {
+			if w.runPutStep(ctx, m, b, cwd, pp, *ps.Put, ps, resolved) {
 				return true
 			}
 		}
@@ -252,7 +270,7 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 
 // runGetStep runs a single get step (resource pull).
 // Returns true if the step failed.
-func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, g job.GetStep, ps job.PlanStep) bool {
+func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, g job.GetStep, ps job.PlanStep, resolved ...map[string]string) bool {
 	r, ok := pp.Resource(utils.ResourceCanonical(g.Type, g.Name))
 	if !ok {
 		return false
@@ -276,29 +294,23 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
-	if len(ps.Secrets) > 0 {
-		start := time.Now()
-		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
-		d := time.Since(start)
-		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "secret", Name: g.Name, Logs: err.Error(), Duration: d})
-			b.Status = build.Failed
-			w.failBuild(ctx, m, *b, nil)
-			return true
-		}
-		b.Steps = append(b.Steps, build.Step{Type: "secret", Name: g.Name, Duration: d})
-		for k, v := range secretEnvs {
-			params[k] = v
-		}
+	var secretResolved map[string]string
+	if len(resolved) > 0 {
+		secretResolved = resolved[0]
 	}
+	replaceSecretPlaceholders(params, secretResolved)
 
 	for k, v := range buildMetadataParams(b, m) {
 		params[k] = v
 	}
 
+	pullArgs := make([]string, len(rt.Pull.Args))
+	copy(pullArgs, rt.Pull.Args)
+	replaceSecretPlaceholdersInSlice(pullArgs, secretResolved)
+
 	rc := utils.RunnerCommand{
 		Runner: rt.Pull.Runner,
-		Args:   rt.Pull.Args,
+		Args:   pullArgs,
 		Params: params,
 	}
 
@@ -366,34 +378,23 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 
 // runTaskStep runs a single task step.
 // Returns true if the step failed.
-func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, t job.TaskStep, ps job.PlanStep) bool {
+func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, t job.TaskStep, ps job.PlanStep, resolved ...map[string]string) bool {
 	ru, ok := pp.Runner(t.Run.Runner)
 	if !ok {
 		return false
 	}
 
-	if len(ps.Secrets) > 0 {
-		start := time.Now()
-		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
-		d := time.Since(start)
-		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "secret", Name: t.Name, Logs: err.Error(), Duration: d})
-			b.Status = build.Failed
-			w.failBuild(ctx, m, *b, nil)
-			return true
-		}
-		b.Steps = append(b.Steps, build.Step{Type: "secret", Name: t.Name, Duration: d})
-		if t.Run.Params == nil {
-			t.Run.Params = make(map[string]string)
-		}
-		for k, v := range secretEnvs {
-			t.Run.Params[k] = v
-		}
-	}
-
 	if t.Run.Params == nil {
 		t.Run.Params = make(map[string]string)
 	}
+
+	var secretResolved map[string]string
+	if len(resolved) > 0 {
+		secretResolved = resolved[0]
+	}
+	replaceSecretPlaceholders(t.Run.Params, secretResolved)
+	replaceSecretPlaceholdersInSlice(t.Run.Args, secretResolved)
+
 	for k, v := range buildMetadataParams(b, m) {
 		t.Run.Params[k] = v
 	}
@@ -455,7 +456,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 
 // runPutStep runs a single put step (resource push).
 // Returns true if the step failed.
-func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, p job.PutStep, ps job.PlanStep) bool {
+func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, p job.PutStep, ps job.PlanStep, resolved ...map[string]string) bool {
 	rCan := utils.ResourceCanonical(p.Type, p.Name)
 	r, ok := pp.Resource(rCan)
 	if !ok {
@@ -493,25 +494,19 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
-	if len(ps.Secrets) > 0 {
-		start := time.Now()
-		secretEnvs, err := w.fetchSecrets(ctx, cwd, pp, ps.Secrets)
-		d := time.Since(start)
-		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "secret", Name: p.Name, Logs: err.Error(), Duration: d})
-			b.Status = build.Failed
-			w.failBuild(ctx, m, *b, nil)
-			return true
-		}
-		b.Steps = append(b.Steps, build.Step{Type: "secret", Name: p.Name, Duration: d})
-		for k, v := range secretEnvs {
-			params[k] = v
-		}
+	var secretResolved map[string]string
+	if len(resolved) > 0 {
+		secretResolved = resolved[0]
 	}
+	replaceSecretPlaceholders(params, secretResolved)
+
+	pushArgs := make([]string, len(rt.Push.Args))
+	copy(pushArgs, rt.Push.Args)
+	replaceSecretPlaceholdersInSlice(pushArgs, secretResolved)
 
 	rc := utils.RunnerCommand{
 		Runner: rt.Push.Runner,
-		Args:   rt.Push.Args,
+		Args:   pushArgs,
 		Params: params,
 	}
 
@@ -751,14 +746,25 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 		}
 	}
 
+	resolved, err := w.resolveSecretVars(ctx, cwd, pp)
+	if err != nil {
+		w.logger.Error("failed to resolve secret vars for resource check", "error", err)
+		return
+	}
+	replaceSecretPlaceholders(params, resolved)
+
 	ru, ok := pp.Runner(rt.Check.Runner)
 	if !ok {
 		return
 	}
 
+	checkArgs := make([]string, len(rt.Check.Args))
+	copy(checkArgs, rt.Check.Args)
+	replaceSecretPlaceholdersInSlice(checkArgs, resolved)
+
 	rc := utils.RunnerCommand{
 		Runner: rt.Check.Runner,
-		Args:   rt.Check.Args,
+		Args:   checkArgs,
 		Params: params,
 	}
 	out, _, err := w.runRunner(ctx, ru, cwd, rc)
@@ -1197,6 +1203,65 @@ func (w *Worker) stopServices(m queue.Body, b *build.Build, cwd string, pp *pipe
 		}
 		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":stop", Logs: out, Duration: d})
 		w.updateBuild(stopCtx, m, *b)
+	}
+}
+
+// resolveSecretVars resolves all secret-backed variable placeholders by fetching
+// the actual secret values from the configured secret types. Variables sharing
+// the same secret type and path are batched into a single fetch call.
+func (w *Worker) resolveSecretVars(ctx context.Context, cwd string, pp *pipeline.Pipeline) (map[string]string, error) {
+	if len(pp.SecretVars) == 0 {
+		return nil, nil
+	}
+
+	// Group variables by (type, path) to avoid duplicate fetches.
+	type fetchKey struct{ typ, path string }
+	groups := make(map[fetchKey][]string) // fetchKey -> []varName
+	for varName, sv := range pp.SecretVars {
+		k := fetchKey{sv.Type, sv.Path}
+		groups[k] = append(groups[k], varName)
+	}
+
+	resolved := make(map[string]string)
+	for k, varNames := range groups {
+		secrets, err := w.fetchSecrets(ctx, cwd, pp, map[string]string{k.typ: k.path})
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve secrets from %q at %q: %w", k.typ, k.path, err)
+		}
+		for _, varName := range varNames {
+			sv := pp.SecretVars[varName]
+			placeholder := fmt.Sprintf("__pikoci_secret:%s:%s:%s__", sv.Type, sv.Path, sv.Key)
+			val, ok := secrets["secret_"+sv.Key]
+			if !ok {
+				return nil, fmt.Errorf("secret for variable %q: key %q not found in response", varName, sv.Key)
+			}
+			resolved[placeholder] = val
+		}
+	}
+	return resolved, nil
+}
+
+// replaceSecretPlaceholders replaces secret placeholder strings in a params map
+// with the actual resolved secret values.
+func replaceSecretPlaceholders(params map[string]string, resolved map[string]string) {
+	for k := range params {
+		for placeholder, val := range resolved {
+			if strings.Contains(params[k], placeholder) {
+				params[k] = strings.ReplaceAll(params[k], placeholder, val)
+			}
+		}
+	}
+}
+
+// replaceSecretPlaceholdersInSlice replaces secret placeholder strings in a
+// string slice with the actual resolved secret values.
+func replaceSecretPlaceholdersInSlice(ss []string, resolved map[string]string) {
+	for i := range ss {
+		for placeholder, val := range resolved {
+			if strings.Contains(ss[i], placeholder) {
+				ss[i] = strings.ReplaceAll(ss[i], placeholder, val)
+			}
+		}
 	}
 }
 

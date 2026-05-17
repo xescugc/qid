@@ -1,6 +1,6 @@
 # Secret Types
 
-A secret type defines how PikoCI fetches secrets from an external system (e.g. Vault, a JSON file). It has one operation: **get** (fetch secret values). Connection config (address, token, etc.) is set on the secret_type block, and the path to fetch is provided inline at the step level.
+A secret type defines how PikoCI fetches secrets from an external system (e.g. Vault, a JSON file). It has one operation: **get** (fetch secret values). Connection config (address, token, etc.) is set on the secret_type block.
 
 ## Defining a secret type
 
@@ -29,13 +29,11 @@ secret_type "vault" {
 
 ### The get operation
 
-**get** must output a JSON object on its last stdout line. Each key-value pair becomes a `secret_<key>` environment variable available to the step. Example output:
+**get** must output a JSON object on its last stdout line. Each key-value pair is available for extraction by secret-backed variables. Example output:
 
 ```json
 {"username": "admin", "password": "s3cret"}
 ```
-
-This produces `secret_username=admin` and `secret_password=s3cret` in the step's environment.
 
 ### Environment variables
 
@@ -43,7 +41,7 @@ Inside the `get` command, PikoCI exposes:
 
 | Variable            | Description                                  |
 |---------------------|----------------------------------------------|
-| `$param_<name>`     | Config values from the secret_type block + `$param_path` from the step |
+| `$param_<name>`     | Config values from the secret_type block + `$param_path` from the variable's secret block |
 | `$WORKDIR`          | Temporary working directory for the job      |
 
 ## Sourcing from URL
@@ -65,38 +63,42 @@ Two URL formats are supported:
 
 When `source` is set, you must not define an inline `get` block. PikoCI will error if both are present. Config attributes (like `address`, `token`) are still set on the block and merged with the resolved definition.
 
-## Using secrets in steps
+## Using secrets via variables
 
-Reference a secret_type by name in `get`, `task`, or `put` steps, providing the path to fetch:
+Secrets are consumed through **secret-backed variables**. Declare a variable with a `secret` block referencing a secret type, then use `var.<name>` anywhere in your pipeline:
 
 ```hcl
+variable "db_password" {
+  type = string
+  secret "vault" {
+    path = "secret/data/db"
+    key  = "password"
+  }
+}
+
+resource "git" "repo" {
+  params {
+    url   = "https://github.com/example/repo.git"
+    token = var.db_password
+  }
+}
+
 job "deploy" {
-  get "cron" "timer" {
+  get "git" "repo" {
     trigger = true
   }
   task "migrate" {
-    secrets = {
-      "vault" = "secret/data/db"
-    }
-    run "exec" {
-      path = "make"
-      args = ["migrate"]
-      # $secret_username and $secret_password available as env vars
-    }
-  }
-  task "cache-warmup" {
-    secrets = {
-      "vault" = "secret/data/redis"
-    }
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "redis-cli -h $secret_host -a $secret_password PING"]
+      args = ["-ec", "DATABASE_PASSWORD=$param_token make migrate"]
     }
   }
 }
 ```
 
-Each step can use a different path from the same secret_type. No need to pre-declare each secret path. Secrets are fetched once per step execution. If the fetch fails, the step fails immediately before the runner executes.
+Secret-backed variables are resolved lazily at runtime — every resource check, get, task, or put execution fetches the latest secret value. This means rotated secrets are picked up automatically without pipeline updates.
+
+For more details on secret-backed variables, including precedence rules and override behavior, see [Variables](Variables.md).
 
 ## Built-in: vault
 
@@ -125,7 +127,7 @@ The built-in `get` command runs:
 VAULT_ADDR=$param_address VAULT_TOKEN=$param_token vault kv get -format=json "$param_path" | jq -c '.data.data // .data'
 ```
 
-This handles both KV v1 (`.data`) and KV v2 (`.data.data`) secret engines. The `path` comes from the step's `secrets` map.
+This handles both KV v1 (`.data`) and KV v2 (`.data.data`) secret engines.
 
 ### Vault authentication
 
@@ -155,15 +157,20 @@ secret_type "my-vault" {
   token   = var.vault_token
 }
 
+variable "db_password" {
+  type = string
+  secret "my-vault" {
+    path = "secret/data/db"
+    key  = "password"
+  }
+}
+
 job "deploy" {
   get "cron" "timer" { trigger = true }
   task "migrate" {
-    secrets = {
-      "my-vault" = "secret/data/db"
-    }
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "DATABASE_URL=postgres://$secret_username:$secret_password@localhost/app make migrate"]
+      args = ["-ec", "DATABASE_URL=postgres://admin:${var.db_password}@localhost/app make migrate"]
     }
   }
 }
@@ -173,7 +180,7 @@ Provide the token in your vars file: `{"vault_token": "hvs.CAESI..."}`.
 
 ## Built-in: file
 
-The `file` secret type is built in. It reads a JSON file from disk and exposes its keys as secret environment variables. The path to the file is provided at the step level.
+The `file` secret type is built in. It reads a JSON file from disk and exposes its keys for extraction by secret-backed variables.
 
 ```hcl
 secret_type "my-file" {
@@ -181,14 +188,15 @@ secret_type "my-file" {
 }
 ```
 
-No config attributes needed. The file path comes from the step:
+No config attributes needed. The file path comes from the variable's secret block:
 
 ```hcl
-task "migrate" {
-  secrets = {
-    "my-file" = "/run/secrets/db.json"
+variable "db_user" {
+  type = string
+  secret "my-file" {
+    path = "/run/secrets/db.json"
+    key  = "username"
   }
-  run "exec" { ... }
 }
 ```
 
@@ -221,15 +229,20 @@ secret_type "aws-ssm" {
   }
 }
 
+variable "api_key" {
+  type = string
+  secret "aws-ssm" {
+    path = "/prod/api-key"
+    key  = "value"
+  }
+}
+
 job "deploy" {
   get "cron" "timer" { trigger = true }
   task "use-key" {
-    secrets = {
-      "aws-ssm" = "/prod/api-key"
-    }
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "curl -H 'Authorization: $secret_value' https://api.example.com"]
+      args = ["-ec", "curl -H 'Authorization: ${var.api_key}' https://api.example.com"]
     }
   }
 }

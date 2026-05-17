@@ -127,20 +127,26 @@ secret_type "vault" {
 | `params` | no       | List of parameter names the get command accepts      |
 | other    | no       | Config attributes passed as `param_<key>` env vars to the get command |
 
-When `source` is set, inline `get` block is not needed. Steps reference the secret_type by name and provide the path inline:
+When `source` is set, inline `get` block is not needed. Use secret-backed variables to consume secrets:
 
 ```hcl
-task "migrate" {
-  secrets = {
-    "vault" = "secret/data/db"
+variable "db_password" {
+  type = string
+  secret "vault" {
+    path = "secret/data/db"
+    key  = "password"
   }
+}
+
+task "migrate" {
   run "exec" {
-    path = "make"
-    args = ["migrate"]
-    # $secret_username and $secret_password available as env vars
+    path = "/bin/sh"
+    args = ["-ec", "DATABASE_PASSWORD=${var.db_password} make migrate"]
   }
 }
 ```
+
+See [Variables](Variables) for full secret-backed variable documentation.
 
 ## service
 

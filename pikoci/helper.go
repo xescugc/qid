@@ -32,7 +32,6 @@ type hclGetStep struct {
 	Trigger  bool     `json:"trigger" hcl:"trigger,optional"`
 	Timeout  string   `json:"timeout" hcl:"timeout,optional"`
 	Attempts int      `json:"attempts" hcl:"attempts,optional"`
-	Secrets  map[string]string `json:"secrets" hcl:"secrets,optional"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
@@ -44,7 +43,6 @@ type hclTaskStep struct {
 	Name     string              `json:"name" hcl:"name,label"`
 	Timeout  string              `json:"timeout" hcl:"timeout,optional"`
 	Attempts int                 `json:"attempts" hcl:"attempts,optional"`
-	Secrets  map[string]string   `json:"secrets" hcl:"secrets,optional"`
 	Run      utils.RunnerCommand `json:"run" hcl:"run,block"`
 
 	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
@@ -58,7 +56,6 @@ type hclPutStep struct {
 	Name     string   `hcl:"name,label"`
 	Timeout  string   `hcl:"timeout,optional"`
 	Attempts int      `hcl:"attempts,optional"`
-	Secrets  map[string]string `hcl:"secrets,optional"`
 
 	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
 	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
@@ -282,6 +279,7 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	}
 
 	ecvars := make(map[string]cty.Value)
+	secretVars := make(map[string]pipeline.VariableSecret)
 	for _, v := range pvars.Variables {
 		switch v.Type {
 		case "string":
@@ -291,6 +289,11 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 					return nil, fmt.Errorf("variable %q configured with invalid type type, expected 'string'", v.Name)
 				}
 				ecvars[v.Name] = cty.StringVal(s)
+			} else if v.Secret != nil {
+				placeholder := fmt.Sprintf("__pikoci_secret:%s:%s:%s__",
+					v.Secret.Type, v.Secret.Path, v.Secret.Key)
+				ecvars[v.Name] = cty.StringVal(placeholder)
+				secretVars[v.Name] = *v.Secret
 			} else {
 				a, ok := v.Default.(*hcl.Attribute)
 				if !ok {
@@ -497,6 +500,7 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		Runners:       runners,
 		SecretTypes:   secretTypes,
 		Services:      expandedServices,
+		SecretVars:    secretVars,
 	}
 
 	for _, hj := range hp.Jobs {
@@ -681,7 +685,6 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 					Type:     job.StepTypeGet,
 					Timeout:  timeout,
 					Attempts: g.Attempts,
-					Secrets:  g.Secrets,
 					Get: &job.GetStep{
 						Type:    g.Type,
 						Name:    g.Name,
@@ -713,7 +716,6 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 					Type:     job.StepTypeTask,
 					Timeout:  timeout,
 					Attempts: t.Attempts,
-					Secrets:  t.Secrets,
 					Task: &job.TaskStep{
 						Name: t.Name,
 						Run:  t.Run,
@@ -743,7 +745,6 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 					Type:     job.StepTypePut,
 					Timeout:  timeout,
 					Attempts: p.Attempts,
-					Secrets:  p.Secrets,
 					Put: &job.PutStep{
 						Type:   p.Type,
 						Name:   p.Name,

@@ -7,6 +7,22 @@ secret_type "my-file" {
   source = "pikoci://file"
 }
 
+variable "greeting" {
+  type = string
+  secret "my-file" {
+    path = var.secrets_file
+    key  = "greeting"
+  }
+}
+
+variable "env" {
+  type = string
+  secret "my-file" {
+    path = var.secrets_file
+    key  = "env"
+  }
+}
+
 resource "cron" "my_cron" {
   check_interval = "@every 10s"
 }
@@ -16,12 +32,9 @@ job "gen" {
     trigger = true
   }
   task "echo" {
-    secrets = {
-      "my-file" = var.secrets_file
-    }
     run "exec" {
       path = "echo"
-      args = ["greeting=$secret_greeting env=$secret_env"]
+      args = ["greeting=${var.greeting} env=${var.env}"]
     }
   }
 }

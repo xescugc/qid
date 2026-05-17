@@ -19,6 +19,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
 	"github.com/xescugc/pikoci/pikoci/runner"
+	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"go.uber.org/mock/gomock"
 	"gocloud.dev/pubsub"
@@ -1398,6 +1399,120 @@ func TestProcessJob_TaskRetry_WithTimeout(t *testing.T) {
 	logs := capturedBuild.Steps[0].Logs
 	assert.Contains(t, logs, "attempt 2/2")
 	assert.Contains(t, logs, "timed out after 1s")
+}
+
+func TestReplaceSecretPlaceholders(t *testing.T) {
+	params := map[string]string{
+		"param_token": "__pikoci_secret:vault:secret/data/github:token__",
+		"param_url":   "https://github.com/example/repo.git",
+		"param_mixed": "prefix-__pikoci_secret:vault:secret/data/github:token__-suffix",
+	}
+	resolved := map[string]string{
+		"__pikoci_secret:vault:secret/data/github:token__": "s3cret-token",
+	}
+
+	replaceSecretPlaceholders(params, resolved)
+
+	assert.Equal(t, "s3cret-token", params["param_token"])
+	assert.Equal(t, "https://github.com/example/repo.git", params["param_url"])
+	assert.Equal(t, "prefix-s3cret-token-suffix", params["param_mixed"])
+}
+
+func TestReplaceSecretPlaceholders_NoResolved(t *testing.T) {
+	params := map[string]string{
+		"param_token": "literal-value",
+	}
+
+	replaceSecretPlaceholders(params, nil)
+	assert.Equal(t, "literal-value", params["param_token"])
+}
+
+func TestProcessResourceCheck_WithSecretVars(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, topic := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical:     "main",
+		PipelineName:      "test-pipeline",
+		ResourceCanonical: "git.repo",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "test-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "git", Name: "repo", Trigger: true},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{
+				ID: 1, Name: "repo", Type: "git", Canonical: "git.repo",
+				Params: &resource.Params{
+					Params: map[string]string{
+						"url":   "https://github.com/example/repo.git",
+						"token": "__pikoci_secret:vault:secret/data/github:token__",
+					},
+				},
+			},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "git",
+				Params: []string{"url", "token"},
+				Check: &utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", `printf "[{\"ref\":\"abc123\"}]\n"`},
+					Params: map[string]string{
+						"path": "/bin/sh",
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+		SecretTypes: []sectype.SecretType{
+			{
+				Name: "vault",
+				Get: utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", `printf '{"token":"resolved-secret-value"}\n'`},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+				Config: map[string]string{"address": "http://vault:8200", "token": "my-token"},
+			},
+		},
+		SecretVars: map[string]pipeline.VariableSecret{
+			"git_token": {
+				Type: "vault",
+				Path: "secret/data/github",
+				Key:  "token",
+			},
+		},
+	}
+	cwd := t.TempDir()
+
+	// No existing versions
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "git.repo").
+		Return([]*resource.Version{}, nil)
+
+	// CreateResourceVersion for the new version found
+	svc.EXPECT().CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, "git.repo", gomock.Any()).
+		Return(&resource.Version{ID: 1, Version: map[string]interface{}{"ref": "abc123"}}, nil)
+
+	// Trigger the job
+	topic.EXPECT().Send(ctx, gomock.Any()).Return(nil)
+
+	w.processResourceCheck(ctx, m, cwd, pp)
 }
 
 // Silence the unused import warnings
