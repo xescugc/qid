@@ -19,10 +19,11 @@ variable "repo_name" {
 |-----------|----------|----------------------------------------|
 | `type`    | yes      | Variable type (`string`)               |
 | `default` | no       | Default value if not provided          |
+| `secret`  | no       | Secret block for lazy resolution       |
 
 ## Providing values
 
-Variables without a default must be set via a JSON vars file:
+Variables without a default (and without a `secret` block) must be set via a JSON vars file:
 
 ```json
 {
@@ -60,27 +61,98 @@ task "build" {
 }
 ```
 
-## Secrets
+## Secret-backed variables
 
-Currently, sensitive values (API keys, tokens, etc.) are passed as variables. Keep your vars file out of version control:
-
-```json
-{
-  "deploy_token": "secret-value"
-}
-```
+Variables can declare a `secret` block to resolve their value from a secret type at runtime. This lets secrets work everywhere variables work — resource params, task args, etc. — without hardcoding sensitive values.
 
 ```hcl
-variable "deploy_token" {
+variable "git_token" {
   type = string
+  secret "vault" {
+    path = "secret/data/github"
+    key  = "token"
+  }
 }
 
-task "deploy" {
-  run "exec" {
-    path = "/bin/sh"
-    args = ["-ec", "curl -H 'Authorization: ${var.deploy_token}' ..."]
+resource "git" "repo" {
+  params {
+    url   = "https://github.com/xescugc/pikoci.git"
+    token = var.git_token  # resolved lazily from vault at runtime
   }
 }
 ```
 
-A dedicated `secret_type` / `secret` backend system is planned for future releases.
+The `secret` block label is the name of a `secret_type` defined in the pipeline. The block has two fields:
+
+| Field  | Required | Description                                       |
+|--------|----------|---------------------------------------------------|
+| `path` | yes      | Path to fetch from the secret backend              |
+| `key`  | yes      | Key to extract from the JSON response              |
+
+### How it works
+
+At **parse time**, the variable value is set to a placeholder string. The pipeline is decoded normally with placeholders flowing into wherever `var.git_token` is used.
+
+At **runtime** (every resource check, get, task, or put execution), the worker resolves the placeholder by fetching the actual secret value. This means rotated secrets are picked up automatically without pipeline updates.
+
+### Precedence
+
+```
+vars file (--pipeline-vars) > secret block > default
+```
+
+- If the variable is provided via vars file → use it, skip secret resolution
+- If no vars file override and has secret block → placeholder at parse time, resolve at runtime
+- If no vars file override, no secret block, has default → use default
+- None of the above → error
+
+This lets you override secrets with plaintext for local development:
+
+```json
+{
+  "git_token": "my-dev-token"
+}
+```
+
+### Full example
+
+```hcl
+variable "vault_token" {
+  type    = string
+  default = "my-root-token"
+}
+
+secret_type "vault" {
+  source  = "pikoci://vault"
+  address = "http://vault:8200"
+  token   = var.vault_token
+}
+
+variable "git_token" {
+  type = string
+  secret "vault" {
+    path = "secret/data/github"
+    key  = "token"
+  }
+}
+
+resource "git" "app" {
+  check_interval = "@every 1m"
+  params {
+    url   = "https://github.com/xescugc/pikoci.git"
+    token = var.git_token
+  }
+}
+
+job "build" {
+  get "git" "app" {
+    trigger = true
+  }
+  task "compile" {
+    run "exec" {
+      path = "make"
+      args = ["build"]
+    }
+  }
+}
+```

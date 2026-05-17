@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v3"
+	"github.com/spf13/cobra"
 	"github.com/xescugc/pikoci/pikoci/utils"
 )
 
@@ -12,22 +11,26 @@ const (
 	userPasswordSeparator = ":"
 )
 
-var (
-	userPasswordCmd = &cli.Command{
-		Name:  "user-password",
-		Usage: "This is a helper if you want to add users via configuration. I generates the right value to set",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Required: true, Usage: "Username of the user"},
-			&cli.StringFlag{Name: "password", Aliases: []string{"p"}, Required: true, Usage: "Plain password of the user"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			hash, err := utils.HashPassword(cmd.String("password"))
-			if err != nil {
-				return err
-			}
+var userPasswordCmd = &cobra.Command{
+	Use:   "user-password",
+	Short: "This is a helper if you want to add users via configuration. It generates the right value to set",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		username, _ := cmd.Flags().GetString("username")
+		password, _ := cmd.Flags().GetString("password")
 
-			fmt.Printf("%s%s%s\n", cmd.String("username"), userPasswordSeparator, hash)
-			return nil
-		},
-	}
-)
+		hash, err := utils.HashPassword(password)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("%s%s%s\n", username, userPasswordSeparator, hash)
+		return nil
+	},
+}
+
+func init() {
+	userPasswordCmd.Flags().StringP("username", "u", "", "Username of the user")
+	userPasswordCmd.Flags().StringP("password", "p", "", "Plain password of the user")
+	userPasswordCmd.MarkFlagRequired("username")
+	userPasswordCmd.MarkFlagRequired("password")
+}

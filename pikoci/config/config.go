@@ -1,30 +1,30 @@
 package config
 
 type Config struct {
-	Port int `koanf:"port"`
+	Port int `mapstructure:"port"`
 
-	DBSystem string `koanf:"db-system"`
+	DBSystem string `mapstructure:"db-system"`
 
-	JWTSecret []byte `koanf:"jwt-secret"`
+	JWTSecret string `mapstructure:"jwt-secret"`
 
-	Users []string `koanf:"users"`
+	Users []string `mapstructure:"users"`
 
 	// MySQL
-	DBHost     string `koanf:"db-host"`
-	DBPort     int    `koanf:"db-port"`
-	DBUser     string `koanf:"db-user"`
-	DBPassword string `koanf:"db-password"`
-	DBName     string `koanf:"db-name"`
+	DBHost     string `mapstructure:"db-host"`
+	DBPort     int    `mapstructure:"db-port"`
+	DBUser     string `mapstructure:"db-user"`
+	DBPassword string `mapstructure:"db-password"`
+	DBName     string `mapstructure:"db-name"`
 
-	RunWorker   bool `koanf:"run-worker"`
-	Concurrency int  `koanf:"concurrency"`
+	RunWorker   bool `mapstructure:"run-worker"`
+	Concurrency int  `mapstructure:"concurrency"`
 
-	PubSubSystem string `koanf:"pubsub-system"`
+	PubSubSystem string `mapstructure:"pubsub-system"`
 
-	LogLevel string `koanf:"log-level"`
+	LogLevel string `mapstructure:"log-level"`
 
-	TeamCanonical  string `koanf:"team-canonical"`
-	PipelineName   string `koanf:"pipeline-name"`
-	PipelineConfig string `koanf:"pipeline-config"`
-	PipelineVars   string `koanf:"pipeline-vars"`
+	TeamCanonical  string `mapstructure:"team-canonical"`
+	PipelineName   string `mapstructure:"pipeline-name"`
+	PipelineConfig string `mapstructure:"pipeline-config"`
+	PipelineVars   string `mapstructure:"pipeline-vars"`
 }

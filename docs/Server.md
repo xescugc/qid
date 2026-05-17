@@ -25,26 +25,26 @@ pikoci server [flags]
 | `--pubsub-system` | | `mem` | no | Queue backend: `mem`, `nats`, `rabbit`, `kafka` |
 | `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
 | `--config` | `-c` | | no | Path to a config file |
-| `--team-canonical` | `-tc` | `main` | no | Team to use for `--pipeline-*` flags |
+| `--team-canonical` | | `main` | no | Team to use for `--pipeline-*` flags |
 | `--pipeline-config` | | | no | Load a pipeline config file at startup |
 | `--pipeline-vars` | `-v` | | no | Path to a JSON vars file for the startup pipeline |
-| `--pipeline-name` | `-n`, `-pn` | | no | Name for the startup pipeline |
+| `--pipeline-name` | `-n` | | no | Name for the startup pipeline |
 
 ## Environment variables
 
-All flags can be set via environment variables. The naming convention is:
+All flags can be set via environment variables. Use the flag name in uppercase with hyphens replaced by underscores:
 
 ```
-PIKOCI_SERVER_<FLAG_NAME_UPPERCASED_WITH_UNDERSCORES>
+<FLAG_NAME_UPPERCASED_WITH_UNDERSCORES>
 ```
 
 Examples:
 
 ```bash
-export PIKOCI_SERVER_PORT=9090
-export PIKOCI_SERVER_JWT_SECRET=my-secret
-export PIKOCI_SERVER_DB_SYSTEM=sqlite
-export PIKOCI_SERVER_PUBSUB_SYSTEM=nats
+export PORT=9090
+export JWT_SECRET=my-secret
+export DB_SYSTEM=sqlite
+export PUBSUB_SYSTEM=nats
 ```
 
 ## Default user

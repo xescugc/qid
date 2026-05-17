@@ -10,7 +10,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -65,9 +65,9 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 
 	switch ops.System {
 	case Mem:
-		db, err = sql.Open("sqlite3", "file::memory:?cache=shared&_foreign_keys=true")
+		db, err = sql.Open("sqlite", "file::memory:?cache=shared&_foreign_keys=true")
 	case SQLite:
-		db, err = sql.Open("sqlite3", ops.DBFile+"?_foreign_keys=true")
+		db, err = sql.Open("sqlite", ops.DBFile+"?_foreign_keys=true")
 	case PostgreSQL:
 		dsn := fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",

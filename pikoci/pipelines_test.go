@@ -460,7 +460,7 @@ job "test" {
 	require.NoError(t, err)
 }
 
-func TestCreatePipeline_WithSecrets(t *testing.T) {
+func TestCreatePipeline_WithSecretType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)
 	ctx := context.TODO()
@@ -485,9 +485,6 @@ job "deploy" {
     trigger = true
   }
   task "migrate" {
-    secrets = {
-      "vault" = "secret/data/db"
-    }
     run "exec" {
       path = "make"
       args = ["migrate"]
@@ -501,7 +498,6 @@ job "deploy" {
 		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
 			require.Len(t, j.Plan, 2)
 			assert.Equal(t, job.StepTypeTask, j.Plan[1].Type)
-			assert.Equal(t, map[string]string{"vault": "secret/data/db"}, j.Plan[1].Secrets)
 			return uint32(1), nil
 		})
 	s.Resources.EXPECT().Create(ctx, "main", "secrets-pipeline", gomock.Any()).Return(uint32(1), nil)
@@ -517,6 +513,141 @@ job "deploy" {
 	s.Pipelines.EXPECT().Find(ctx, "main", "secrets-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "secrets-pipeline"}, nil)
 
 	_, err := s.S.CreatePipeline(ctx, "main", "secrets-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_SecretBackedVariable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+secret_type "vault" {
+  params = ["path"]
+  address = "http://vault:8200"
+  token   = "my-token"
+  get "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo '{\"token\":\"s3cret\"}'"]
+  }
+}
+
+variable "git_token" {
+  type = string
+  secret "vault" {
+    path = "secret/data/github"
+    key  = "token"
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {
+    token = var.git_token
+  }
+}
+
+job "deploy" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "build" {
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc string, pp pipeline.Pipeline) (uint32, error) {
+			// Verify secret vars are stored on the pipeline
+			require.Len(t, pp.SecretVars, 1)
+			sv, ok := pp.SecretVars["git_token"]
+			require.True(t, ok)
+			assert.Equal(t, "vault", sv.Type)
+			assert.Equal(t, "secret/data/github", sv.Path)
+			assert.Equal(t, "token", sv.Key)
+
+			// Verify the resource param contains a placeholder
+			require.Len(t, pp.Resources, 1)
+			tokenParam := pp.Resources[0].GetParams()["token"]
+			assert.Contains(t, tokenParam, "__pikoci_secret:vault:secret/data/github:token__")
+			return uint32(1), nil
+		})
+	s.Jobs.EXPECT().Create(ctx, "main", "secret-var-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "secret-var-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.SecretTypes.EXPECT().Create(ctx, "main", "secret-var-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "secret-var-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "secret-var-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "secret-var-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_SecretBackedVariable_VarsOverride(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+secret_type "vault" {
+  params = ["path"]
+  address = "http://vault:8200"
+  token   = "my-token"
+  get "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo '{\"token\":\"s3cret\"}'"]
+  }
+}
+
+variable "git_token" {
+  type = string
+  secret "vault" {
+    path = "secret/data/github"
+    key  = "token"
+  }
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+  params {
+    token = var.git_token
+  }
+}
+
+job "deploy" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "build" {
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	vars := map[string]interface{}{"git_token": "override-token"}
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc string, pp pipeline.Pipeline) (uint32, error) {
+			// When vars override is provided, secret vars should be empty
+			assert.Empty(t, pp.SecretVars)
+
+			// The resource param should have the literal override value, not a placeholder
+			require.Len(t, pp.Resources, 1)
+			tokenParam := pp.Resources[0].GetParams()["token"]
+			assert.Equal(t, "override-token", tokenParam)
+			return uint32(1), nil
+		})
+	s.Jobs.EXPECT().Create(ctx, "main", "override-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "override-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.SecretTypes.EXPECT().Create(ctx, "main", "override-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "override-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "override-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "override-pipeline", hclConfig, vars)
 	require.NoError(t, err)
 }
 

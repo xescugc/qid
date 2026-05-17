@@ -10,7 +10,7 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/urfave/cli/v3"
+	"github.com/spf13/cobra"
 	"github.com/xescugc/pikoci/pikoci"
 	"github.com/xescugc/pikoci/pikoci/transport/http/client"
 )
@@ -19,287 +19,379 @@ var (
 	configAuthenticationPath = "pikoci/authentication"
 )
 
-var (
-	clientCmd = &cli.Command{
-		Name:  "client",
-		Usage: "Interacts with the PikoCI server",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "url", Aliases: []string{"u"}, Value: "localhost:4000", Usage: "URL to the PikoCI server", Required: true, Local: true},
-			&cli.StringFlag{Name: "jwt", Usage: "Provide the JWT to authenticate on the API, if not provided will read it from the FS", Local: true},
-		},
-		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-			// If there is no on flags we try to set it from the configAuthenticationPath
-			// if there is one. Which is set from a 'login'
-			if cmd.String("jwt") == "" {
-				configFilePath, err := xdg.SearchConfigFile(configAuthenticationPath)
-				if err != nil {
-					return ctx, nil
-				}
-
-				data, err := os.ReadFile(configFilePath)
-				if err != nil {
-					return ctx, nil
-				}
-				cmd.Set("jwt", string(data))
+var clientCmd = &cobra.Command{
+	Use:   "client",
+	Short: "Interacts with the PikoCI server",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		jwt, _ := cmd.Flags().GetString("jwt")
+		if jwt == "" {
+			configFilePath, err := xdg.SearchConfigFile(configAuthenticationPath)
+			if err != nil {
+				return nil
 			}
-			return nil, nil
-		},
-		Commands: []*cli.Command{
-			{
-				Name:  "login",
-				Usage: fmt.Sprintf("Logs the User in and stores the JWT locally at %q", filepath.Join(xdg.ConfigHome, configAuthenticationPath)),
-				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "Username use to login", Required: true},
-					&cli.StringFlag{Name: "password", Aliases: []string{"p"}, Usage: "Password use to login", Required: true},
-				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					c, err := client.New(cmd.String("url"), cmd.String("jwt"))
-					if err != nil {
-						return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-					}
 
-					_, jwt, err := c.UserLogin(ctx, cmd.String("username"), cmd.String("password"))
-					if err != nil {
-						return fmt.Errorf("failed to log in: %w", err)
-					}
+			data, err := os.ReadFile(configFilePath)
+			if err != nil {
+				return nil
+			}
+			cmd.Flags().Set("jwt", string(data))
+		}
+		return nil
+	},
+}
 
-					configFilePath, err := xdg.ConfigFile(configAuthenticationPath)
-					if err != nil {
-						return fmt.Errorf("failed to check $XDG_CONFIG_HOME: %w", err)
-					}
+func init() {
+	clientCmd.PersistentFlags().StringP("url", "u", "localhost:4000", "URL to the PikoCI server")
+	clientCmd.MarkPersistentFlagRequired("url")
+	clientCmd.PersistentFlags().String("jwt", "", "Provide the JWT to authenticate on the API, if not provided will read it from the FS")
 
-					err = os.WriteFile(configFilePath, []byte(jwt), 0666)
-					if err != nil {
-						return fmt.Errorf("failed to write the authentication file: %w", err)
-					}
+	clientCmd.AddCommand(loginCmd)
+	clientCmd.AddCommand(pipelinesCmd)
+	clientCmd.AddCommand(jobsCmd)
+}
 
-					println("Login successfully")
+// login
+var loginCmd = &cobra.Command{
+	Use:   "login",
+	Short: fmt.Sprintf("Logs the User in and stores the JWT locally at %q", filepath.Join(xdg.ConfigHome, configAuthenticationPath)),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		username, _ := cmd.Flags().GetString("username")
+		password, _ := cmd.Flags().GetString("password")
 
-					return nil
-				},
-			},
-			{
-				Name:  "pipelines",
-				Usage: "Interacts with the PikoCI Pipelines",
-				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Value: "main", Usage: "Team Canonical to scope the action", Required: true, Local: true},
-				},
-				Commands: []*cli.Command{
-					{
-						Name:  "create",
-						Usage: "Creates a new PikoCI Pipeline",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
-							&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true, Required: true},
-							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+		c, err := client.New(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
 
-							f, err := os.Open(cmd.String("config"))
-							if err != nil {
-								return fmt.Errorf("failed to open config file at %q: %w", cmd.String("config"), err)
-							}
-							defer f.Close()
+		_, jwtToken, err := c.UserLogin(cmd.Context(), username, password)
+		if err != nil {
+			return fmt.Errorf("failed to log in: %w", err)
+		}
 
-							b, err := io.ReadAll(f)
-							if err != nil {
-								return fmt.Errorf("failed to read config file at %q: %w", cmd.String("config"), err)
-							}
+		configFilePath, err := xdg.ConfigFile(configAuthenticationPath)
+		if err != nil {
+			return fmt.Errorf("failed to check $XDG_CONFIG_HOME: %w", err)
+		}
 
-							var vars map[string]interface{}
-							if cmd.String("vars") != "" {
-								vf, err := os.Open(cmd.String("vars"))
-								if err != nil {
-									return fmt.Errorf("failed to open vars file at %q: %w", cmd.String("vars"), err)
-								}
-								defer vf.Close()
+		err = os.WriteFile(configFilePath, []byte(jwtToken), 0600)
+		if err != nil {
+			return fmt.Errorf("failed to write the authentication file: %w", err)
+		}
 
-								err = json.NewDecoder(vf).Decode(&vars)
-								if err != nil {
-									return fmt.Errorf("failed to read decode vars file at %q: %w", cmd.String("vars"), err)
-								}
-							}
+		fmt.Println("Login successfully")
+		return nil
+	},
+}
 
-							_, err = c.CreatePipeline(ctx, cmd.String("team-canonical"), cmd.String("name"), b, vars)
-							if err != nil {
-								return fmt.Errorf("failed to create Pipeline %q: %w", cmd.String("name"), err)
-							}
+func init() {
+	loginCmd.Flags().String("username", "", "Username use to login")
+	loginCmd.Flags().String("password", "", "Password use to login")
+	loginCmd.MarkFlagRequired("username")
+	loginCmd.MarkFlagRequired("password")
+}
 
-							return nil
-						},
-					},
-					{
-						Name:  "update",
-						Usage: "Updates a PikoCI Pipeline",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
-							&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the Pipeline config file", TakesFile: true, Required: true},
-							&cli.StringFlag{Name: "vars", Aliases: []string{"v"}, Usage: "Path to the Pipeline var file (JSON)", TakesFile: true},
-							&cli.BoolFlag{Name: "public", Usage: "Make the pipeline publicly visible"},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
-							err = createPipeline(ctx, c, cmd.String("team-canonical"), cmd.String("name"), cmd.String("config"), cmd.String("vars"))
-							if err != nil {
-								return err
-							}
-							if cmd.IsSet("public") {
-								err = c.SetPipelinePublic(ctx, cmd.String("team-canonical"), cmd.String("name"), cmd.Bool("public"))
-								if err != nil {
-									return fmt.Errorf("failed to set pipeline public: %w", err)
-								}
-							}
-							return nil
-						},
-					},
-					{
-						Name:  "list",
-						Usage: "Lists the PikoCI Pipelines",
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+// pipelines
+var pipelinesCmd = &cobra.Command{
+	Use:   "pipelines",
+	Short: "Interacts with the PikoCI Pipelines",
+}
 
-							pps, err := c.ListPipelines(ctx, cmd.String("team-canonical"))
-							if err != nil {
-								return fmt.Errorf("failed to list Pipelines: %w", err)
-							}
+func init() {
+	pipelinesCmd.PersistentFlags().String("team-canonical", "main", "Team Canonical to scope the action")
+	pipelinesCmd.MarkPersistentFlagRequired("team-canonical")
 
-							spew.Dump(pps)
+	pipelinesCmd.AddCommand(pipelinesCreateCmd)
+	pipelinesCmd.AddCommand(pipelinesUpdateCmd)
+	pipelinesCmd.AddCommand(pipelinesListCmd)
+	pipelinesCmd.AddCommand(pipelinesGetCmd)
+	pipelinesCmd.AddCommand(pipelinesGraphCmd)
+	pipelinesCmd.AddCommand(pipelinesDeleteCmd)
+}
 
-							return nil
-						},
-					},
-					{
-						Name:  "get",
-						Usage: "Get's a PikoCI Pipeline",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+var pipelinesCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Creates a new PikoCI Pipeline",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		name, _ := cmd.Flags().GetString("name")
+		configPath, _ := cmd.Flags().GetString("config")
+		varsPath, _ := cmd.Flags().GetString("vars")
 
-							pp, err := c.GetPipeline(ctx, cmd.String("team-canonical"), cmd.String("name"))
-							if err != nil {
-								return fmt.Errorf("failed to get Pipeline %q: %w", cmd.String("name"), err)
-							}
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
 
-							spew.Dump(pp)
+		f, err := os.Open(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to open config file at %q: %w", configPath, err)
+		}
+		defer f.Close()
 
-							return nil
-						},
-					},
-					{
-						Name:  "graph",
-						Usage: "Outputs the pipeline graph in DOT format",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
-							&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Value: "dot", Usage: "Output format (dot)"},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+		b, err := io.ReadAll(f)
+		if err != nil {
+			return fmt.Errorf("failed to read config file at %q: %w", configPath, err)
+		}
 
-							image, err := c.GetPipelineImage(ctx, cmd.String("team-canonical"), cmd.String("name"), cmd.String("format"))
-							if err != nil {
-								return fmt.Errorf("failed to get pipeline graph for %q: %w", cmd.String("name"), err)
-							}
+		var vars map[string]interface{}
+		if varsPath != "" {
+			vf, err := os.Open(varsPath)
+			if err != nil {
+				return fmt.Errorf("failed to open vars file at %q: %w", varsPath, err)
+			}
+			defer vf.Close()
 
-							fmt.Fprint(os.Stdout, string(image))
+			err = json.NewDecoder(vf).Decode(&vars)
+			if err != nil {
+				return fmt.Errorf("failed to read decode vars file at %q: %w", varsPath, err)
+			}
+		}
 
-							return nil
-						},
-					},
-					{
-						Name:  "delete",
-						Usage: "Deletes a PikoCI Pipeline",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "name", Aliases: []string{"n", "pn"}, Usage: "Name of the Pipeline", Required: true},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+		_, err = c.CreatePipeline(cmd.Context(), tc, name, b, vars)
+		if err != nil {
+			return fmt.Errorf("failed to create Pipeline %q: %w", name, err)
+		}
 
-							err = c.DeletePipeline(ctx, cmd.String("team-canonical"), cmd.String("name"))
-							if err != nil {
-								return fmt.Errorf("failed to delete Pipeline %q: %w", cmd.String("name"), err)
-							}
+		return nil
+	},
+}
 
-							return nil
-						},
-					},
-				},
-			},
-			{
-				Name:  "jobs",
-				Usage: "Interacts with the PikoCI Jobs",
-				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "team-canonical", Aliases: []string{"tc"}, Usage: "Team Canonical to scope the action", Required: true, Local: true},
-					&cli.StringFlag{Name: "pipeline-name", Aliases: []string{"pn"}, Usage: "Name of the Pipeline", Required: true, Local: true},
-				},
-				Commands: []*cli.Command{
-					{
-						Name:  "get",
-						Usage: "Get's a PikoCI Pipeline Job",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "job-name", Aliases: []string{"n", "jn"}, Usage: "Name of the Job", Required: true},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+func init() {
+	pipelinesCreateCmd.Flags().StringP("name", "n", "", "Name of the Pipeline")
+	pipelinesCreateCmd.Flags().StringP("config", "c", "", "Path to the Pipeline config file")
+	pipelinesCreateCmd.Flags().StringP("vars", "v", "", "Path to the Pipeline var file (JSON)")
+	pipelinesCreateCmd.MarkFlagRequired("name")
+	pipelinesCreateCmd.MarkFlagRequired("config")
+}
 
-							j, err := c.GetPipelineJob(ctx, cmd.String("team-canonical"), cmd.String("pipeline-name"), cmd.String("job-name"))
-							if err != nil {
-								return fmt.Errorf("failed to get Job %q from Pipeline %q: %w", cmd.String("job-name"), cmd.String("pipeline-name"), err)
-							}
+var pipelinesUpdateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "Updates a PikoCI Pipeline",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		name, _ := cmd.Flags().GetString("name")
+		configPath, _ := cmd.Flags().GetString("config")
+		varsPath, _ := cmd.Flags().GetString("vars")
 
-							spew.Dump(j)
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+		err = createPipeline(cmd.Context(), c, tc, name, configPath, varsPath)
+		if err != nil {
+			return err
+		}
+		if cmd.Flags().Changed("public") {
+			public, _ := cmd.Flags().GetBool("public")
+			err = c.SetPipelinePublic(cmd.Context(), tc, name, public)
+			if err != nil {
+				return fmt.Errorf("failed to set pipeline public: %w", err)
+			}
+		}
+		return nil
+	},
+}
 
-							return nil
-						},
-					},
-					{
-						Name:  "trigger",
-						Usage: "Triggers a new PikoCI Pipeline Job",
-						Flags: []cli.Flag{
-							&cli.StringFlag{Name: "job-name", Aliases: []string{"n", "jn"}, Usage: "Name of the Job", Required: true},
-						},
-						Action: func(ctx context.Context, cmd *cli.Command) error {
-							c, err := newClientWithConfig(cmd.String("url"), cmd.String("jwt"))
-							if err != nil {
-								return fmt.Errorf("failed to initialize client with url %q: %w", cmd.String("url"), err)
-							}
+func init() {
+	pipelinesUpdateCmd.Flags().StringP("name", "n", "", "Name of the Pipeline")
+	pipelinesUpdateCmd.Flags().StringP("config", "c", "", "Path to the Pipeline config file")
+	pipelinesUpdateCmd.Flags().StringP("vars", "v", "", "Path to the Pipeline var file (JSON)")
+	pipelinesUpdateCmd.Flags().Bool("public", false, "Make the pipeline publicly visible")
+	pipelinesUpdateCmd.MarkFlagRequired("name")
+	pipelinesUpdateCmd.MarkFlagRequired("config")
+}
 
-							err = c.TriggerPipelineJob(ctx, cmd.String("team-canonical"), cmd.String("pipeline-name"), cmd.String("job-name"))
-							if err != nil {
-								return fmt.Errorf("failed to trigger Job %q from Pipeline %q: %w", cmd.String("job-name"), cmd.String("pipeline-name"), err)
-							}
+var pipelinesListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "Lists the PikoCI Pipelines",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
 
-							return nil
-						},
-					},
-				},
-			},
-		},
-	}
-)
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+
+		pps, err := c.ListPipelines(cmd.Context(), tc)
+		if err != nil {
+			return fmt.Errorf("failed to list Pipelines: %w", err)
+		}
+
+		spew.Dump(pps)
+		return nil
+	},
+}
+
+var pipelinesGetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Gets a PikoCI Pipeline",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		name, _ := cmd.Flags().GetString("name")
+
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+
+		pp, err := c.GetPipeline(cmd.Context(), tc, name)
+		if err != nil {
+			return fmt.Errorf("failed to get Pipeline %q: %w", name, err)
+		}
+
+		spew.Dump(pp)
+		return nil
+	},
+}
+
+func init() {
+	pipelinesGetCmd.Flags().StringP("name", "n", "", "Name of the Pipeline")
+	pipelinesGetCmd.MarkFlagRequired("name")
+}
+
+var pipelinesGraphCmd = &cobra.Command{
+	Use:   "graph",
+	Short: "Outputs the pipeline graph in DOT format",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		name, _ := cmd.Flags().GetString("name")
+		format, _ := cmd.Flags().GetString("format")
+
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+
+		image, err := c.GetPipelineImage(cmd.Context(), tc, name, format)
+		if err != nil {
+			return fmt.Errorf("failed to get pipeline graph for %q: %w", name, err)
+		}
+
+		fmt.Fprint(os.Stdout, string(image))
+		return nil
+	},
+}
+
+func init() {
+	pipelinesGraphCmd.Flags().StringP("name", "n", "", "Name of the Pipeline")
+	pipelinesGraphCmd.Flags().StringP("format", "f", "dot", "Output format (dot)")
+	pipelinesGraphCmd.MarkFlagRequired("name")
+}
+
+var pipelinesDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Deletes a PikoCI Pipeline",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		name, _ := cmd.Flags().GetString("name")
+
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+
+		err = c.DeletePipeline(cmd.Context(), tc, name)
+		if err != nil {
+			return fmt.Errorf("failed to delete Pipeline %q: %w", name, err)
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	pipelinesDeleteCmd.Flags().StringP("name", "n", "", "Name of the Pipeline")
+	pipelinesDeleteCmd.MarkFlagRequired("name")
+}
+
+// jobs
+var jobsCmd = &cobra.Command{
+	Use:   "jobs",
+	Short: "Interacts with the PikoCI Jobs",
+}
+
+func init() {
+	jobsCmd.PersistentFlags().String("team-canonical", "", "Team Canonical to scope the action")
+	jobsCmd.PersistentFlags().String("pipeline-name", "", "Name of the Pipeline")
+	jobsCmd.MarkPersistentFlagRequired("team-canonical")
+	jobsCmd.MarkPersistentFlagRequired("pipeline-name")
+
+	jobsCmd.AddCommand(jobsGetCmd)
+	jobsCmd.AddCommand(jobsTriggerCmd)
+}
+
+var jobsGetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Gets a PikoCI Pipeline Job",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		pn, _ := cmd.Flags().GetString("pipeline-name")
+		jn, _ := cmd.Flags().GetString("job-name")
+
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+
+		j, err := c.GetPipelineJob(cmd.Context(), tc, pn, jn)
+		if err != nil {
+			return fmt.Errorf("failed to get Job %q from Pipeline %q: %w", jn, pn, err)
+		}
+
+		spew.Dump(j)
+		return nil
+	},
+}
+
+func init() {
+	jobsGetCmd.Flags().StringP("job-name", "n", "", "Name of the Job")
+	jobsGetCmd.MarkFlagRequired("job-name")
+}
+
+var jobsTriggerCmd = &cobra.Command{
+	Use:   "trigger",
+	Short: "Triggers a new PikoCI Pipeline Job",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url, _ := cmd.Flags().GetString("url")
+		jwt, _ := cmd.Flags().GetString("jwt")
+		tc, _ := cmd.Flags().GetString("team-canonical")
+		pn, _ := cmd.Flags().GetString("pipeline-name")
+		jn, _ := cmd.Flags().GetString("job-name")
+
+		c, err := newClientWithConfig(url, jwt)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", url, err)
+		}
+
+		err = c.TriggerPipelineJob(cmd.Context(), tc, pn, jn)
+		if err != nil {
+			return fmt.Errorf("failed to trigger Job %q from Pipeline %q: %w", jn, pn, err)
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	jobsTriggerCmd.Flags().StringP("job-name", "n", "", "Name of the Job")
+	jobsTriggerCmd.MarkFlagRequired("job-name")
+}
 
 func newClientWithConfig(url, jwt string) (*client.Client, error) {
 	c, err := client.New(url, jwt)
@@ -314,7 +406,6 @@ func newClientWithConfig(url, jwt string) (*client.Client, error) {
 }
 
 func createPipeline(ctx context.Context, svc pikoci.Service, tc, name, config, vars string) error {
-
 	f, err := os.Open(config)
 	if err != nil {
 		return fmt.Errorf("failed to open config file at %q: %w", config, err)

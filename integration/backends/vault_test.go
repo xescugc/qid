@@ -162,12 +162,28 @@ func TestSecretsVaultE2E(t *testing.T) {
 	}()
 
 	// Create pipeline using built-in pikoci://vault secret_type
-	// Address and token are config on the secret_type, path is inline at step level
+	// Address and token are config on the secret_type, secrets are resolved via variables
 	hclConfig := []byte(fmt.Sprintf(`
 secret_type "my-vault" {
   source  = "pikoci://vault"
   address = "%s"
   token   = "%s"
+}
+
+variable "db_username" {
+  type = string
+  secret "my-vault" {
+    path = "secret/db-creds"
+    key  = "username"
+  }
+}
+
+variable "db_password" {
+  type = string
+  secret "my-vault" {
+    path = "secret/db-creds"
+    key  = "password"
+  }
 }
 
 resource "cron" "timer" {
@@ -179,12 +195,9 @@ job "deploy" {
     trigger = true
   }
   task "use-vault-secrets" {
-    secrets = {
-      "my-vault" = "secret/db-creds"
-    }
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "echo username=$secret_username password=$secret_password"]
+      args = ["-ec", "echo username=${var.db_username} password=${var.db_password}"]
     }
   }
 }

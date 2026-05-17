@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/xescugc/pikoci/pikoci/builtin"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
@@ -18,17 +19,18 @@ import (
 )
 
 type Pipeline struct {
-	ID            uint32                 `json:"id"`
-	Name          string                 `json:"name"`
-	Public        bool                   `json:"public"`
-	Jobs          []job.Job              `json:"jobs" hcl:"job,block"`
-	Resources     []resource.Resource    `json:"resources" hcl:"resource,block"`
-	ResourceTypes []restype.ResourceType `json:"resource_types" hcl:"resource_type,block"`
-	Runners       []runner.Runner        `json:"runners" hcl:"runner,block"`
-	SecretTypes   []sectype.SecretType   `json:"secret_types" hcl:"secret_type,block"`
-	Services      []service.Service      `json:"services" hcl:"service,block"`
-	Remain        hcl.Body               `json:"-" hcl:",remain"`
-	Raw           []byte                 `json:"raw"`
+	ID            uint32                    `json:"id"`
+	Name          string                    `json:"name"`
+	Public        bool                      `json:"public"`
+	Jobs          []job.Job                 `json:"jobs" hcl:"job,block"`
+	Resources     []resource.Resource       `json:"resources" hcl:"resource,block"`
+	ResourceTypes []restype.ResourceType    `json:"resource_types" hcl:"resource_type,block"`
+	Runners       []runner.Runner           `json:"runners" hcl:"runner,block"`
+	SecretTypes   []sectype.SecretType      `json:"secret_types" hcl:"secret_type,block"`
+	Services      []service.Service         `json:"services" hcl:"service,block"`
+	SecretVars    map[string]VariableSecret `json:"secret_vars,omitempty"`
+	Remain        hcl.Body                  `json:"-" hcl:",remain"`
+	Raw           []byte                    `json:"raw"`
 }
 
 type Variables struct {
@@ -36,9 +38,16 @@ type Variables struct {
 	Remain    hcl.Body   `hcl:",remain"`
 }
 type Variable struct {
-	Name    string      `json:"name" hcl:"name,label"`
-	Type    string      `json:"type" hcl:"type"`
-	Default interface{} `json:"default" hcl:"default,optional"`
+	Name    string           `json:"name" hcl:"name,label"`
+	Type    string           `json:"type" hcl:"type"`
+	Default interface{}      `json:"default" hcl:"default,optional"`
+	Secret  *VariableSecret  `json:"secret,omitempty" hcl:"secret,block"`
+}
+
+type VariableSecret struct {
+	Type string `json:"type" hcl:"type,label"`
+	Path string `json:"path" hcl:"path"`
+	Key  string `json:"key" hcl:"key"`
 }
 
 func (pp *Pipeline) ResourceType(rtn string) (restype.ResourceType, bool) {
@@ -187,5 +196,56 @@ func convertHCLService(hs hclServiceRaw) service.Service {
 		}
 	}
 	return s
+}
+
+// hclVariableRaw is a minimal struct for parsing variable blocks from raw HCL.
+type hclVariableRaw struct {
+	Name   string           `hcl:"name,label"`
+	Type   string           `hcl:"type"`
+	Secret *VariableSecret  `hcl:"secret,block"`
+	Remain hcl.Body         `hcl:",remain"`
+}
+
+// hclPipelineVariables is a minimal struct for parsing only variable blocks from raw HCL.
+type hclPipelineVariables struct {
+	Variables []hclVariableRaw `hcl:"variable,block"`
+	Remain    hcl.Body         `hcl:",remain"`
+}
+
+// ParseSecretVarsFromRaw parses secret-backed variable declarations from raw pipeline HCL.
+// Used to populate the SecretVars field on pipelines loaded from the database.
+func ParseSecretVarsFromRaw(raw []byte, vars map[string]interface{}) (map[string]VariableSecret, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	ectx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"string": cty.StringVal("string"),
+			"number": cty.StringVal("number"),
+			"bool":   cty.StringVal("bool"),
+		},
+	}
+
+	var pv hclPipelineVariables
+	err := hclsimple.Decode("pipeline.hcl", raw, ectx, &pv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse variables from raw HCL: %w", err)
+	}
+
+	secretVars := make(map[string]VariableSecret)
+	for _, v := range pv.Variables {
+		if v.Secret != nil {
+			// Only include if not overridden by vars file
+			if _, overridden := vars[v.Name]; !overridden {
+				secretVars[v.Name] = *v.Secret
+			}
+		}
+	}
+
+	if len(secretVars) == 0 {
+		return nil, nil
+	}
+	return secretVars, nil
 }
 

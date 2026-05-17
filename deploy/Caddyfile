@@ -1,0 +1,7 @@
+{$PIKOCI_DOMAIN} {
+	reverse_proxy host.docker.internal:8080
+}
+
+{$PIKOCI_GRAFANA_DOMAIN} {
+	reverse_proxy grafana:3000
+}

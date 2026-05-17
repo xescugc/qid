@@ -1,0 +1,23 @@
+[Unit]
+Description=PikoCI Server
+After=network.target
+
+[Service]
+Type=simple
+User=pikoci
+Group=pikoci
+ExecStart=/usr/local/bin/pikoci server
+EnvironmentFile=/etc/pikoci/pikoci.env
+Environment=HOME=/var/lib/pikoci
+WorkingDirectory=/var/lib/pikoci
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pikoci
+
+[Install]
+WantedBy=multi-user.target

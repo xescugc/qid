@@ -96,7 +96,6 @@ type PlanStep struct {
 	Type      StepType              `json:"type"`
 	Timeout   time.Duration         `json:"timeout,omitempty"`
 	Attempts  int                   `json:"attempts,omitempty"`
-	Secrets   map[string]string      `json:"secrets,omitempty"`
 	Get       *GetStep              `json:"get,omitempty"`
 	Task      *TaskStep             `json:"task,omitempty"`
 	Put       *PutStep              `json:"put,omitempty"`

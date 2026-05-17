@@ -8,12 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/knadh/koanf/parsers/json"
-	"github.com/knadh/koanf/providers/cliflagv3"
-	"github.com/knadh/koanf/providers/env/v2"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/v2"
-	"github.com/urfave/cli/v3"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/xescugc/pikoci/pikoci"
 	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/transport/http/client"
@@ -22,82 +18,68 @@ import (
 
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
-	_ "gocloud.dev/pubsub/mempubsub"
 
 	_ "gocloud.dev/pubsub/kafkapubsub"
 	_ "gocloud.dev/pubsub/rabbitpubsub"
 )
 
-var (
-	workerCmd = &cli.Command{
-		Name:  "worker",
-		Usage: "Starts a PikoCI Worker",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "config", Aliases: []string{"c"}, Usage: "Path to the config file"},
+var workerViper = viper.New()
 
-			&cli.StringFlag{Name: "pikoci-url", Aliases: []string{"u"}, Value: "localhost:8080", Usage: "URL to the PikoCI server"},
+var workerCmd = &cobra.Command{
+	Use:   "worker",
+	Short: "Starts a PikoCI Worker",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
 
-			&cli.StringFlag{Name: "pubsub-system", Value: mempubsub.Scheme, Usage: "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS"},
-
-			&cli.IntFlag{Name: "concurrency", Value: 1, Usage: "Number of workers to start in one instance"},
-
-			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
-
-			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "JWT secret (must match the server's --jwt-secret)"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			k := koanf.New(".")
-
-			// Load the config files provided in the commandline.
-			cfgf := cmd.String("config")
-			if cfgf != "" {
-				if err := k.Load(file.Provider(cfgf), json.Parser()); err != nil {
-					return fmt.Errorf("error loading file: %v", err)
-				}
+		// Load config file if provided
+		cfgFile, _ := cmd.Flags().GetString("config")
+		if cfgFile != "" {
+			workerViper.SetConfigFile(cfgFile)
+			if err := workerViper.ReadInConfig(); err != nil {
+				return fmt.Errorf("error loading config file: %v", err)
 			}
-			if err := k.Load(cliflagv3.Provider(cmd, "pikoci.worker"), nil); err != nil {
-				return fmt.Errorf("error loading flags: %v", err)
-			}
-			if err := k.Load(env.Provider(".", env.Opt{
-				TransformFunc: func(k, v string) (string, any) {
-					// Transform the key.
-					k = strings.ReplaceAll(strings.ToLower(k), "_", "-")
+		}
 
-					// Transform the value into slices, if they contain spaces.
-					// Eg: MYVAR_TAGS="foo bar baz" -> tags: ["foo", "bar", "baz"]
-					// This is to demonstrate that string values can be transformed to any type
-					// where necessary.
-					if strings.Contains(v, " ") {
-						return k, strings.Split(v, " ")
-					}
+		var cfg config.Config
+		if err := workerViper.Unmarshal(&cfg); err != nil {
+			return fmt.Errorf("error unmarshalling config: %v", err)
+		}
 
-					return fmt.Sprintf("pikoci.worker.%s", k), v
-				},
-			}), nil); err != nil {
-				return fmt.Errorf("error loading environments: %v", err)
-			}
+		if cfg.JWTSecret == "" {
+			return fmt.Errorf("required flag \"jwt-secret\" not set")
+		}
 
-			var cfg config.Config
-			k.Unmarshal("pikoci.worker", &cfg)
+		workerToken := generateWorkerJWT([]byte(cfg.JWTSecret))
+		c, err := client.New(cfg.PikoCIURL, workerToken)
+		if err != nil {
+			return fmt.Errorf("failed to initialize client with url %q: %w", cfg.PikoCIURL, err)
+		}
 
-			workerToken := generateWorkerJWT(cfg.JWTSecret)
-			c, err := client.New(cfg.PikoCIURL, workerToken)
-			if err != nil {
-				return fmt.Errorf("failed to initialize client with url %q: %w", cfg.PikoCIURL, err)
-			}
+		topic, err := pubsub.OpenTopic(ctx, getTopicURL(cfg.PubSubSystem))
+		if err != nil {
+			return fmt.Errorf("failed to open: %v", err)
+		}
+		defer topic.Shutdown(ctx)
 
-			topic, err := pubsub.OpenTopic(ctx, getTopicURL(cfg.PubSubSystem))
-			if err != nil {
-				return fmt.Errorf("failed to open: %v", err)
-			}
-			defer topic.Shutdown(ctx)
+		runWorker(ctx, cfg.PubSubSystem, topic, c, cfg.Concurrency, cfg.LogLevel)
 
-			runWorker(ctx, cfg.PubSubSystem, topic, c, cfg.Concurrency, cfg.LogLevel)
+		return nil
+	},
+}
 
-			return nil
-		},
-	}
-)
+func init() {
+	workerCmd.Flags().StringP("config", "c", "", "Path to the config file")
+	workerCmd.Flags().StringP("pikoci-url", "u", "localhost:8080", "URL to the PikoCI server")
+	workerCmd.Flags().String("pubsub-system", mempubsub.Scheme, "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS")
+	workerCmd.Flags().Int("concurrency", 1, "Number of workers to start in one instance")
+	workerCmd.Flags().String("log-level", "info", "Sets the log level ('debug', 'info', 'warn', 'error')")
+	workerCmd.Flags().String("jwt-secret", "", "JWT secret (must match the server's --jwt-secret)")
+
+	workerViper.BindPFlags(workerCmd.Flags())
+
+	workerViper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	workerViper.AutomaticEnv()
+}
 
 func runWorker(ctx context.Context, sy string, t queue.Topic, s pikoci.Service, c int, llvl string) error {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseSlogLevel(llvl)}))

@@ -1,11 +1,11 @@
 package config
 
 type Config struct {
-	PikoCIURL string `koanf:"pikoci-url"`
-	JWTSecret []byte `koanf:"jwt-secret"`
+	PikoCIURL string `mapstructure:"pikoci-url"`
+	JWTSecret string `mapstructure:"jwt-secret"`
 
-	Concurrency  int    `koanf:"concurrency"`
-	PubSubSystem string `koanf:"pubsub-system"`
+	Concurrency  int    `mapstructure:"concurrency"`
+	PubSubSystem string `mapstructure:"pubsub-system"`
 
-	LogLevel string `koanf:"log-level"`
+	LogLevel string `mapstructure:"log-level"`
 }
