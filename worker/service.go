@@ -51,11 +51,14 @@ func New(s pikoci.Service, t queue.Topic, ss queue.Subscription, l *slog.Logger)
 }
 
 func (w *Worker) Run(ctx context.Context) error {
+	w.logger.Info("Worker waiting for messages...")
 	for {
 		msg, err := w.subscription.Receive(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to receive message: %w", err)
 		}
+
+		w.logger.Info("received message", "body", string(msg.Body))
 
 		var m queue.Body
 		if err := json.Unmarshal(msg.Body, &m); err != nil {
@@ -755,16 +758,20 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd string, pp *pipeline.Pipeline) {
 	r, ok := pp.Resource(m.ResourceCanonical)
 	if !ok {
+		w.logger.Error("resource not found in pipeline", "resource", m.ResourceCanonical)
 		return
 	}
 	rt, ok := pp.ResourceType(r.Type)
 	if !ok {
+		w.logger.Error("resource type not found", "type", r.Type, "resource", m.ResourceCanonical)
 		return
 	}
 
 	if rt.Check == nil {
+		w.logger.Error("resource type has no check command", "type", r.Type)
 		return
 	}
+	w.logger.Info("running resource check", "resource", m.ResourceCanonical, "type", r.Type)
 
 	params := make(map[string]string)
 	for k, v := range rt.Check.Params {
@@ -929,12 +936,12 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc
 	var out string
 	for _, a := range ru.Run.Args {
 		if a == "$args" {
-			for _, ca := range rc.Args {
-				ea := os.Expand(ca, envFn)
-				if ea != "" {
-					args = append(args, ea)
-				}
-			}
+			// Pass command args through without os.Expand.
+			// The $param_* and $version_* variables are set as env vars
+			// on the process, so the shell expands them naturally.
+			// This allows shell scripts to use local variables and awk
+			// without Go's os.Expand destroying them.
+			args = append(args, rc.Args...)
 			continue
 		}
 		ea := os.Expand(a, envFn)
