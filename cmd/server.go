@@ -14,6 +14,9 @@ import (
 	"github.com/cycloidio/sqlr"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v3"
 	"github.com/xescugc/pikoci/pikoci"
 	"github.com/xescugc/pikoci/pikoci/config"
@@ -174,8 +177,27 @@ var (
 			var handler = tshttp.Handler(svc, cfg.JWTSecret, logger.With("component", "HTTP"))
 			logger.Info("initialized http handlers")
 
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(collectors.NewGoCollector())
+			reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+			httpRequests := prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "http_requests_total", Help: "Total HTTP requests by status code and method."},
+				[]string{"code", "method"},
+			)
+			httpDuration := prometheus.NewHistogramVec(
+				prometheus.HistogramOpts{Name: "http_request_duration_seconds", Help: "HTTP request duration in seconds."},
+				[]string{"code", "method"},
+			)
+			reg.MustRegister(httpRequests, httpDuration)
+
+			instrumentedHandler := promhttp.InstrumentHandlerCounter(httpRequests,
+				promhttp.InstrumentHandlerDuration(httpDuration, handler),
+			)
+
 			mux := http.NewServeMux()
-			mux.Handle("/", handler)
+			mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+			mux.Handle("/", instrumentedHandler)
 
 			svr := &http.Server{
 				Addr:    fmt.Sprintf(":%d", cfg.Port),
