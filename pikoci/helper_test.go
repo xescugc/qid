@@ -22,6 +22,7 @@ type MockService struct {
 	SecretTypes *mock.SecretTypeRepository
 
 	S pikoci.Service
+	P *pikoci.PikoCI
 }
 
 func newService(ctrl *gomock.Controller) MockService {
@@ -48,6 +49,7 @@ func newService(ctrl *gomock.Controller) MockService {
 		SecretTypesRepo: str,
 	})
 
+	p := pikoci.New(context.TODO(), t, ur, tr, pr, jr, rr, rtr, br, rur, str, suow, []byte("test-secret"), nil)
 	return MockService{
 		Topic:         t,
 		Users:         ur,
@@ -60,6 +62,7 @@ func newService(ctrl *gomock.Controller) MockService {
 		Runners:       rur,
 		SecretTypes: str,
 
-		S: pikoci.New(context.TODO(), t, ur, tr, pr, jr, rr, rtr, br, rur, str, suow, []byte("test-secret"), nil),
+		S: p,
+		P: p,
 	}
 }

@@ -2,6 +2,7 @@ package pikoci_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,40 @@ func TestCreateUser_Hashed(t *testing.T) {
 	u, err := s.S.CreateUser(ctx, user.User{Username: "admin", Password: hash}, true)
 	require.NoError(t, err)
 	assert.Equal(t, hash, u.Password)
+}
+
+func TestCreateOrUpdateUser_CreatesNew(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Users.EXPECT().Find(ctx, "newuser").Return(nil, fmt.Errorf("not found"))
+	s.Users.EXPECT().Create(ctx, gomock.Any()).Return(uint32(1), nil)
+
+	u, err := s.P.CreateOrUpdateUser(ctx, user.User{Username: "newuser", Password: "secret"}, false)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	assert.Equal(t, uint32(1), u.ID)
+	assert.Equal(t, "newuser", u.Username)
+	assert.True(t, utils.CheckPasswordHash("secret", u.Password))
+}
+
+func TestCreateOrUpdateUser_UpdatesExisting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	existing := &user.User{ID: 1, Username: "admin", Password: "old-hash", FullName: "Admin", Admin: true}
+	s.Users.EXPECT().Find(ctx, "admin").Return(existing, nil)
+	s.Users.EXPECT().Update(ctx, "admin", gomock.Any()).Return(nil)
+
+	newHash, _ := utils.HashPassword("newsecret")
+	u, err := s.P.CreateOrUpdateUser(ctx, user.User{Username: "admin", Password: newHash}, true)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1), u.ID)
+	assert.Equal(t, newHash, u.Password)
+	assert.True(t, u.Admin)
+	assert.Equal(t, "Admin", u.FullName)
 }
 
 func TestCreateUser_InvalidUsername(t *testing.T) {
