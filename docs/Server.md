@@ -49,14 +49,23 @@ export PIKOCI_SERVER_PUBSUB_SYSTEM=nats
 
 ## Default user
 
-The initial database migration seeds a default user: `admin` / `admin123`. To add additional users, use the `user-password` command to generate hashed passwords and pass them with `--users`:
+The initial database migration seeds a default user: `admin` / `admin123`. Use the `--users` flag to add new users or update existing users' passwords. If a user already exists, their password is updated; otherwise a new user is created.
 
 ```bash
+# Change the default admin password
+./pikoci user-password -u admin -p new-secure-password
+# Output: admin:$2a$10$...
+
+./pikoci server --jwt-secret my-secret --users 'admin:$2a$10$...'
+
+# Add a new user
 ./pikoci user-password -u deploy -p s3cret
 # Output: deploy:$2a$10$...
 
-./pikoci server --jwt-secret my-secret --users 'deploy:$2a$10$...'
+./pikoci server --jwt-secret my-secret --users 'admin:$2a$10$...' --users 'deploy:$2a$10$...'
 ```
+
+The `--users` flag is idempotent and safe to pass on every restart.
 
 ## Examples
 

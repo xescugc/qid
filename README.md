@@ -79,7 +79,7 @@ The fastest way to get started. Pass a pipeline config directly at launch. When 
 
 Open [http://localhost:8080](http://localhost:8080) and log in with the default user `admin` and password `admin123`.
 
-> **Users:** pass `--users 'username:hashed-password'` to add more users at startup. Use `pikoci user-password` to generate password hashes.
+> **Users:** pass `--users 'username:hashed-password'` to add or update users at startup. If a user already exists, their password is updated. Use `pikoci user-password` to generate password hashes.
 
 ### Example pipeline
 
