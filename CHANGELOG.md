@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace `urfave/cli` + `koanf` with `cobra` + `viper` for CLI and config management. Environment variables now use simple uppercase names (e.g., `JWT_SECRET`, `DB_SYSTEM`) ([#238](https://github.com/xescugc/pikoci/issues/238))
+- Replace `mattn/go-sqlite3` (CGO) with `modernc.org/sqlite` (pure Go) to enable cross-compilation without a C compiler
 - Add deployment infrastructure: systemd unit, Docker Compose for supporting services (Caddy, Prometheus, Grafana, Node Exporter), deploy script, and deployment documentation
 - Add `/metrics` endpoint for Prometheus scraping with Go runtime metrics, HTTP request counts by status/method, and request duration histograms ([#234](https://github.com/xescugc/pikoci/issues/234))
 - Make `--users` flag idempotent: existing users get their password updated instead of failing. Adds `CreateOrUpdateUser` (startup only, not exposed via HTTP API) so production deployments can override the default admin password via environment config ([#232](https://github.com/xescugc/pikoci/issues/232))

@@ -1,22 +1,25 @@
 package cmd
 
 import (
-	"github.com/urfave/cli/v3"
+	"github.com/spf13/cobra"
 )
 
 var (
 	AppName = "pikoci"
 )
 
-var (
-	Cmd = &cli.Command{
-		Name:  AppName,
-		Usage: "PikoCI is a self-hosted, portable CI/CD system",
-		Commands: []*cli.Command{
-			serverCmd,
-			clientCmd,
-			workerCmd,
-			userPasswordCmd,
-		},
-	}
-)
+var rootCmd = &cobra.Command{
+	Use:   AppName,
+	Short: "PikoCI is a self-hosted, portable CI/CD system",
+}
+
+func Execute() error {
+	return rootCmd.Execute()
+}
+
+func init() {
+	rootCmd.AddCommand(serverCmd)
+	rootCmd.AddCommand(clientCmd)
+	rootCmd.AddCommand(workerCmd)
+	rootCmd.AddCommand(userPasswordCmd)
+}

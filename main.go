@@ -1,16 +1,13 @@
 package main
 
 import (
-	"context"
 	"log"
-	"os"
 
 	"github.com/xescugc/pikoci/cmd"
 )
 
 func main() {
-	err := cmd.Cmd.Run(context.TODO(), os.Args)
-	if err != nil {
+	if err := cmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
 }

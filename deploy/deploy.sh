@@ -72,6 +72,9 @@ else
     chmod +x "$BINARY"
 fi
 
+echo "==> Stopping PikoCI service..."
+ssh "$SSH_HOST" 'systemctl stop pikoci 2>/dev/null || true'
+
 echo "==> Copying binary to $SSH_HOST..."
 scp "$BINARY" "$SSH_HOST":/usr/local/bin/pikoci
 
