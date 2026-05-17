@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add deployment infrastructure: systemd unit, Docker Compose for supporting services (Caddy, Prometheus, Grafana, Node Exporter), deploy script, and deployment documentation
 - Add `/metrics` endpoint for Prometheus scraping with Go runtime metrics, HTTP request counts by status/method, and request duration histograms ([#234](https://github.com/xescugc/pikoci/issues/234))
 - Make `--users` flag idempotent: existing users get their password updated instead of failing. Adds `CreateOrUpdateUser` (startup only, not exposed via HTTP API) so production deployments can override the default admin password via environment config ([#232](https://github.com/xescugc/pikoci/issues/232))
 - Add GitHub Checks support: `github-check` resource type for reporting build status via GitHub App, `put` steps in hooks (`on_success`, `on_failure`, `ensure`), build metadata env vars (`BUILD_ID`, `BUILD_JOB_NAME`, `BUILD_PIPELINE_NAME`, `BUILD_TEAM_NAME`, `BUILD_STATUS`) in all step types, and optional `check`/`pull`/`push` blocks on resource types ([#179](https://github.com/xescugc/pikoci/issues/179))

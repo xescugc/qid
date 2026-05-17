@@ -43,7 +43,7 @@ var (
 
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "Sets the log level ('debug', 'info', 'warn', 'error')"},
 
-			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "JWT secret (must match the server's --jwt-secret)"},
+			&cli.StringFlag{Name: "jwt-secret", Usage: "JWT secret (must match the server's --jwt-secret)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			k := koanf.New(".")
@@ -79,6 +79,10 @@ var (
 
 			var cfg config.Config
 			k.Unmarshal("pikoci.worker", &cfg)
+
+			if len(cfg.JWTSecret) == 0 {
+				return fmt.Errorf("required flag \"jwt-secret\" not set")
+			}
 
 			workerToken := generateWorkerJWT(cfg.JWTSecret)
 			c, err := client.New(cfg.PikoCIURL, workerToken)

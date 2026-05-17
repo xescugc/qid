@@ -32,19 +32,19 @@ pikoci server [flags]
 
 ## Environment variables
 
-All flags can be set via environment variables. The naming convention is:
+All flags can be set via environment variables. Use the flag name in uppercase with hyphens replaced by underscores:
 
 ```
-PIKOCI_SERVER_<FLAG_NAME_UPPERCASED_WITH_UNDERSCORES>
+<FLAG_NAME_UPPERCASED_WITH_UNDERSCORES>
 ```
 
 Examples:
 
 ```bash
-export PIKOCI_SERVER_PORT=9090
-export PIKOCI_SERVER_JWT_SECRET=my-secret
-export PIKOCI_SERVER_DB_SYSTEM=sqlite
-export PIKOCI_SERVER_PUBSUB_SYSTEM=nats
+export PORT=9090
+export JWT_SECRET=my-secret
+export DB_SYSTEM=sqlite
+export PUBSUB_SYSTEM=nats
 ```
 
 ## Default user

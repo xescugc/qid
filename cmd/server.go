@@ -53,7 +53,7 @@ var (
 
 			&cli.IntFlag{Name: "port", Aliases: []string{"p"}, Value: 8080, Usage: "Port in which to start the server"},
 
-			&cli.StringFlag{Name: "jwt-secret", Required: true, Usage: "Declares the Secret used to sign the JWT when user login"},
+			&cli.StringFlag{Name: "jwt-secret", Usage: "Declares the Secret used to sign the JWT when user login"},
 
 			&cli.StringSliceFlag{Name: "users", Usage: "List of Users which will have 'USERNAME:HASH-PASSWORD', you can use the 'user-password' command to help you"},
 
@@ -112,6 +112,10 @@ var (
 
 			var cfg config.Config
 			k.Unmarshal("pikoci.server", &cfg)
+
+			if len(cfg.JWTSecret) == 0 {
+				return fmt.Errorf("required flag \"jwt-secret\" not set")
+			}
 
 			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseSlogLevel(cfg.LogLevel)}))
 			logger = logger.With("service", "pikoci")

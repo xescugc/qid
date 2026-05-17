@@ -67,10 +67,10 @@ pikoci worker \
 Worker flags can be set via environment variables:
 
 ```bash
-export PIKOCI_WORKER_PIKOCI_URL=http://server:8080
-export PIKOCI_WORKER_PUBSUB_SYSTEM=nats
-export PIKOCI_WORKER_JWT_SECRET=my-secret
-export PIKOCI_WORKER_CONCURRENCY=4
+export PIKOCI_URL=http://server:8080
+export PUBSUB_SYSTEM=nats
+export JWT_SECRET=my-secret
+export CONCURRENCY=4
 ```
 
 ## Scaling

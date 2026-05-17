@@ -157,6 +157,7 @@ Full documentation is in the [wiki](https://github.com/xescugc/pikoci/wiki):
 - [CLI reference](https://github.com/xescugc/pikoci/wiki/CLI)
 - [Public pipelines](https://github.com/xescugc/pikoci/wiki/Public-Pipelines)
 - [Running workers separately](https://github.com/xescugc/pikoci/wiki/Workers)
+- [Deployment](https://github.com/xescugc/pikoci/wiki/Deployment)
 - [Portability and bundling](https://github.com/xescugc/pikoci/wiki/Portability)
 - [Coming from Concourse](https://github.com/xescugc/pikoci/wiki/Concourse)
 
