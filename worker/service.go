@@ -790,6 +790,10 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 	resolved, err := w.resolveSecretVars(ctx, cwd, pp)
 	if err != nil {
 		w.logger.Error("failed to resolve secret vars for resource check", "error", err)
+		r.Logs = err.Error()
+		if nerr := w.pikoci.UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, r.Canonical, r); nerr != nil {
+			w.logger.Error("failed update resource", "resource", r.Canonical, "pipeline", m.PipelineName, "error", nerr)
+		}
 		return
 	}
 	replaceSecretPlaceholders(params, resolved)
