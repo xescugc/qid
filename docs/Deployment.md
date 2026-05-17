@@ -57,11 +57,11 @@ cp deploy/pikoci.env.example deploy/pikoci.env
 Edit `deploy/pikoci.env` with your secrets:
 
 ```bash
-PIKOCI_SERVER_JWT_SECRET=your-secure-random-secret
-PIKOCI_SERVER_DB_SYSTEM=sqlite
-PIKOCI_SERVER_DB_NAME=/var/lib/pikoci/pikoci.db
-PIKOCI_SERVER_PUBSUB_SYSTEM=mem
-PIKOCI_SERVER_RUN_WORKER=true
+JWT_SECRET=your-secure-random-secret
+DB_SYSTEM=sqlite
+DB_NAME=/var/lib/pikoci/pikoci.db
+PUBSUB_SYSTEM=mem
+RUN_WORKER=true
 GF_SECURITY_ADMIN_PASSWORD=your-grafana-password
 ```
 
@@ -70,7 +70,7 @@ Override the default admin password:
 ```bash
 pikoci user-password -u admin -p your-password
 # Add the output to deploy/pikoci.env as:
-# PIKOCI_SERVER_USERS=admin:$2a$10$...
+# USERS=admin:$2a$10$...
 ```
 
 `deploy/pikoci.env` is gitignored — only the `.example` file is tracked.

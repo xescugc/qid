@@ -18,7 +18,6 @@ import (
 
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/mempubsub"
-	_ "gocloud.dev/pubsub/mempubsub"
 
 	_ "gocloud.dev/pubsub/kafkapubsub"
 	_ "gocloud.dev/pubsub/rabbitpubsub"

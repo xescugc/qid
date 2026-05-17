@@ -94,8 +94,7 @@ var serverCmd = &cobra.Command{
 		}
 		logger.Info("DB connection started", "db-system", cfg.DBSystem)
 
-		runMigrations, _ := cmd.Flags().GetBool("run-migrations")
-		if runMigrations {
+		if serverViper.GetBool("run-migrations") {
 			logger.Info("Running migrations")
 			err := migrate.Migrate(db, cfg.DBSystem)
 			if err != nil {
@@ -190,11 +189,14 @@ var serverCmd = &cobra.Command{
 		}
 		if users := cfg.Users; len(users) != 0 {
 			for _, u := range users {
-				us := strings.Split(u, userPasswordSeparator)
+				us := strings.SplitN(u, userPasswordSeparator, 2)
+				if len(us) != 2 {
+					return fmt.Errorf("invalid user format %q, expected USERNAME:HASH", u)
+				}
 				isHashed := true
 				_, err = svc.CreateOrUpdateUser(ctx, user.User{FullName: us[0], Username: us[0], Password: us[1]}, isHashed)
 				if err != nil {
-					return fmt.Errorf("failed to creat user %q: %w", us[0], err)
+					return fmt.Errorf("failed to create user %q: %w", us[0], err)
 				}
 			}
 		}

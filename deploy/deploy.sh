@@ -79,7 +79,7 @@ echo "==> Copying binary to $SSH_HOST..."
 scp "$BINARY" "$SSH_HOST":/usr/local/bin/pikoci
 
 echo "==> Syncing deploy configs..."
-ssh "$SSH_HOST" 'mkdir -p /opt/pikoci /etc/pikoci /var/lib/pikoci'
+ssh "$SSH_HOST" 'mkdir -p /opt/pikoci /etc/pikoci /var/lib/pikoci && id -u pikoci &>/dev/null || useradd --system --no-create-home pikoci && chown pikoci:pikoci /var/lib/pikoci'
 scp "$DEPLOY_DIR/pikoci.service" "$SSH_HOST":/etc/systemd/system/pikoci.service
 scp "$DEPLOY_DIR/docker-compose.yml" "$SSH_HOST":/opt/pikoci/docker-compose.yml
 scp "$DEPLOY_DIR/Caddyfile" "$SSH_HOST":/opt/pikoci/Caddyfile
@@ -89,6 +89,7 @@ echo "==> Syncing env file..."
 scp "$DEPLOY_DIR/pikoci.env" "$SSH_HOST":/etc/pikoci/pikoci.env
 ssh "$SSH_HOST" 'chmod 600 /etc/pikoci/pikoci.env'
 scp "$DEPLOY_DIR/pikoci.env" "$SSH_HOST":/opt/pikoci/pikoci.env
+ssh "$SSH_HOST" 'chmod 600 /opt/pikoci/pikoci.env'
 ssh "$SSH_HOST" 'rm -f /opt/pikoci/.env && grep -E "^(PIKOCI_DOMAIN|PIKOCI_GRAFANA_DOMAIN|GF_)" /opt/pikoci/pikoci.env > /opt/pikoci/.env'
 
 # Install Docker if not present

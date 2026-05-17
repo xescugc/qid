@@ -25,10 +25,10 @@ pikoci server [flags]
 | `--pubsub-system` | | `mem` | no | Queue backend: `mem`, `nats`, `rabbit`, `kafka` |
 | `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
 | `--config` | `-c` | | no | Path to a config file |
-| `--team-canonical` | `-tc` | `main` | no | Team to use for `--pipeline-*` flags |
+| `--team-canonical` | | `main` | no | Team to use for `--pipeline-*` flags |
 | `--pipeline-config` | | | no | Load a pipeline config file at startup |
 | `--pipeline-vars` | `-v` | | no | Path to a JSON vars file for the startup pipeline |
-| `--pipeline-name` | `-n`, `-pn` | | no | Name for the startup pipeline |
+| `--pipeline-name` | `-n` | | no | Name for the startup pipeline |
 
 ## Environment variables
 

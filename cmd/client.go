@@ -75,7 +75,7 @@ var loginCmd = &cobra.Command{
 			return fmt.Errorf("failed to check $XDG_CONFIG_HOME: %w", err)
 		}
 
-		err = os.WriteFile(configFilePath, []byte(jwtToken), 0666)
+		err = os.WriteFile(configFilePath, []byte(jwtToken), 0600)
 		if err != nil {
 			return fmt.Errorf("failed to write the authentication file: %w", err)
 		}
@@ -86,8 +86,8 @@ var loginCmd = &cobra.Command{
 }
 
 func init() {
-	loginCmd.Flags().StringP("username", "u", "", "Username use to login")
-	loginCmd.Flags().StringP("password", "p", "", "Password use to login")
+	loginCmd.Flags().String("username", "", "Username use to login")
+	loginCmd.Flags().String("password", "", "Password use to login")
 	loginCmd.MarkFlagRequired("username")
 	loginCmd.MarkFlagRequired("password")
 }
