@@ -1006,13 +1006,18 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 			return nil, fmt.Errorf("failed to fetch secret from %q at %q: %s\n%w", stName, path, out, err)
 		}
 
-		// Parse last line of stdout as JSON object
-		sout := strings.Split(strings.Trim(out, "\n"), "\n")
-		rawJSON := sout[len(sout)-1]
-
+		// Parse output based on format config
+		format := st.Config["format"]
 		var secretData map[string]string
-		if err := json.Unmarshal([]byte(rawJSON), &secretData); err != nil {
-			return nil, fmt.Errorf("failed to parse secret output from %q as JSON: %w", stName, err)
+		if format == "env" {
+			secretData = parseEnvFormat(out)
+		} else {
+			// Default: parse last line of stdout as JSON object
+			sout := strings.Split(strings.Trim(out, "\n"), "\n")
+			rawJSON := sout[len(sout)-1]
+			if err := json.Unmarshal([]byte(rawJSON), &secretData); err != nil {
+				return nil, fmt.Errorf("failed to parse secret output from %q as JSON: %w", stName, err)
+			}
 		}
 
 		for k, v := range secretData {
@@ -1307,6 +1312,49 @@ func replaceSecretPlaceholdersInSlice(ss []string, resolved map[string]string) {
 			}
 		}
 	}
+}
+
+// parseEnvFormat parses KEY=VALUE lines (e.g. .env files) into a map.
+// Comment lines (#), blank lines, and lines without a valid variable name are ignored.
+// Values optionally wrapped in single or double quotes are stripped.
+func parseEnvFormat(data string) map[string]string {
+	result := make(map[string]string)
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		idx := strings.Index(line, "=")
+		if idx < 1 {
+			continue
+		}
+		key := line[:idx]
+		// Validate key is a valid variable name
+		valid := true
+		for i, c := range key {
+			if i == 0 {
+				if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_') {
+					valid = false
+					break
+				}
+			} else {
+				if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+					valid = false
+					break
+				}
+			}
+		}
+		if !valid {
+			continue
+		}
+		val := line[idx+1:]
+		// Strip surrounding quotes
+		if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+			val = val[1 : len(val)-1]
+		}
+		result[key] = val
+	}
+	return result
 }
 
 func createKeyValuePairs(m map[string]string) string {
