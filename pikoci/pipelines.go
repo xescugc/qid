@@ -510,10 +510,28 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 				}
 			}
 		}
-		// Draw job→resource edges for all put steps (plan + hooks)
+		// Draw job→resource edges for all put steps (plan + hooks).
+		// Each job gets its own output resource node to avoid all jobs
+		// pointing to a single shared resource box.
 		for _, p := range j.AllPutSteps() {
-			rCan := fmt.Sprintf(`"%s.%s"`, p.Type, p.Name)
-			err = graph.AddEdge(quotedJobName, rCan, false, map[string]string{
+			rCan := fmt.Sprintf("%s.%s", p.Type, p.Name)
+			nn := fmt.Sprintf(`"%s-%s-out"`, j.Name, rCan)
+			vurl := fmt.Sprintf(`"/teams/%s/pipelines/%s/resources/%s/versions"`, tc, pp.Name, rCan)
+			border := resourceBorders[rCan]
+			err = graph.AddNode(pn, nn, map[string]string{
+				string(gographviz.Label):     fmt.Sprintf(`"%s"`, rCan),
+				string(gographviz.Margin):    "0.2",
+				string(gographviz.Shape):     "cds",
+				string(gographviz.FillColor): colorResource,
+				string(gographviz.Style):     "filled",
+				string(gographviz.FontColor): "white",
+				string(gographviz.URL):       vurl,
+				string(gographviz.Color):     border,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to add node to Graph: %w", err)
+			}
+			err = graph.AddEdge(quotedJobName, nn, false, map[string]string{
 				string(gographviz.Style): "solid",
 			})
 			if err != nil {
