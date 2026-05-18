@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hide unlinked resources from pipeline graph: resources only used in hook-level `put` steps (on_success/on_failure/ensure) no longer appear as disconnected nodes ([#256](https://github.com/xescugc/pikoci/issues/256))
 - Add `raw` format support to the built-in `file` secret type via `format = "raw"`. Returns the entire file content under a single `content` key, useful for PEM keys and other non-structured files
 - Add `.env` format support to the built-in `file` secret type via `format = "env"` config attribute. The default format remains `json` (backwards compatible)
 - Add secret-backed variables: variables can declare a `secret` block to resolve their value lazily from a secret type at runtime. This gives secrets universal reach through the existing `var.<name>` syntax — resource params, task args, etc. Vars file overrides take precedence for local development. Deprecates step-level `secrets = {}` on get/task/put steps in favor of the simpler declare-once-use-everywhere variable approach

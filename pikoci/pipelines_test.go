@@ -2,11 +2,13 @@ package pikoci_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/resource"
@@ -1096,4 +1098,104 @@ job "deploy" {
 	pp, err := s.S.CreatePipeline(ctx, "main", "hooks-on-put", hclConfig, nil)
 	require.NoError(t, err)
 	require.NotNil(t, pp)
+}
+
+func TestGetPipelineImage_HidesUnlinkedResources(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	// Pipeline with two resources: one used in a get step, one only in a hook put step.
+	pp := &pipeline.Pipeline{
+		Name: "my-pipeline",
+		Resources: []resource.Resource{
+			{ID: 1, Canonical: "cron.timer"},
+			{ID: 2, Canonical: "github-check.ci"},
+		},
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "build",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "timer", Trigger: true},
+					},
+					{
+						Type: job.StepTypeTask,
+					},
+				},
+				OnSuccess: []job.HookStep{
+					{
+						Type: job.StepTypePut,
+						Put:  &job.PutStep{Type: "github-check", Name: "ci"},
+					},
+				},
+			},
+		},
+	}
+
+	s.Pipelines.EXPECT().Find(ctx, "main", "my-pipeline").Return(pp, nil)
+	s.Builds.EXPECT().Filter(ctx, "main", "my-pipeline", "build").Return([]*build.Build{}, nil)
+
+	img, err := s.S.GetPipelineImage(ctx, "main", "my-pipeline", "dot")
+	require.NoError(t, err)
+
+	dot := string(img)
+	// The get-step resource should appear as a primary node
+	assert.True(t, strings.Contains(dot, `"cron.timer"`), "linked resource should appear in graph")
+	// The hook-only resource should NOT appear as a primary node (only as a put output node)
+	// A primary node would be just "github-check.ci"; the put output node is "build-github-check.ci-out"
+	lines := strings.Split(dot, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Skip edges and put output nodes
+		if strings.Contains(trimmed, "->") || strings.Contains(trimmed, "-out") {
+			continue
+		}
+		if strings.Contains(trimmed, `"github-check.ci"`) && strings.Contains(trimmed, "shape") {
+			t.Errorf("unlinked resource should not appear as a primary node in graph, got: %s", trimmed)
+		}
+	}
+}
+
+func TestGetPipelineImage_ShowsLinkedResources(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	// Both resources are used in get steps - both should appear.
+	pp := &pipeline.Pipeline{
+		Name: "my-pipeline",
+		Resources: []resource.Resource{
+			{ID: 1, Canonical: "cron.timer"},
+			{ID: 2, Canonical: "git.repo"},
+		},
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "test",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "timer", Trigger: true},
+					},
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "git", Name: "repo"},
+					},
+				},
+			},
+		},
+	}
+
+	s.Pipelines.EXPECT().Find(ctx, "main", "my-pipeline").Return(pp, nil)
+	s.Builds.EXPECT().Filter(ctx, "main", "my-pipeline", "test").Return([]*build.Build{}, nil)
+
+	img, err := s.S.GetPipelineImage(ctx, "main", "my-pipeline", "dot")
+	require.NoError(t, err)
+
+	dot := string(img)
+	assert.True(t, strings.Contains(dot, `"cron.timer"`), "first linked resource should appear")
+	assert.True(t, strings.Contains(dot, `"git.repo"`), "second linked resource should appear")
 }
