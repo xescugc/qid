@@ -900,7 +900,6 @@ func TestCheckVersionAvailability_VersionExists_Passes(t *testing.T) {
 		TeamCanonical: "main",
 		PipelineName:  "test-pipeline",
 		JobName:       "test-job",
-		VersionID:     1,
 	}
 	b := build.Build{ID: 99}
 

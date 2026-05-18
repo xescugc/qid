@@ -221,37 +221,22 @@ func (w *Worker) checkVersionAvailability(ctx context.Context, m queue.Body, b *
 		rCan := utils.ResourceCanonical(g.Type, g.Name)
 		r, ok := pp.Resource(rCan)
 		if !ok {
+			w.logger.Warn("get step references unknown resource", "resource", rCan, "job", m.JobName)
 			continue
 		}
 
 		dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 		if err != nil {
-			w.logger.Error("failed to list resource versions for availability check", "error", err)
-			w.deleteBuild(ctx, m, *b)
+			// Transient errors (DB, network) should fail the build, not silently delete it.
+			w.failBuild(ctx, m, *b, fmt.Errorf("failed to list resource versions: %w", err))
 			return false
 		}
 
-		if m.VersionID != 0 {
-			var found bool
-			for _, ver := range dbvers {
-				if ver.ID == m.VersionID {
-					found = true
-					break
-				}
-			}
-			if !found {
-				w.logger.Info("job will not run: version not found",
-					"job", m.JobName, "pipeline", m.PipelineName, "resource", r.Canonical, "version_id", m.VersionID)
-				w.deleteBuild(ctx, m, *b)
-				return false
-			}
-		} else {
-			if len(dbvers) == 0 {
-				w.logger.Info("job will not run: no versions available",
-					"job", m.JobName, "pipeline", m.PipelineName, "resource", r.Canonical)
-				w.deleteBuild(ctx, m, *b)
-				return false
-			}
+		if len(dbvers) == 0 {
+			w.logger.Info("job will not run: no versions available",
+				"job", m.JobName, "pipeline", m.PipelineName, "resource", r.Canonical)
+			w.deleteBuild(ctx, m, *b)
+			return false
 		}
 	}
 	return true
