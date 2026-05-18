@@ -82,12 +82,12 @@ resource "cron" "every_10s" {
 | `params`         | no       | Block with key/value pairs passed to the resource type |
 | `check_interval` | no       | Cron expression or `@every <duration>` for automatic checks |
 
-## runner
+## runner_type
 
 Defines a reusable execution environment. See [Runners](Runners).
 
 ```hcl
-runner "docker" {
+runner_type "docker" {
   run {
     path = "docker"
     args = [
@@ -148,12 +148,12 @@ task "migrate" {
 
 See [Variables](Variables) for full secret-backed variable documentation.
 
-## service
+## service_type
 
 Defines an ephemeral process that runs alongside a job's tasks. See [Services](Services).
 
 ```hcl
-service "postgres" {
+service_type "postgres" {
   params = ["version"]
 
   start "exec" {
@@ -291,7 +291,7 @@ put "git" "my_repo" {
 
 ### service
 
-References a top-level service or defines an inline service for the job. Services are started before tasks and stopped unconditionally after.
+References a top-level `service_type` for the job. Services are started before tasks and stopped unconditionally after.
 
 ```hcl
 job "test" {

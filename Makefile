@@ -40,8 +40,7 @@ dserve: ## Serves the server
 
 .PHONY: serve
 serve: ## Serves the server
-	@echo '{"secrets_file":"$(CURDIR)/pikoci/testdata/secrets.json"}' > /tmp/pikoci-serve-vars.json
-	@go run . server -p 4000 -log-level=debug -jwt-secret potato -users 'pepito:$$2a$$14$$rwQk8Qvc2rij7qhFO4P1W.OiSF6AkgVU1RCrLaY2wawJcpkPEKwbm,grillo:$$2a$$14$$SvWir17.jlXxiZfe0pJuDedznetc/HWKv43YPsQQNo6MJiuypS2q6' -pipeline-name=test -pipeline-config=./pikoci/testdata/cron.hcl -pipeline-vars=/tmp/pikoci-serve-vars.json
+	@go run . server -p 4000 --log-level=debug --jwt-secret potato --users 'pepito:$$2a$$14$$rwQk8Qvc2rij7qhFO4P1W.OiSF6AkgVU1RCrLaY2wawJcpkPEKwbm,grillo:$$2a$$14$$SvWir17.jlXxiZfe0pJuDedznetc/HWKv43YPsQQNo6MJiuypS2q6' --pipeline-name=test --pipeline-config=./pikoci/testdata/cron.hcl
 
 .PHONY: worker
 worker: ## Starts a worker
@@ -57,16 +56,23 @@ gen: ## Runs go generate
 
 .PHONY: lint
 lint: ## Runs staticcheck linter
-	@go tool staticcheck ./...
+	@GOFLAGS=-buildvcs=false go tool staticcheck ./...
 
 .PHONY: test
-test: ## Runs all tests (use test-services-up first for external backends)
+test: test-mock test-integration test-backends ## Runs all tests
+
+.PHONY: test-mock
+test-mock: ## Runs unit/mock tests (no services needed)
+	@go test ./... -timeout 120s
+
+.PHONY: test-integration
+test-integration: ## Runs integration tests with in-memory backends (no services needed)
 	@PIKOCI_TEST_DB_SYSTEMS=$${PIKOCI_TEST_DB_SYSTEMS:-mem,sqlite} \
 	PIKOCI_TEST_PUBSUB_SYSTEMS=$${PIKOCI_TEST_PUBSUB_SYSTEMS:-mem} \
-	go test ./... -timeout 120s
+	go test -tags integration ./integration/backends/... -timeout 120s
 
-.PHONY: test-all
-test-all: ## Runs all tests including external backends (requires test-services-up)
+.PHONY: test-backends
+test-backends: ## Runs integration tests with all backends (requires test-services-up)
 	@PIKOCI_TEST_DB_SYSTEMS=mem,sqlite,mysql,postgresql \
 	PIKOCI_TEST_PUBSUB_SYSTEMS=mem,nats \
 	PIKOCI_TEST_VAULT=1 \
@@ -74,7 +80,7 @@ test-all: ## Runs all tests including external backends (requires test-services-
 	NATS_SERVER_URL=nats://127.0.0.1:4222 \
 	RABBIT_SERVER_URL=amqp://guest:guest@127.0.0.1:5672/ \
 	KAFKA_BROKERS=127.0.0.1:9092 \
-	go test ./... -timeout 120s
+	go test -tags integration ./integration/backends/... -timeout 120s
 
 PLATFORMS := linux/amd64 windows/amd64 darwin/amd64
 

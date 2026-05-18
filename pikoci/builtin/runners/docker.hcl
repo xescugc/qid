@@ -1,4 +1,4 @@
-runner "docker" {
+runner_type "docker" {
   run {
     path = "docker"
     args = [

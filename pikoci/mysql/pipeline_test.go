@@ -1,0 +1,120 @@
+package mysql_test
+
+import (
+	"context"
+	"database/sql"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/xescugc/pikoci/pikoci/mysql"
+	"github.com/xescugc/pikoci/pikoci/mysql/migrate"
+)
+
+func setupTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := mysql.New("", 0, "", "", mysql.Options{
+		MultiStatements: true,
+		ClientFoundRows: true,
+		System:          mysql.Mem,
+	})
+	require.NoError(t, err)
+	err = migrate.Migrate(db, mysql.Mem)
+	require.NoError(t, err)
+	return db
+}
+
+func TestDeletePipeline_CascadesJobs(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	// Use the seeded "main" team (id=1, created by migration)
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'test-pipe')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	// Create jobs
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'test')`, ppID)
+	require.NoError(t, err)
+
+	// Verify jobs exist
+	var jobCount int
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM jobs WHERE pipeline_id = ?`, ppID).Scan(&jobCount)
+	require.NoError(t, err)
+	assert.Equal(t, 2, jobCount)
+
+	// Delete the pipeline using the repository
+	pr := mysql.NewPipelineRepository(db)
+	err = pr.Delete(ctx, "main", "test-pipe")
+	require.NoError(t, err)
+
+	// Verify cascade: jobs should be deleted
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM jobs WHERE pipeline_id = ?`, ppID).Scan(&jobCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, jobCount, "jobs should be cascade-deleted when pipeline is deleted")
+}
+
+func TestDeletePipeline_CascadesResources(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'cascade-res')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO resources (pipeline_id, name, type, canonical) VALUES (?, 'repo', 'git', 'git.repo')`, ppID)
+	require.NoError(t, err)
+
+	pr := mysql.NewPipelineRepository(db)
+	err = pr.Delete(ctx, "main", "cascade-res")
+	require.NoError(t, err)
+
+	var count int
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resources WHERE pipeline_id = ?`, ppID).Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "resources should be cascade-deleted when pipeline is deleted")
+}
+
+func TestDeletePipeline_CascadesResourceTypes(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'cascade-rt')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO resource_types (pipeline_id, name) VALUES (?, 'git')`, ppID)
+	require.NoError(t, err)
+
+	pr := mysql.NewPipelineRepository(db)
+	err = pr.Delete(ctx, "main", "cascade-rt")
+	require.NoError(t, err)
+
+	var count int
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resource_types WHERE pipeline_id = ?`, ppID).Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "resource_types should be cascade-deleted when pipeline is deleted")
+}
+
+func TestDeletePipeline_CascadesRunners(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'cascade-run')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO runners (pipeline_id, name) VALUES (?, 'docker')`, ppID)
+	require.NoError(t, err)
+
+	pr := mysql.NewPipelineRepository(db)
+	err = pr.Delete(ctx, "main", "cascade-run")
+	require.NoError(t, err)
+
+	var count int
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM runners WHERE pipeline_id = ?`, ppID).Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "runners should be cascade-deleted when pipeline is deleted")
+}

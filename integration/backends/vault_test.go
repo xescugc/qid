@@ -1,3 +1,5 @@
+//go:build integration
+
 package backends_test
 
 import (
@@ -88,7 +90,7 @@ func TestSecretsVaultE2E(t *testing.T) {
 
 	for _, bin := range []string{"vault", "jq"} {
 		if _, err := exec.LookPath(bin); err != nil {
-			t.Fatalf("%s not found in PATH", bin)
+			t.Skipf("%s not found in PATH, skipping", bin)
 		}
 	}
 

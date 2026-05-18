@@ -38,7 +38,17 @@ curl -L https://github.com/xescugc/pikoci/releases/latest/download/linux-amd64 -
 chmod +x /usr/local/bin/pikoci
 ```
 
-### 2. Create the system user and directories
+### 2. Install prerequisites
+
+The server needs `git`, `jq`, and `curl` for the built-in resource types (e.g. the `git` resource type uses `jq` and `curl` to query GitHub/GitLab APIs). Docker is required for the `docker` runner and for supporting services.
+
+```bash
+apt-get install -y git jq curl
+```
+
+The deploy script (`deploy/deploy.sh`) installs these automatically if missing.
+
+### 3. Create the system user and directories
 
 ```bash
 useradd --system --no-create-home pikoci
@@ -46,7 +56,7 @@ mkdir -p /var/lib/pikoci /etc/pikoci
 chown pikoci:pikoci /var/lib/pikoci
 ```
 
-### 3. Configure PikoCI
+### 4. Configure PikoCI
 
 Copy the example env file and fill in your values:
 
@@ -77,7 +87,7 @@ pikoci user-password -u admin -p your-password
 
 See [Server Configuration](Server) for all available options.
 
-### 4. Deploy
+### 5. Deploy
 
 The deploy script copies everything to the server — binary, configs, and env files:
 
@@ -101,7 +111,7 @@ systemctl status pikoci
 curl http://localhost:8080/metrics
 ```
 
-### 5. Supporting services
+### 6. Supporting services
 
 The deploy script also syncs Docker Compose configs and env files. To start them manually:
 
@@ -117,7 +127,7 @@ This starts:
 - **Grafana** — dashboards (accessible at `grafana.pikoci.com`)
 - **Node Exporter** — host-level metrics
 
-### 6. DNS
+### 7. DNS
 
 Point your domain's A record to the server IP:
 

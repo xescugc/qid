@@ -692,7 +692,7 @@ func TestCreatePipeline_WithServices(t *testing.T) {
 	ctx := context.TODO()
 
 	hclConfig := []byte(`
-service "test-db" {
+service_type "test-db" {
   params = ["version"]
 
   start "exec" {
@@ -782,7 +782,7 @@ job "deploy" {
 
 	_, err := s.S.CreatePipeline(ctx, "main", "no-inline-svc-pipeline", hclConfig, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service \"inline-db\" referenced in job")
+	assert.Contains(t, err.Error(), "service_type \"inline-db\" referenced in job")
 }
 
 func TestCreatePipeline_ServiceMissingReference(t *testing.T) {
@@ -812,7 +812,7 @@ job "deploy" {
 
 	_, err := s.S.CreatePipeline(ctx, "main", "svc-missing-pipeline", hclConfig, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service \"nonexistent\" referenced in job")
+	assert.Contains(t, err.Error(), "service_type \"nonexistent\" referenced in job")
 }
 
 func TestCreatePipeline_ServiceMissingStart(t *testing.T) {
@@ -821,7 +821,7 @@ func TestCreatePipeline_ServiceMissingStart(t *testing.T) {
 	ctx := context.TODO()
 
 	hclConfig := []byte(`
-service "bad" {
+service_type "bad" {
   stop "exec" {
     path = "/bin/sh"
     args = ["-ec", "echo stopping"]
@@ -855,7 +855,7 @@ func TestCreatePipeline_ServiceSourceAndInlineConflict(t *testing.T) {
 	ctx := context.TODO()
 
 	hclConfig := []byte(`
-service "bad" {
+service_type "bad" {
   source = "https://example.com/service.hcl"
   start "exec" {
     path = "/bin/sh"
@@ -886,4 +886,214 @@ job "deploy" {
 	_, err := s.S.CreatePipeline(ctx, "main", "svc-source-conflict-pipeline", hclConfig, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "both source and inline commands")
+}
+
+func TestCreatePipeline_HooksLabeledRunner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  get "cron" "timer" { trigger = true }
+  task "run" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+    on_success "exec" {
+      path = "/bin/sh"
+      args = ["-ec", "echo success"]
+    }
+    on_failure "exec" {
+      path = "/bin/sh"
+      args = ["-ec", "echo failure"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "hooks-labeled", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "hooks-labeled", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "hooks-labeled").Return(&pipeline.Pipeline{Name: "hooks-labeled"}, nil)
+
+	pp, err := s.S.CreatePipeline(ctx, "main", "hooks-labeled", hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pp)
+}
+
+func TestCreatePipeline_HooksUnlabeledPut(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource_type "notify" {
+  push "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo notifying"]
+  }
+}
+
+resource "notify" "slack" {
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  get "cron" "timer" { trigger = true }
+  task "run" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+    on_success {
+      put "notify" "slack" {
+        message = "success"
+      }
+    }
+    on_failure {
+      put "notify" "slack" {
+        message = "failure"
+      }
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "hooks-unlabeled", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "hooks-unlabeled", gomock.Any()).Return(uint32(1), nil).Times(2)
+	s.ResourceTypes.EXPECT().Create(ctx, "main", "hooks-unlabeled", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "hooks-unlabeled").Return(&pipeline.Pipeline{Name: "hooks-unlabeled"}, nil)
+
+	pp, err := s.S.CreatePipeline(ctx, "main", "hooks-unlabeled", hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pp)
+}
+
+func TestCreatePipeline_HooksMixed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	// Mix labeled runner hooks and unlabeled put hooks in the same job
+	hclConfig := []byte(`
+resource_type "notify" {
+  push "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo notifying"]
+  }
+}
+
+resource "notify" "slack" {
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  get "cron" "timer" { trigger = true }
+
+  task "run" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+
+  on_success "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo job-level-success"]
+  }
+
+  on_success {
+    put "notify" "slack" {
+      message = "success"
+    }
+  }
+
+  on_failure {
+    put "notify" "slack" {
+      message = "failure"
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "hooks-mixed", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "hooks-mixed", gomock.Any()).Return(uint32(1), nil).Times(2)
+	s.ResourceTypes.EXPECT().Create(ctx, "main", "hooks-mixed", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "hooks-mixed").Return(&pipeline.Pipeline{Name: "hooks-mixed"}, nil)
+
+	pp, err := s.S.CreatePipeline(ctx, "main", "hooks-mixed", hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pp)
+}
+
+func TestCreatePipeline_HooksOnPutStep(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource_type "notify" {
+  push "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo notifying"]
+  }
+}
+
+resource "notify" "slack" {
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  get "cron" "timer" { trigger = true }
+
+  task "run" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+
+  put "notify" "slack" {
+    message = "deployed"
+
+    on_success "exec" {
+      path = "/bin/sh"
+      args = ["-ec", "echo put-success"]
+    }
+
+    on_failure {
+      put "notify" "slack" {
+        message = "put-failed"
+      }
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "hooks-on-put", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "hooks-on-put", gomock.Any()).Return(uint32(1), nil).Times(2)
+	s.ResourceTypes.EXPECT().Create(ctx, "main", "hooks-on-put", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "hooks-on-put").Return(&pipeline.Pipeline{Name: "hooks-on-put"}, nil)
+
+	pp, err := s.S.CreatePipeline(ctx, "main", "hooks-on-put", hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pp)
 }

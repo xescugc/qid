@@ -7,7 +7,7 @@ import (
 	cron "github.com/netresearch/go-cron"
 )
 
-var parser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor).WithMinEveryInterval(10 * time.Second)
+var parser = cron.MustNewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor).WithMinEveryInterval(10 * time.Second)
 
 const minCheckInterval = 10 * time.Second
 

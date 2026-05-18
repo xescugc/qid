@@ -396,11 +396,11 @@
           <div class="piko-step-row">
             <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
               <span><span class="piko-step-label"><%- s.type || "step" %></span> <%- s.name %> <span style="color:var(--text-muted);">(<%- s.duration %>)</span></span>
-              <% if (status === "failed" && s === lastStep && _job.length === 0) { %>
+              <% if (s.status === "failed") { %>
                 <span class="piko-badge piko-badge-failed">fail</span>
-              <% } else if (status === "started" && s === lastStep && _job.length === 0) { %>
+              <% } else if (s.status === "started") { %>
                 <span class="piko-badge piko-badge-started">running</span>
-              <% } else if (s.logs) { %>
+              <% } else if (s.status === "succeeded" || s.logs) { %>
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
             </div>
@@ -416,11 +416,11 @@
           <div class="piko-step-row">
             <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
               <span><span class="piko-step-label">job</span> <%- j.name %> <span style="color:var(--text-muted);">(<%- j.duration %>)</span></span>
-              <% if (status === "failed" && j === lastJob) { %>
+              <% if (j.status === "failed") { %>
                 <span class="piko-badge piko-badge-failed">fail</span>
-              <% } else if (status === "started" && j === lastJob) { %>
+              <% } else if (j.status === "started") { %>
                 <span class="piko-badge piko-badge-started">running</span>
-              <% } else if (j.logs) { %>
+              <% } else if (j.status === "succeeded" || j.logs) { %>
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
             </div>

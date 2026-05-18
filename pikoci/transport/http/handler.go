@@ -16,9 +16,11 @@ import (
 	"github.com/xescugc/pikoci/pikoci/user"
 )
 
+type contextKey string
+
 const (
-	UsernameContextKey   string = "username_context_key"
-	IsPublicAccessKey    string = "is_public_access_key"
+	UsernameContextKey   contextKey = "username_context_key"
+	IsPublicAccessKey    contextKey = "is_public_access_key"
 )
 
 var publicFallbackRoutes = map[RouteName]bool{

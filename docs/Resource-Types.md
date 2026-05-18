@@ -305,8 +305,18 @@ The `github-check` resource type reports build status back to GitHub as check ru
 To use it, declare the resource type with `source = "pikoci://github-check"`:
 
 ```hcl
+# Read the PEM key using the file secret type with raw format
+secret_type "app-key" {
+  source = "pikoci://file"
+  format = "raw"
+  path   = "/etc/pikoci/github-app.pem"
+}
+
 variable "github_app_key" {
   type = string
+  secret "app-key" {
+    key = "content"
+  }
 }
 
 resource_type "github-check" {
@@ -356,7 +366,7 @@ job "test" {
 |-------------------|----------|--------------------------------------------------|
 | `app_id`          | yes      | GitHub App ID                                    |
 | `installation_id` | yes      | GitHub App installation ID                       |
-| `private_key`     | yes      | GitHub App private key (PEM format)              |
+| `private_key`     | yes      | GitHub App private key content (PEM format). Use the `file` secret type with `format = "raw"` to read from a PEM file |
 | `repository`      | yes      | Repository in `owner/repo` format                |
 
 ### Put params
@@ -378,8 +388,9 @@ Either `status` or `conclusion` must be set. Use `status = "in_progress"` first 
 3. Under **Permissions**, grant **Checks** read & write
 4. Uncheck **Active** under Webhook (no webhook needed)
 5. Create the app and note the **App ID** from the settings page
-6. Click **Generate a private key** (downloads a `.pem` file). This is the `private_key` value
-7. Install the app on the target repository or organization
-8. Note the **Installation ID** from the URL after installing, or via `GET /app/installations`
+6. Click **Generate a private key** (downloads a `.pem` file)
+7. Copy the `.pem` file to the server (e.g. `/etc/pikoci/github-app.pem`)
+8. Install the app on the target repository or organization
+9. Note the **Installation ID** from the URL after installing, or via `GET /app/installations`
 
-Pass credentials securely via pipeline variables or secret types, not hardcoded in the pipeline file.
+Use the `file` secret type with `format = "raw"` to read the PEM key (see example above). Never hardcode the private key in the pipeline file.

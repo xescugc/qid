@@ -28,8 +28,6 @@ func init() {
 	}
 
 	loadTemplates(viewsDir)
-
-	return
 }
 
 func loadTemplates(path string) error {

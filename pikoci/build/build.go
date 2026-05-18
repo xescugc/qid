@@ -31,4 +31,5 @@ type Step struct {
 	VersionID uint32        `json:"version_id"`
 	Logs      string        `json:"logs"`
 	Duration  time.Duration `json:"duration"`
+	Status    Status        `json:"status"`
 }

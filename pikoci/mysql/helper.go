@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
-
-	"github.com/cycloidio/sqlr"
 )
 
 // lastInsertedID extracts the id from the query result.
@@ -56,18 +54,4 @@ func toNullInt64(i int) sql.NullInt64 {
 // toNullTime returns sql.NullTIme. The time is considered valid if it's not equal Zero.
 func toNullTime(t time.Time) sql.NullTime {
 	return sql.NullTime{Time: t, Valid: !t.IsZero()}
-}
-
-func scanCount(s sqlr.Scanner) (int, error) {
-	var c int
-
-	err := s.Scan(
-		&c,
-	)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to scan: %w", err)
-	}
-
-	return c, nil
 }

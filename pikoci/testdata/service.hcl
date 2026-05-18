@@ -1,4 +1,4 @@
-service "test-db" {
+service_type "test-db" {
   params = ["version"]
 
   start "exec" {

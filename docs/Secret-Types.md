@@ -192,11 +192,49 @@ secret_type "my-file" {
 
 | Attribute | Required | Default | Description                                      |
 |-----------|----------|---------|--------------------------------------------------|
-| `format`  | no       | `json`  | File format: `json` or `env`                     |
+| `format`  | no       | `json`  | File format: `json`, `env`, or `raw`              |
+| `path`    | no       |         | Default file path; can be overridden per-variable |
 
-The file path comes from the variable's secret block:
+The file path can be set on the `secret_type` block as a default, on each variable's `secret` block, or both (the variable-level `path` takes precedence):
 
 ```hcl
+# Default path on the secret_type — variables just pick keys
+secret_type "db-file" {
+  source = "pikoci://file"
+  path   = "/run/secrets/db.json"
+}
+
+variable "db_user" {
+  type = string
+  secret "db-file" {
+    key = "username"
+  }
+}
+
+variable "db_password" {
+  type = string
+  secret "db-file" {
+    key = "password"
+  }
+}
+
+# Override path for a specific variable
+variable "api_key" {
+  type = string
+  secret "db-file" {
+    path = "/run/secrets/api.json"
+    key  = "key"
+  }
+}
+```
+
+If no default `path` is set on the secret_type, each variable must provide its own:
+
+```hcl
+secret_type "my-file" {
+  source = "pikoci://file"
+}
+
 variable "db_user" {
   type = string
   secret "my-file" {
@@ -241,6 +279,27 @@ DB_HOST=db.example.com
 DB_PASSWORD=s3cret
 DB_USER="admin"
 ```
+
+### `raw` format
+
+When `format = "raw"`, the entire file content is returned as a single value under the key `content`. This is useful for files that aren't structured as JSON or key-value pairs, such as PEM certificates, SSH keys, or tokens:
+
+```hcl
+secret_type "app-key" {
+  source = "pikoci://file"
+  format = "raw"
+  path   = "/etc/pikoci/github-app.pem"
+}
+
+variable "github_app_key" {
+  type = string
+  secret "app-key" {
+    key = "content"
+  }
+}
+```
+
+The variable receives the full file content as-is.
 
 ## Example: custom secret type
 

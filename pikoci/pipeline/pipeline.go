@@ -25,9 +25,9 @@ type Pipeline struct {
 	Jobs          []job.Job                 `json:"jobs" hcl:"job,block"`
 	Resources     []resource.Resource       `json:"resources" hcl:"resource,block"`
 	ResourceTypes []restype.ResourceType    `json:"resource_types" hcl:"resource_type,block"`
-	Runners       []runner.Runner           `json:"runners" hcl:"runner,block"`
+	Runners       []runner.Runner           `json:"runners" hcl:"runner_type,block"`
 	SecretTypes   []sectype.SecretType      `json:"secret_types" hcl:"secret_type,block"`
-	Services      []service.Service         `json:"services" hcl:"service,block"`
+	Services      []service.Service         `json:"services" hcl:"service_type,block"`
 	SecretVars    map[string]VariableSecret `json:"secret_vars,omitempty"`
 	Remain        hcl.Body                  `json:"-" hcl:",remain"`
 	Raw           []byte                    `json:"raw"`
@@ -46,7 +46,7 @@ type Variable struct {
 
 type VariableSecret struct {
 	Type string `json:"type" hcl:"type,label"`
-	Path string `json:"path" hcl:"path"`
+	Path string `json:"path,omitempty" hcl:"path,optional"`
 	Key  string `json:"key" hcl:"key"`
 }
 
@@ -129,7 +129,7 @@ type hclServiceRaw struct {
 
 // hclPipelineServices is a minimal struct for parsing only service blocks from raw HCL.
 type hclPipelineServices struct {
-	Services []hclServiceRaw `hcl:"service,block"`
+	Services []hclServiceRaw `hcl:"service_type,block"`
 	Remain   hcl.Body        `hcl:",remain"`
 }
 
@@ -155,7 +155,7 @@ func ParseServicesFromRaw(ctx context.Context, raw []byte) ([]service.Service, e
 		if hs.Source != "" {
 			resolved, err := source.ResolveService(ctx, hs.Source)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve source for service %q: %w", hs.Name, err)
+				return nil, fmt.Errorf("failed to resolve source for service_type %q: %w", hs.Name, err)
 			}
 			resolved.Name = hs.Name
 			resolved.Source = hs.Source

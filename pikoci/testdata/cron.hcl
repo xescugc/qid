@@ -1,25 +1,19 @@
-variable "secrets_file" {
-  type    = string
-  default = "pikoci/testdata/secrets.json"
-}
-
 secret_type "my-file" {
   source = "pikoci://file"
+  path   = "pikoci/testdata/secrets.json"
 }
 
 variable "greeting" {
   type = string
   secret "my-file" {
-    path = var.secrets_file
-    key  = "greeting"
+    key = "greeting"
   }
 }
 
 variable "env" {
   type = string
   secret "my-file" {
-    path = var.secrets_file
-    key  = "env"
+    key = "env"
   }
 }
 

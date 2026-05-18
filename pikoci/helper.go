@@ -26,16 +26,17 @@ import (
 
 // hclGetStep is the HCL-decoded get step with per-step hooks.
 type hclGetStep struct {
-	Type    string   `json:"type" hcl:"type,label"`
-	Name    string   `json:"name" hcl:"name,label"`
-	Passed  []string `json:"passed" hcl:"passed,optional"`
+	Type     string   `json:"type" hcl:"type,label"`
+	Name     string   `json:"name" hcl:"name,label"`
+	Passed   []string `json:"passed" hcl:"passed,optional"`
 	Trigger  bool     `json:"trigger" hcl:"trigger,optional"`
 	Timeout  string   `json:"timeout" hcl:"timeout,optional"`
 	Attempts int      `json:"attempts" hcl:"attempts,optional"`
 
-	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
-	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
-	Ensure    []utils.RunnerCommand `json:"ensure" hcl:"ensure,block"`
+	// Remain absorbs hook blocks (on_success, on_failure, ensure) so hclsimple.Decode
+	// doesn't reject them. Hooks are parsed from the raw AST by parseHooks instead,
+	// which supports both labeled (runner) and unlabeled (put) hook blocks.
+	Remain hcl.Body `hcl:",remain"`
 }
 
 // hclTaskStep is the HCL-decoded task step with per-step hooks.
@@ -45,23 +46,20 @@ type hclTaskStep struct {
 	Attempts int                 `json:"attempts" hcl:"attempts,optional"`
 	Run      utils.RunnerCommand `json:"run" hcl:"run,block"`
 
-	OnSuccess []utils.RunnerCommand `json:"on_success" hcl:"on_success,block"`
-	OnFailure []utils.RunnerCommand `json:"on_failure" hcl:"on_failure,block"`
-	Ensure    []utils.RunnerCommand `json:"ensure" hcl:"ensure,block"`
+	Remain hcl.Body `hcl:",remain"` // absorbs hook blocks; parsed by parseHooks from AST
 }
 
 // hclPutStep is the HCL-decoded put step.
+// Uses hcl.Body remain to absorb both params (attributes) and hook blocks,
+// since map[string]string remain can only absorb attributes, not blocks.
+// Params and hooks are both extracted from the raw AST in parseJobPlans.
 type hclPutStep struct {
-	Type     string   `hcl:"type,label"`
-	Name     string   `hcl:"name,label"`
-	Timeout  string   `hcl:"timeout,optional"`
-	Attempts int      `hcl:"attempts,optional"`
+	Type     string `hcl:"type,label"`
+	Name     string `hcl:"name,label"`
+	Timeout  string `hcl:"timeout,optional"`
+	Attempts int    `hcl:"attempts,optional"`
 
-	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
-	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
-	Ensure    []utils.RunnerCommand `hcl:"ensure,block"`
-
-	Params map[string]string `hcl:",remain"`
+	Remain hcl.Body `hcl:",remain"`
 }
 
 // hclJob is the intermediate HCL-decoded job with separate get/task/put arrays.
@@ -72,9 +70,7 @@ type hclJob struct {
 	Put     []hclPutStep     `hcl:"put,block"`
 	Service []hclServiceRef  `hcl:"service,block"`
 
-	OnSuccess []utils.RunnerCommand `hcl:"on_success,block"`
-	OnFailure []utils.RunnerCommand `hcl:"on_failure,block"`
-	Ensure    []utils.RunnerCommand `hcl:"ensure,block"`
+	Remain hcl.Body `hcl:",remain"` // absorbs hook blocks; parsed by parseHooks from AST
 }
 
 // hclResourceType is an intermediate struct that allows optional check/pull/push blocks
@@ -209,9 +205,9 @@ type hclPipeline struct {
 	Jobs          []hclJob            `hcl:"job,block"`
 	Resources     []resource.Resource `hcl:"resource,block"`
 	ResourceTypes []hclResourceType   `hcl:"resource_type,block"`
-	Runners       []hclRunnerDef      `hcl:"runner,block"`
+	Runners       []hclRunnerDef      `hcl:"runner_type,block"`
 	SecretTypes   []hclSecretType     `hcl:"secret_type,block"`
-	Services      []hclService        `hcl:"service,block"`
+	Services      []hclService        `hcl:"service_type,block"`
 	Remain        hcl.Body            `hcl:",remain"`
 }
 
@@ -387,11 +383,11 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		if hrd.Source != "" {
 			hasInline := len(hrd.Run) > 0
 			if hasInline {
-				return nil, fmt.Errorf("runner %q has both source and inline commands, which is not allowed", hrd.Name)
+				return nil, fmt.Errorf("runner_type %q has both source and inline commands, which is not allowed", hrd.Name)
 			}
 			resolved, err := source.ResolveRunner(ctx, hrd.Source)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve source for runner %q: %w", hrd.Name, err)
+				return nil, fmt.Errorf("failed to resolve source for runner_type %q: %w", hrd.Name, err)
 			}
 			resolved.Name = hrd.Name
 			resolved.Source = hrd.Source
@@ -465,11 +461,11 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 		if hs.Source != "" {
 			hasInline := len(hs.Start) > 0 || len(hs.Stop) > 0 || len(hs.ReadyCheck) > 0
 			if hasInline {
-				return nil, fmt.Errorf("service %q has both source and inline commands, which is not allowed", hs.Name)
+				return nil, fmt.Errorf("service_type %q has both source and inline commands, which is not allowed", hs.Name)
 			}
 			resolved, err := source.ResolveService(ctx, hs.Source)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve source for service %q: %w", hs.Name, err)
+				return nil, fmt.Errorf("failed to resolve source for service_type %q: %w", hs.Name, err)
 			}
 			resolved.Name = hs.Name
 			resolved.Source = hs.Source
@@ -479,10 +475,10 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 			services = append(services, *resolved)
 		} else {
 			if len(hs.Start) == 0 {
-				return nil, fmt.Errorf("service %q must have a start block", hs.Name)
+				return nil, fmt.Errorf("service_type %q must have a start block", hs.Name)
 			}
 			if len(hs.Stop) == 0 {
-				return nil, fmt.Errorf("service %q must have a stop block", hs.Name)
+				return nil, fmt.Errorf("service_type %q must have a stop block", hs.Name)
 			}
 			services = append(services, hs.toService())
 		}
@@ -521,21 +517,6 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	return &pp, nil
 }
 
-// runnerCmdsToHookSteps converts a slice of RunnerCommand to HookStep.
-func runnerCmdsToHookSteps(cmds []utils.RunnerCommand) []job.HookStep {
-	if len(cmds) == 0 {
-		return nil
-	}
-	steps := make([]job.HookStep, 0, len(cmds))
-	for _, c := range cmds {
-		c := c
-		steps = append(steps, job.HookStep{
-			Type:   job.StepTypeRunner,
-			Runner: &c,
-		})
-	}
-	return steps
-}
 
 // jobHooks holds parsed hook steps for a job.
 type jobHooks struct {
@@ -544,54 +525,76 @@ type jobHooks struct {
 	Ensure    []job.HookStep
 }
 
-// parseHookPuts finds put blocks inside a specific hook type (on_success, on_failure, ensure)
-// within the given AST block. Returns HookSteps for any put blocks found.
-// parseHookPuts finds put blocks inside unlabeled hook blocks (on_success, on_failure, ensure).
-// Labeled hook blocks (e.g. on_success "exec" { ... }) are runner commands decoded by HCL.
-// Unlabeled hook blocks (e.g. on_success { put "type" "name" { ... } }) contain put steps.
-func parseHookPuts(block *hclsyntax.Block, ectx *hcl.EvalContext, hookType string) []job.HookStep {
+// parseHooks finds all hook steps (runner commands and put blocks) inside a specific
+// hook type (on_success, on_failure, ensure) within the given AST block.
+// Labeled blocks (e.g. on_success "exec" { ... }) are runner commands.
+// Unlabeled blocks (e.g. on_success { put "type" "name" { ... } }) contain put steps.
+func parseHooks(block *hclsyntax.Block, ectx *hcl.EvalContext, hookType string) []job.HookStep {
 	var steps []job.HookStep
 	for _, b := range block.Body.Blocks {
-		if b.Type != hookType || len(b.Labels) != 0 {
+		if b.Type != hookType {
 			continue
 		}
-		for _, inner := range b.Body.Blocks {
-			if inner.Type != "put" || len(inner.Labels) != 2 {
-				continue
+
+		if len(b.Labels) == 1 {
+			// Labeled hook: runner command (e.g. on_success "exec" { args = [...] })
+			rc := utils.RunnerCommand{
+				Runner: b.Labels[0],
+				Params: make(map[string]string),
 			}
-			putType := inner.Labels[0]
-			putName := inner.Labels[1]
-			params := make(map[string]string)
-			for name, attr := range inner.Body.Attributes {
+			for name, attr := range b.Body.Attributes {
 				val, vdiags := attr.Expr.Value(ectx)
 				if vdiags.HasErrors() {
 					continue
 				}
-				params[name] = val.AsString()
+				if name == "args" {
+					// Parse args as a list of strings
+					if val.Type().IsListType() || val.Type().IsTupleType() {
+						for it := val.ElementIterator(); it.Next(); {
+							_, v := it.Element()
+							if v.Type() == cty.String {
+								rc.Args = append(rc.Args, v.AsString())
+							}
+						}
+					}
+				} else {
+					rc.Params[name] = val.AsString()
+				}
 			}
 			steps = append(steps, job.HookStep{
-				Type: job.StepTypePut,
-				Put: &job.PutStep{
-					Type:   putType,
-					Name:   putName,
-					Params: params,
-				},
+				Type:   job.StepTypeRunner,
+				Runner: &rc,
 			})
+		} else if len(b.Labels) == 0 {
+			// Unlabeled hook: contains put blocks
+			for _, inner := range b.Body.Blocks {
+				if inner.Type != "put" || len(inner.Labels) != 2 {
+					continue
+				}
+				putType := inner.Labels[0]
+				putName := inner.Labels[1]
+				params := make(map[string]string)
+				for name, attr := range inner.Body.Attributes {
+					val, vdiags := attr.Expr.Value(ectx)
+					if vdiags.HasErrors() {
+						continue
+					}
+					params[name] = val.AsString()
+				}
+				steps = append(steps, job.HookStep{
+					Type: job.StepTypePut,
+					Put: &job.PutStep{
+						Type:   putType,
+						Name:   putName,
+						Params: params,
+					},
+				})
+			}
 		}
 	}
 	return steps
 }
 
-// mergeHookSteps combines two hook step slices, returning nil if both are empty.
-func mergeHookSteps(a, b []job.HookStep) []job.HookStep {
-	if len(a) == 0 && len(b) == 0 {
-		return nil
-	}
-	result := make([]job.HookStep, 0, len(a)+len(b))
-	result = append(result, a...)
-	result = append(result, b...)
-	return result
-}
 
 // parseJobPlans walks the raw HCL AST to extract get/task/put blocks in source
 // order for each job, then builds ordered PlanStep slices using the decoded data.
@@ -635,7 +638,7 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 				serviceIdx++
 
 				if _, ok := serviceByName[sr.Name]; !ok {
-					return nil, nil, nil, fmt.Errorf("service %q referenced in job %q does not exist", sr.Name, hj.Name)
+					return nil, nil, nil, fmt.Errorf("service_type %q referenced in job %q does not exist", sr.Name, hj.Name)
 				}
 
 				// Parse param overrides from the remain body
@@ -691,9 +694,9 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 						Passed:  g.Passed,
 						Trigger: g.Trigger,
 					},
-					OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(g.OnSuccess), parseHookPuts(innerBlock, ectx, "on_success")),
-					OnFailure: mergeHookSteps(runnerCmdsToHookSteps(g.OnFailure), parseHookPuts(innerBlock, ectx, "on_failure")),
-					Ensure:    mergeHookSteps(runnerCmdsToHookSteps(g.Ensure), parseHookPuts(innerBlock, ectx, "ensure")),
+					OnSuccess: parseHooks(innerBlock, ectx, "on_success"),
+					OnFailure: parseHooks(innerBlock, ectx, "on_failure"),
+					Ensure:    parseHooks(innerBlock, ectx, "ensure"),
 				})
 			case "task":
 				if taskIdx >= len(hj.Task) {
@@ -720,9 +723,9 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 						Name: t.Name,
 						Run:  t.Run,
 					},
-					OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(t.OnSuccess), parseHookPuts(innerBlock, ectx, "on_success")),
-					OnFailure: mergeHookSteps(runnerCmdsToHookSteps(t.OnFailure), parseHookPuts(innerBlock, ectx, "on_failure")),
-					Ensure:    mergeHookSteps(runnerCmdsToHookSteps(t.Ensure), parseHookPuts(innerBlock, ectx, "ensure")),
+					OnSuccess: parseHooks(innerBlock, ectx, "on_success"),
+					OnFailure: parseHooks(innerBlock, ectx, "on_failure"),
+					Ensure:    parseHooks(innerBlock, ectx, "ensure"),
 				})
 			case "put":
 				if putIdx >= len(hj.Put) {
@@ -741,6 +744,19 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 				if p.Attempts < 0 {
 					return nil, nil, nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
 				}
+				// Extract put params from AST attributes (exclude known fields)
+				putParams := make(map[string]string)
+				for name, attr := range innerBlock.Body.Attributes {
+					if name == "timeout" || name == "attempts" {
+						continue
+					}
+					val, vdiags := attr.Expr.Value(ectx)
+					if vdiags.HasErrors() {
+						continue
+					}
+					putParams[name] = val.AsString()
+				}
+
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypePut,
 					Timeout:  timeout,
@@ -748,11 +764,11 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 					Put: &job.PutStep{
 						Type:   p.Type,
 						Name:   p.Name,
-						Params: p.Params,
+						Params: putParams,
 					},
-					OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(p.OnSuccess), parseHookPuts(innerBlock, ectx, "on_success")),
-					OnFailure: mergeHookSteps(runnerCmdsToHookSteps(p.OnFailure), parseHookPuts(innerBlock, ectx, "on_failure")),
-					Ensure:    mergeHookSteps(runnerCmdsToHookSteps(p.Ensure), parseHookPuts(innerBlock, ectx, "ensure")),
+					OnSuccess: parseHooks(innerBlock, ectx, "on_success"),
+					OnFailure: parseHooks(innerBlock, ectx, "on_failure"),
+					Ensure:    parseHooks(innerBlock, ectx, "ensure"),
 				})
 			}
 		}
@@ -761,9 +777,9 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 
 		// Parse job-level hooks
 		jh := jobHooks{
-			OnSuccess: mergeHookSteps(runnerCmdsToHookSteps(hj.OnSuccess), parseHookPuts(block, ectx, "on_success")),
-			OnFailure: mergeHookSteps(runnerCmdsToHookSteps(hj.OnFailure), parseHookPuts(block, ectx, "on_failure")),
-			Ensure:    mergeHookSteps(runnerCmdsToHookSteps(hj.Ensure), parseHookPuts(block, ectx, "ensure")),
+			OnSuccess: parseHooks(block, ectx, "on_success"),
+			OnFailure: parseHooks(block, ectx, "on_failure"),
+			Ensure:    parseHooks(block, ectx, "ensure"),
 		}
 		jobHooksMap[hj.Name] = jh
 	}
