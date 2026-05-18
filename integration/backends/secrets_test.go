@@ -310,7 +310,7 @@ job "deploy" {
   task "use-env-secrets" {
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "echo db_host=${var.db_host} db_password=${var.db_password} db_user=${var.db_user} db_conn=${var.db_conn}"]
+      args = ["-ec", "echo 'db_host=${var.db_host}' 'db_password=${var.db_password}' 'db_user=${var.db_user}' 'db_conn=${var.db_conn}'"]
     }
   }
 }
