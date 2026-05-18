@@ -481,7 +481,8 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 		})
 
 		burl := fmt.Sprintf(`"/teams/%s/pipelines/%s/jobs/%s/builds"`, tc, pp.Name, j.Name)
-		err = graph.AddNode(jg, j.Name, map[string]string{
+		quotedJobName := fmt.Sprintf(`"%s"`, j.Name)
+		err = graph.AddNode(jg, quotedJobName, map[string]string{
 			string(gographviz.Margin):    "0.5",
 			string(gographviz.Shape):     "rectangle",
 			string(gographviz.FillColor): color,
@@ -503,7 +504,7 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 				} else {
 					opt[string(gographviz.Style)] = "dashed"
 				}
-				err = graph.AddEdge(rCan, j.Name, false, opt)
+				err = graph.AddEdge(rCan, quotedJobName, false, opt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
 				}
@@ -512,7 +513,7 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 		// Draw job→resource edges for all put steps (plan + hooks)
 		for _, p := range j.AllPutSteps() {
 			rCan := fmt.Sprintf(`"%s.%s"`, p.Type, p.Name)
-			err = graph.AddEdge(j.Name, rCan, false, map[string]string{
+			err = graph.AddEdge(quotedJobName, rCan, false, map[string]string{
 				string(gographviz.Style): "solid",
 			})
 			if err != nil {
@@ -523,6 +524,7 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 
 	// Now we print all the jobs interconnections depending on resources
 	for _, j := range pp.Jobs {
+		quotedJobName := fmt.Sprintf(`"%s"`, j.Name)
 		for _, g := range j.GetSteps() {
 			if len(g.Passed) != 0 {
 				for _, p := range g.Passed {
@@ -543,11 +545,12 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 					if err != nil {
 						return nil, fmt.Errorf("failed to add node to Graph: %w", err)
 					}
-					err = graph.AddEdge(p, nn, false, nil)
+					quotedPassedName := fmt.Sprintf(`"%s"`, p)
+					err = graph.AddEdge(quotedPassedName, nn, false, nil)
 					if err != nil {
 						return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
 					}
-					err = graph.AddEdge(nn, j.Name, false, nil)
+					err = graph.AddEdge(nn, quotedJobName, false, nil)
 					if err != nil {
 						return nil, fmt.Errorf("failed to add edge to Graph: %w", err)
 					}
