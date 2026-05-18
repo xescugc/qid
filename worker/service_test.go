@@ -223,7 +223,7 @@ func TestProcessJob_Success_WithGetAndTask(t *testing.T) {
 	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
 		Return([]*resource.Version{
 			{ID: 1, Version: map[string]interface{}{"date": "now"}},
-		}, nil)
+		}, nil).AnyTimes()
 
 	// UpdateJobBuild: after get step + after task step + after marking succeeded
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(10), gomock.Any()).
@@ -563,7 +563,7 @@ func TestProcessResourceCheck_NewVersions(t *testing.T) {
 
 	// ListResourceVersions - no existing versions
 	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
-		Return([]*resource.Version{}, nil)
+		Return([]*resource.Version{}, nil).AnyTimes()
 
 	// CreateResourceVersion for the new version found
 	svc.EXPECT().CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron", gomock.Any()).
@@ -777,7 +777,7 @@ func TestBuildPullParams_WithVersionID(t *testing.T) {
 		Return([]*resource.Version{
 			{ID: 3, Version: map[string]interface{}{"ref": "abc"}},
 			{ID: 5, Version: map[string]interface{}{"ref": "def"}},
-		}, nil)
+		}, nil).AnyTimes()
 
 	params := w.buildPullParams(ctx, m, &b, rt, r, g)
 	require.NotNil(t, params)
@@ -810,7 +810,7 @@ func TestBuildPullParams_NoVersionID_UsesLatest(t *testing.T) {
 		Return([]*resource.Version{
 			{ID: 1, Version: map[string]interface{}{"ref": "old"}},
 			{ID: 2, Version: map[string]interface{}{"ref": "latest"}},
-		}, nil)
+		}, nil).AnyTimes()
 
 	params := w.buildPullParams(ctx, m, &b, rt, r, g)
 	require.NotNil(t, params)
@@ -836,7 +836,7 @@ func TestBuildPullParams_NoVersions_Fails(t *testing.T) {
 	g := job.GetStep{}
 
 	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
-		Return([]*resource.Version{}, nil)
+		Return([]*resource.Version{}, nil).AnyTimes()
 
 	// Should call failBuild
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(72), gomock.Any()).
@@ -844,6 +844,89 @@ func TestBuildPullParams_NoVersions_Fails(t *testing.T) {
 
 	params := w.buildPullParams(ctx, m, &b, rt, r, g)
 	assert.Nil(t, params)
+}
+
+func TestCheckVersionAvailability_NoVersions_DeletesBuild(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "test-job",
+	}
+	b := build.Build{ID: 99}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-cron", Type: "cron", Canonical: "cron.my-cron"},
+		},
+	}
+	j := &job.Job{
+		Name: "test-job",
+		Plan: []job.PlanStep{
+			{
+				Type: job.StepTypeGet,
+				Get:  &job.GetStep{Type: "cron", Name: "my-cron"},
+			},
+			{
+				Type: job.StepTypePut,
+				Put:  &job.PutStep{Type: "notify", Name: "slack"},
+			},
+		},
+	}
+
+	// No versions available
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
+		Return([]*resource.Version{}, nil)
+
+	// Should delete build (not fail it)
+	svc.EXPECT().DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(99)).
+		Return(nil)
+
+	result := w.checkVersionAvailability(ctx, m, &b, j, pp)
+	assert.False(t, result, "should return false when no versions available")
+}
+
+func TestCheckVersionAvailability_VersionExists_Passes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "test-job",
+	}
+	b := build.Build{ID: 99}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-cron", Type: "cron", Canonical: "cron.my-cron"},
+		},
+	}
+	j := &job.Job{
+		Name: "test-job",
+		Plan: []job.PlanStep{
+			{
+				Type: job.StepTypeGet,
+				Get:  &job.GetStep{Type: "cron", Name: "my-cron"},
+			},
+		},
+	}
+
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
+		Return([]*resource.Version{
+			{ID: 1, Version: map[string]interface{}{"date": "now"}},
+		}, nil)
+
+	result := w.checkVersionAvailability(ctx, m, &b, j, pp)
+	assert.True(t, result, "should return true when version exists")
 }
 
 func TestProcessJob_PutStep_Success(t *testing.T) {
@@ -984,7 +1067,7 @@ func TestProcessJob_OrderedPlan_GetTaskPut(t *testing.T) {
 	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
 		Return([]*resource.Version{
 			{ID: 1, Version: map[string]interface{}{"date": "now"}},
-		}, nil)
+		}, nil).AnyTimes()
 
 	// UpdateJobBuild: after get + after task + after put + after success = 4
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(90), gomock.Any()).
@@ -1124,7 +1207,7 @@ func TestProcessJob_GetTimeout(t *testing.T) {
 	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.my-cron").
 		Return([]*resource.Version{
 			{ID: 1, Version: map[string]interface{}{"date": "now"}},
-		}, nil)
+		}, nil).AnyTimes()
 
 	// failBuild = 1 update
 	var capturedBuild build.Build
@@ -1503,7 +1586,7 @@ func TestProcessResourceCheck_WithSecretVars(t *testing.T) {
 
 	// No existing versions
 	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "git.repo").
-		Return([]*resource.Version{}, nil)
+		Return([]*resource.Version{}, nil).AnyTimes()
 
 	// CreateResourceVersion for the new version found
 	svc.EXPECT().CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, "git.repo", gomock.Any()).

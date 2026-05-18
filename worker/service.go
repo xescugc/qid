@@ -151,6 +151,13 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		return
 	}
 
+	// checkVersionAvailability verifies that the get step can pull a version.
+	// If no version is available (e.g. manual trigger with no resource versions),
+	// the build is deleted silently — no hooks run, no failure recorded.
+	if !w.checkVersionAvailability(ctx, m, &b, j, pp) {
+		return
+	}
+
 	failed := w.runPlan(ctx, m, &b, cwd, pp, j)
 
 	if !failed {
@@ -196,6 +203,40 @@ func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *bu
 				w.deleteBuild(ctx, m, *b)
 				return false
 			}
+		}
+	}
+	return true
+}
+
+// checkVersionAvailability verifies that all get steps in the plan have a
+// version available to pull. If any get step has no version, the build is
+// deleted and false is returned (same behavior as checkPassedConstraints).
+// This prevents hooks from running when no work can be done.
+func (w *Worker) checkVersionAvailability(ctx context.Context, m queue.Body, b *build.Build, j *job.Job, pp *pipeline.Pipeline) bool {
+	for _, ps := range j.Plan {
+		if ps.Type != job.StepTypeGet || ps.Get == nil {
+			continue
+		}
+		g := ps.Get
+		rCan := utils.ResourceCanonical(g.Type, g.Name)
+		r, ok := pp.Resource(rCan)
+		if !ok {
+			w.logger.Warn("get step references unknown resource", "resource", rCan, "job", m.JobName)
+			continue
+		}
+
+		dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
+		if err != nil {
+			// Transient errors (DB, network) should fail the build, not silently delete it.
+			w.failBuild(ctx, m, *b, fmt.Errorf("failed to list resource versions: %w", err))
+			return false
+		}
+
+		if len(dbvers) == 0 {
+			w.logger.Info("job will not run: no versions available",
+				"job", m.JobName, "pipeline", m.PipelineName, "resource", r.Canonical)
+			w.deleteBuild(ctx, m, *b)
+			return false
 		}
 	}
 	return true
