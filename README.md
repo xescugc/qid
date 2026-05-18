@@ -132,13 +132,87 @@ For production setups, run the server and workers as separate processes on diffe
 Full server and worker configuration options are covered in the [documentation](https://github.com/xescugc/pikoci/wiki/Server).
 
 
+## Dogfooding: PikoCI runs its own CI
+
+PikoCI uses itself for CI. The [full pipeline](deploy/pipeline.hcl) runs lint, unit tests, integration tests, and backend tests with services — all defined in HCL:
+
+```hcl
+resource_type "git" {
+  source = "pikoci://git"
+}
+
+resource "git" "pikoci_pr" {
+  params {
+    url   = var.git_url
+    name  = var.git_name
+    pr    = true
+    token = var.github_token
+  }
+}
+
+job "lint" {
+  get "git" "pikoci_pr" { trigger = true }
+  task "make" {
+    run "docker" {
+      image = "golang:1.25.1"
+      cmd   = "cd ${var.git_name} && make lint"
+    }
+  }
+}
+
+job "test-mock" {
+  get "git" "pikoci_pr" { trigger = true }
+  task "make" {
+    run "docker" {
+      image = "golang:1.25.1"
+      cmd   = "cd ${var.git_name} && make test-mock"
+    }
+  }
+}
+
+job "test-integration" {
+  get "git" "pikoci_pr" { trigger = true }
+  task "make" {
+    run "docker" {
+      image = "golang:1.25.1"
+      cmd   = "cd ${var.git_name} && make test-integration"
+    }
+  }
+}
+
+job "test-backends" {
+  get "git" "pikoci_pr" {
+    trigger = true
+    passed  = ["lint", "test-mock", "test-integration"]
+  }
+
+  service "mariadb" {}
+  service "postgresql" {}
+  service "nats" {}
+  service "rabbitmq" {}
+  service "kafka" {}
+  service "vault" {}
+
+  task "make" {
+    run "docker" {
+      image = "golang:1.25.1"
+      cmd   = "cd ${var.git_name} && make test-backends"
+      args  = ["--network=host"]
+    }
+  }
+}
+```
+
+The `test-backends` job uses [service types](https://github.com/xescugc/pikoci/wiki/Services) to spin up MariaDB, PostgreSQL, NATS, RabbitMQ, Kafka, and Vault as Docker containers, runs the backend integration tests against them, then tears everything down. See the [full pipeline](deploy/pipeline.hcl) for secrets, variables, and service definitions.
+
+
 ## Coming from Concourse?
 
 PikoCI's resource model is directly inspired by Concourse. The main differences:
 
 - **Runners** replace task `image_resource`. Define a runner once, reference it from any job
 - **Deployment** is a single binary instead of a multi-service setup requiring PostgreSQL
-- **Secrets** use `variable` blocks today, with a native `secret_type` / `secret` backend system planned
+- **Secrets** use `secret_type` blocks with secret-backed variables. Built-in support for Vault and file-based secrets (JSON, env, raw)
 
 [Concourse pipeline importer planned (#210)](https://github.com/xescugc/pikoci/issues/210).
 
