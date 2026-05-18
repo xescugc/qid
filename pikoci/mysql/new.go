@@ -65,15 +65,9 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 
 	switch ops.System {
 	case Mem:
-		db, err = sql.Open("sqlite", "file::memory:?cache=shared")
-		if err == nil {
-			db.Exec("PRAGMA foreign_keys = ON")
-		}
+		db, err = sql.Open("sqlite", "file::memory:?cache=shared&_pragma=foreign_keys(1)")
 	case SQLite:
-		db, err = sql.Open("sqlite", ops.DBFile)
-		if err == nil {
-			db.Exec("PRAGMA foreign_keys = ON")
-		}
+		db, err = sql.Open("sqlite", ops.DBFile+"?_pragma=foreign_keys(1)")
 	case PostgreSQL:
 		dsn := fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
