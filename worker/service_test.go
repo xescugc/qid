@@ -646,7 +646,7 @@ func TestRunHooks(t *testing.T) {
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(60), gomock.Any()).
 		Return(nil).Times(2)
 
-	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "task-name", hooks, "on_success")
+	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "task-name", hooks, "on_success", nil)
 
 	require.Len(t, b.Job, 2)
 	assert.Equal(t, "task-name:0:on_success", b.Job[0].Name)
@@ -676,7 +676,7 @@ func TestRunHooks_SingleHook_NoIndex(t *testing.T) {
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(61), gomock.Any()).
 		Return(nil)
 
-	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "step", hooks, "ensure")
+	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "step", hooks, "ensure", nil)
 
 	require.Len(t, b.Job, 1)
 	assert.Equal(t, "step:ensure", b.Job[0].Name)
@@ -705,7 +705,7 @@ func TestRunHooks_JobLevel_NoStepName(t *testing.T) {
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(62), gomock.Any()).
 		Return(nil)
 
-	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", hooks, "on_failure")
+	w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", hooks, "on_failure", nil)
 
 	require.Len(t, b.Job, 1)
 	assert.Equal(t, "on_failure", b.Job[0].Name)
