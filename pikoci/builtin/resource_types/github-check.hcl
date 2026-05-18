@@ -42,8 +42,8 @@ resource_type "github-check" {
         exit 1
       fi
 
-      # Write private key to temp file
-      KEY_FILE=$(mktemp)
+      # Write private key to temp file (use WORKDIR since /tmp may be read-only)
+      KEY_FILE="$WORKDIR/.github-check-key.pem"
       trap 'rm -f "$KEY_FILE"' EXIT
       printf '%s' "$PRIVATE_KEY" > "$KEY_FILE"
 
