@@ -56,7 +56,7 @@ gen: ## Runs go generate
 
 .PHONY: lint
 lint: ## Runs staticcheck linter
-	@go tool staticcheck ./...
+	@GOFLAGS=-buildvcs=false go tool staticcheck ./...
 
 .PHONY: test
 test: test-mock test-integration test-backends ## Runs all tests
