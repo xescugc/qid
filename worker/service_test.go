@@ -1906,8 +1906,8 @@ func TestFetchSecrets_RawFormat(t *testing.T) {
 
 	// Create a PEM-like file
 	pemFile := cwd + "/key.pem"
-	pemContent := "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn\n-----END RSA PRIVATE KEY-----"
-	os.WriteFile(pemFile, []byte(pemContent+"\n"), 0644)
+	pemContent := "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn\n-----END RSA PRIVATE KEY-----\n"
+	os.WriteFile(pemFile, []byte(pemContent), 0644)
 
 	pp := &pipeline.Pipeline{
 		SecretTypes: []sectype.SecretType{
