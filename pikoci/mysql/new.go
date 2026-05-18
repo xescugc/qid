@@ -65,16 +65,26 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 
 	switch ops.System {
 	case Mem:
+		// In-memory SQLite with shared cache (so multiple connections see the same data).
+		// _pragma=foreign_keys(1) enables ON DELETE CASCADE on every connection in the pool
+		// (per-connection PRAGMA wouldn't work with sql.DB's connection pool).
 		db, err = sql.Open("sqlite", "file::memory:?cache=shared&_pragma=foreign_keys(1)")
 	case SQLite:
+		// File-backed SQLite. Data persists across restarts.
+		// _pragma=foreign_keys(1) enables ON DELETE CASCADE on every connection in the pool.
 		db, err = sql.Open("sqlite", ops.DBFile+"?_pragma=foreign_keys(1)")
 	case PostgreSQL:
+		// PostgreSQL has foreign keys enabled by default. sslmode=disable for local/dev setups.
 		dsn := fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 			host, port, user, password, ops.DBName,
 		)
 		db, err = sql.Open("postgres", dsn)
 	case MySQL:
+		// MySQL/MariaDB. Foreign keys are enforced by default with InnoDB.
+		// clientFoundRows: UPDATE returns rows matched instead of rows changed (needed for isEntityFound).
+		// parseTime: scan DATE/DATETIME into time.Time.
+		// multiStatements: allow multiple SQL statements in one Exec (needed for migrations).
 		dsn := fmt.Sprintf(
 			"%s:%s@tcp(%s:%d)/%s?clientFoundRows=%t&parseTime=%t&multiStatements=%t",
 			user, password, host, port, ops.DBName, ops.ClientFoundRows, ops.ParseTime, ops.MultiStatements,
