@@ -169,6 +169,13 @@ scp "$DEPLOY_DIR/pikoci.env" "$SSH_HOST":/opt/pikoci/pikoci.env
 ssh "$SSH_HOST" 'chmod 600 /opt/pikoci/pikoci.env'
 ssh "$SSH_HOST" 'rm -f /opt/pikoci/.env && grep -E "^(PIKOCI_DOMAIN|PIKOCI_GRAFANA_DOMAIN|GF_)" /opt/pikoci/pikoci.env > /opt/pikoci/.env'
 
+# Copy GitHub App PEM key if present
+if [ -f "$DEPLOY_DIR/pikoci_github_app.pem" ]; then
+    echo "==> Syncing GitHub App PEM key..."
+    scp "$DEPLOY_DIR/pikoci_github_app.pem" "$SSH_HOST":/etc/pikoci/pikoci_github_app.pem
+    ssh "$SSH_HOST" 'chown pikoci:pikoci /etc/pikoci/pikoci_github_app.pem && chmod 600 /etc/pikoci/pikoci_github_app.pem'
+fi
+
 # --- Install required packages ---
 
 if ! ssh "$SSH_HOST" 'command -v jq &>/dev/null'; then
