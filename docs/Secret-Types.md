@@ -192,7 +192,7 @@ secret_type "my-file" {
 
 | Attribute | Required | Default | Description                                      |
 |-----------|----------|---------|--------------------------------------------------|
-| `format`  | no       | `json`  | File format: `json` or `env`                     |
+| `format`  | no       | `json`  | File format: `json`, `env`, or `raw`              |
 | `path`    | no       |         | Default file path; can be overridden per-variable |
 
 The file path can be set on the `secret_type` block as a default, on each variable's `secret` block, or both (the variable-level `path` takes precedence):
@@ -279,6 +279,27 @@ DB_HOST=db.example.com
 DB_PASSWORD=s3cret
 DB_USER="admin"
 ```
+
+### `raw` format
+
+When `format = "raw"`, the entire file content is returned as a single value under the key `content`. This is useful for files that aren't structured as JSON or key-value pairs, such as PEM certificates, SSH keys, or tokens:
+
+```hcl
+secret_type "app-key" {
+  source = "pikoci://file"
+  format = "raw"
+  path   = "/etc/pikoci/github-app.pem"
+}
+
+variable "github_app_key" {
+  type = string
+  secret "app-key" {
+    key = "content"
+  }
+}
+```
+
+The variable receives the full file content as-is.
 
 ## Example: custom secret type
 

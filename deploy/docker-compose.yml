@@ -33,6 +33,8 @@ services:
       - GF_SERVER_ROOT_URL=https://${PIKOCI_GRAFANA_DOMAIN}
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   node-exporter:
     image: prom/node-exporter:latest

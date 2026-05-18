@@ -1021,9 +1021,14 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 		// Parse output based on format config
 		format := st.Config["format"]
 		var secretData map[string]string
-		if format == "env" {
+		switch format {
+		case "env":
 			secretData = parseEnvFormat(out)
-		} else {
+		case "raw":
+			// Raw format: entire file content as a single "content" key.
+			// Trim trailing newline added by the shell command (e.g. cat).
+			secretData = map[string]string{"content": strings.TrimRight(out, "\n")}
+		default:
 			// Default: parse last line of stdout as JSON object
 			sout := strings.Split(strings.Trim(out, "\n"), "\n")
 			rawJSON := sout[len(sout)-1]

@@ -148,6 +148,10 @@ scp "$DEPLOY_DIR/pikoci.service" "$SSH_HOST":/etc/systemd/system/pikoci.service
 scp "$DEPLOY_DIR/docker-compose.yml" "$SSH_HOST":/opt/pikoci/docker-compose.yml
 scp "$DEPLOY_DIR/Caddyfile" "$SSH_HOST":/opt/pikoci/Caddyfile
 scp "$DEPLOY_DIR/prometheus.yml" "$SSH_HOST":/opt/pikoci/prometheus.yml
+ssh "$SSH_HOST" 'mkdir -p /opt/pikoci/grafana/provisioning/datasources /opt/pikoci/grafana/provisioning/dashboards /opt/pikoci/grafana/dashboards'
+scp "$DEPLOY_DIR/grafana/provisioning/datasources/prometheus.yml" "$SSH_HOST":/opt/pikoci/grafana/provisioning/datasources/prometheus.yml
+scp "$DEPLOY_DIR/grafana/provisioning/dashboards/default.yml" "$SSH_HOST":/opt/pikoci/grafana/provisioning/dashboards/default.yml
+scp "$DEPLOY_DIR/grafana/dashboards/pikoci.json" "$SSH_HOST":/opt/pikoci/grafana/dashboards/pikoci.json
 
 # --- Sync env file ---
 # The full env file goes to two places:

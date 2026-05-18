@@ -1817,5 +1817,120 @@ func TestRunRunner_ParamVarsExpandedByShell(t *testing.T) {
 	assert.Contains(t, out, "url=https://example.com", "param_url should be expanded by shell from env")
 }
 
+func TestProcessResourceCheck_RawSecretFormat(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, topic := newTestWorker(ctrl)
+
+	ctx := context.Background()
+
+	// Create a temp PEM-like file
+	tmpDir := t.TempDir()
+	pemFile := tmpDir + "/test.pem"
+	pemContent := "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn\n-----END RSA PRIVATE KEY-----\n"
+	os.WriteFile(pemFile, []byte(pemContent), 0644)
+
+	m := queue.Body{
+		TeamCanonical:     "main",
+		PipelineName:      "test-pipeline",
+		ResourceCanonical: "cron.timer",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "test-job",
+				Plan: []job.PlanStep{
+					{Type: job.StepTypeGet, Get: &job.GetStep{Type: "cron", Name: "timer", Trigger: true}},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{
+				ID: 1, Name: "timer", Type: "cron", Canonical: "cron.timer",
+				Params: &resource.Params{
+					Params: map[string]string{
+						"key": "__pikoci_secret:pem::content__",
+					},
+				},
+			},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "cron",
+				Params: []string{"key"},
+				Check: &utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", `printf "[{\"date\":\"now\"}]\n"`},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+		SecretTypes: []sectype.SecretType{
+			{
+				Name: "pem",
+				Get: utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", fmt.Sprintf(`cat "%s"`, pemFile)},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+				Config: map[string]string{"format": "raw", "path": pemFile},
+			},
+		},
+		SecretVars: map[string]pipeline.VariableSecret{
+			"app_key": {Type: "pem", Key: "content"},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "cron.timer").
+		Return([]*resource.Version{}, nil)
+	svc.EXPECT().CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, "cron.timer", gomock.Any()).
+		Return(&resource.Version{ID: 1, Version: map[string]interface{}{"date": "now"}}, nil)
+	topic.EXPECT().Send(ctx, gomock.Any()).Return(nil)
+
+	w.processResourceCheck(ctx, m, cwd, pp)
+}
+
+func TestFetchSecrets_RawFormat(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, _, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+
+	// Create a PEM-like file
+	pemFile := cwd + "/key.pem"
+	pemContent := "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn\n-----END RSA PRIVATE KEY-----"
+	os.WriteFile(pemFile, []byte(pemContent+"\n"), 0644)
+
+	pp := &pipeline.Pipeline{
+		SecretTypes: []sectype.SecretType{
+			{
+				Name: "pem",
+				Get: utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", fmt.Sprintf(`cat "%s"`, pemFile)},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+				Config: map[string]string{"format": "raw", "path": pemFile},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	secrets := map[string]string{"pem": ""}
+	result, err := w.fetchSecrets(ctx, cwd, pp, secrets)
+	require.NoError(t, err)
+	assert.Equal(t, pemContent, result["secret_content"], "raw format should return trimmed file content under 'content' key")
+}
+
 // Silence the unused import warnings
 var _ = time.Now
