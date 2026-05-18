@@ -58,7 +58,7 @@ func (q *PikoCI) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint
 	}
 
 	if b.Status != build.Started && b.Duration == 0 {
-		b.Duration = time.Now().Sub(b.StartedAt)
+		b.Duration = time.Since(b.StartedAt)
 	}
 
 	err := q.Builds.Update(ctx, tc, pn, jn, bID, b)

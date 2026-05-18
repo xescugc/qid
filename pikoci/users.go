@@ -21,7 +21,7 @@ func (q *PikoCI) UserLogin(ctx context.Context, un, pass string) (*user.WithMemb
 
 	ok := utils.CheckPasswordHash(pass, um.Password)
 	if !ok {
-		return nil, "", fmt.Errorf("Username or Password is wrong")
+		return nil, "", fmt.Errorf("username or password is wrong")
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

@@ -37,7 +37,7 @@ func TestCreateTeam_EmptyName(t *testing.T) {
 
 	_, err := s.S.CreateTeam(ctx, "admin", team.Team{Name: ""})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Team Name is required")
+	assert.Contains(t, err.Error(), "team name is required")
 }
 
 func TestCreateTeam_InvalidUsername(t *testing.T) {
@@ -163,7 +163,7 @@ func TestUpdateTeamMember_WouldRemoveLastAdmin(t *testing.T) {
 
 	_, err := s.S.UpdateTeamMember(ctx, "main", "admin", team.Member{Admin: false})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no Admins")
+	assert.Contains(t, err.Error(), "no admins")
 }
 
 func TestDeleteTeamMember(t *testing.T) {

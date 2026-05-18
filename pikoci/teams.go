@@ -14,7 +14,7 @@ func (q *PikoCI) CreateTeam(ctx context.Context, un string, t team.Team) (*team.
 	if !utils.ValidateCanonical(un) {
 		return nil, fmt.Errorf("invalid Username format %q", un)
 	} else if t.Name == "" {
-		return nil, fmt.Errorf("Team Name is required")
+		return nil, fmt.Errorf("team name is required")
 	}
 
 	t.Canonical = utils.Canonicalize(t.Name)
@@ -186,7 +186,7 @@ func (q *PikoCI) validateTeamAdmins(ctx context.Context, tc, mu string, m *team.
 	}
 
 	if admins == 0 {
-		return fmt.Errorf("Cannot have a Team with no Admins")
+		return fmt.Errorf("cannot have a team with no admins")
 	}
 	return nil
 }

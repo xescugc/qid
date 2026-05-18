@@ -109,6 +109,9 @@ func (r *UserRepository) FindWithMemberships(ctx context.Context, un string) (*u
 			ON tu.team_id = t.id
 		WHERE u.username = ?
 	`, un)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user with memberships: %w", err)
+	}
 
 	u, err := scanUserWithMemberships(rows)
 	if err != nil {
