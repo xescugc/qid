@@ -50,15 +50,16 @@ type hclTaskStep struct {
 }
 
 // hclPutStep is the HCL-decoded put step.
-// Note: hooks on put steps are parsed from the raw AST by parseHooks.
-// The remain field absorbs both put params AND hook blocks.
+// Uses hcl.Body remain to absorb both params (attributes) and hook blocks,
+// since map[string]string remain can only absorb attributes, not blocks.
+// Params and hooks are both extracted from the raw AST in parseJobPlans.
 type hclPutStep struct {
 	Type     string `hcl:"type,label"`
 	Name     string `hcl:"name,label"`
 	Timeout  string `hcl:"timeout,optional"`
 	Attempts int    `hcl:"attempts,optional"`
 
-	Params map[string]string `hcl:",remain"`
+	Remain hcl.Body `hcl:",remain"`
 }
 
 // hclJob is the intermediate HCL-decoded job with separate get/task/put arrays.
@@ -551,7 +552,9 @@ func parseHooks(block *hclsyntax.Block, ectx *hcl.EvalContext, hookType string) 
 					if val.Type().IsListType() || val.Type().IsTupleType() {
 						for it := val.ElementIterator(); it.Next(); {
 							_, v := it.Element()
-							rc.Args = append(rc.Args, v.AsString())
+							if v.Type() == cty.String {
+								rc.Args = append(rc.Args, v.AsString())
+							}
 						}
 					}
 				} else {
@@ -741,6 +744,19 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 				if p.Attempts < 0 {
 					return nil, nil, nil, fmt.Errorf("invalid attempts %d on put step %q: must be >= 0", p.Attempts, p.Name)
 				}
+				// Extract put params from AST attributes (exclude known fields)
+				putParams := make(map[string]string)
+				for name, attr := range innerBlock.Body.Attributes {
+					if name == "timeout" || name == "attempts" {
+						continue
+					}
+					val, vdiags := attr.Expr.Value(ectx)
+					if vdiags.HasErrors() {
+						continue
+					}
+					putParams[name] = val.AsString()
+				}
+
 				plan = append(plan, job.PlanStep{
 					Type:     job.StepTypePut,
 					Timeout:  timeout,
@@ -748,7 +764,7 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 					Put: &job.PutStep{
 						Type:   p.Type,
 						Name:   p.Name,
-						Params: p.Params,
+						Params: putParams,
 					},
 					OnSuccess: parseHooks(innerBlock, ectx, "on_success"),
 					OnFailure: parseHooks(innerBlock, ectx, "on_failure"),

@@ -1039,3 +1039,61 @@ job "deploy" {
 	require.NoError(t, err)
 	require.NotNil(t, pp)
 }
+
+func TestCreatePipeline_HooksOnPutStep(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource_type "notify" {
+  push "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo notifying"]
+  }
+}
+
+resource "notify" "slack" {
+}
+
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "deploy" {
+  get "cron" "timer" { trigger = true }
+
+  task "run" {
+    run "exec" {
+      path = "echo"
+      args = ["testing"]
+    }
+  }
+
+  put "notify" "slack" {
+    message = "deployed"
+
+    on_success "exec" {
+      path = "/bin/sh"
+      args = ["-ec", "echo put-success"]
+    }
+
+    on_failure {
+      put "notify" "slack" {
+        message = "put-failed"
+      }
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "hooks-on-put", gomock.Any()).Return(uint32(1), nil)
+	s.Resources.EXPECT().Create(ctx, "main", "hooks-on-put", gomock.Any()).Return(uint32(1), nil).Times(2)
+	s.ResourceTypes.EXPECT().Create(ctx, "main", "hooks-on-put", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "hooks-on-put").Return(&pipeline.Pipeline{Name: "hooks-on-put"}, nil)
+
+	pp, err := s.S.CreatePipeline(ctx, "main", "hooks-on-put", hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pp)
+}
