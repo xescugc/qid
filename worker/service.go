@@ -151,6 +151,13 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		return
 	}
 
+	// checkVersionAvailability verifies that the get step can pull a version.
+	// If no version is available (e.g. manual trigger with no resource versions),
+	// the build is deleted silently — no hooks run, no failure recorded.
+	if !w.checkVersionAvailability(ctx, m, &b, j, pp) {
+		return
+	}
+
 	failed := w.runPlan(ctx, m, &b, cwd, pp, j)
 
 	if !failed {
@@ -193,6 +200,55 @@ func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *bu
 			if builds[0].Status != build.Succeeded {
 				w.logger.Info("job will not run: passed job is not succeeded",
 					"job", m.JobName, "pipeline", m.PipelineName, "passed_job", p)
+				w.deleteBuild(ctx, m, *b)
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// checkVersionAvailability verifies that all get steps in the plan have a
+// version available to pull. If any get step has no version, the build is
+// deleted and false is returned (same behavior as checkPassedConstraints).
+// This prevents hooks from running when no work can be done.
+func (w *Worker) checkVersionAvailability(ctx context.Context, m queue.Body, b *build.Build, j *job.Job, pp *pipeline.Pipeline) bool {
+	for _, ps := range j.Plan {
+		if ps.Type != job.StepTypeGet || ps.Get == nil {
+			continue
+		}
+		g := ps.Get
+		rCan := utils.ResourceCanonical(g.Type, g.Name)
+		r, ok := pp.Resource(rCan)
+		if !ok {
+			continue
+		}
+
+		dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
+		if err != nil {
+			w.logger.Error("failed to list resource versions for availability check", "error", err)
+			w.deleteBuild(ctx, m, *b)
+			return false
+		}
+
+		if m.VersionID != 0 {
+			var found bool
+			for _, ver := range dbvers {
+				if ver.ID == m.VersionID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				w.logger.Info("job will not run: version not found",
+					"job", m.JobName, "pipeline", m.PipelineName, "resource", r.Canonical, "version_id", m.VersionID)
+				w.deleteBuild(ctx, m, *b)
+				return false
+			}
+		} else {
+			if len(dbvers) == 0 {
+				w.logger.Info("job will not run: no versions available",
+					"job", m.JobName, "pipeline", m.PipelineName, "resource", r.Canonical)
 				w.deleteBuild(ctx, m, *b)
 				return false
 			}
