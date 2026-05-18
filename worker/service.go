@@ -396,7 +396,7 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 
 	if err != nil {
-		b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d})
+		b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d, Status: build.Failed})
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
 		w.logger.Error("failed to run get step", "step", g.Name, "error", err)
@@ -411,6 +411,7 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		VersionID: m.VersionID,
 		Logs:      out,
 		Duration:  d,
+		Status:    build.Succeeded,
 	})
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
@@ -481,7 +482,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 	}
 
 	if err != nil {
-		b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d})
+		b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Failed})
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
 		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.OnFailure, "on_failure")
@@ -489,7 +490,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		return true
 	}
 
-	b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d})
+	b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Succeeded})
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
 	}
@@ -592,7 +593,7 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 
 	if err != nil {
-		b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d})
+		b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d, Status: build.Failed})
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
 		w.logger.Error("failed to run put step", "step", p.Name, "error", err)
@@ -601,7 +602,7 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return true
 	}
 
-	b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d})
+	b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d, Status: build.Succeeded})
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
 	}
@@ -747,7 +748,7 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 			}
 		}
 
-		*steps = append(*steps, build.Step{Type: "hook", Name: name, Logs: out, Duration: d})
+		*steps = append(*steps, build.Step{Type: "hook", Name: name, Logs: out, Duration: d, Status: build.Succeeded})
 		if err := w.updateBuild(ctx, m, *b); err != nil {
 			return
 		}
@@ -1068,14 +1069,14 @@ func (w *Worker) startServices(ctx context.Context, m queue.Body, b *build.Build
 
 		out, d, err := w.runRunner(ctx, ru, cwd, rc)
 		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d})
+			b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d, Status: build.Failed})
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			w.logger.Error("failed to start service", "service", ss.Name, "error", err)
 			return started
 		}
 
-		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d})
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d, Status: build.Succeeded})
 		if err := w.updateBuild(ctx, m, *b); err != nil {
 			return started
 		}
@@ -1217,13 +1218,13 @@ func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Bui
 	allReady := true
 	for r := range results {
 		if r.err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d})
+			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d, Status: build.Failed})
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			w.logger.Error("service ready_check failed", "service", r.name, "error", r.err)
 			allReady = false
 		} else {
-			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d})
+			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d, Status: build.Succeeded})
 			w.updateBuild(ctx, m, *b)
 		}
 	}
@@ -1258,10 +1259,12 @@ func (w *Worker) stopServices(m queue.Body, b *build.Build, cwd string, pp *pipe
 		}
 
 		out, d, err := w.runRunner(stopCtx, ru, cwd, rc)
+		stepStatus := build.Succeeded
 		if err != nil {
+			stepStatus = build.Failed
 			w.logger.Error("failed to stop service", "service", ss.Name, "error", err)
 		}
-		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":stop", Logs: out, Duration: d})
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":stop", Logs: out, Duration: d, Status: stepStatus})
 		w.updateBuild(stopCtx, m, *b)
 	}
 }
