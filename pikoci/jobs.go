@@ -20,7 +20,7 @@ func (q *PikoCI) TriggerPipelineJob(ctx context.Context, tc, pn, jn string) erro
 		return fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
-	_, err := q.Jobs.Find(ctx, tc, pn, jn)
+	j, err := q.Jobs.Find(ctx, tc, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to Find Job %q on Pipeline %q: %w", jn, pn, err)
 	}
@@ -29,6 +29,19 @@ func (q *PikoCI) TriggerPipelineJob(ctx context.Context, tc, pn, jn string) erro
 		TeamCanonical: tc,
 		PipelineName:  pn,
 		JobName:       jn,
+	}
+
+	// Pin the latest version of the first get-step resource so the version
+	// is locked at trigger time rather than at execution time.
+	getSteps := j.GetSteps()
+	if len(getSteps) > 0 {
+		g := getSteps[0]
+		rCan := g.ResourceCanonical()
+		vers, err := q.Resources.FilterVersions(ctx, tc, pn, rCan)
+		if err == nil && len(vers) > 0 {
+			m.ResourceCanonical = rCan
+			m.VersionID = vers[len(vers)-1].ID
+		}
 	}
 
 	mb, err := json.Marshal(m)

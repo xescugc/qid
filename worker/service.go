@@ -684,10 +684,12 @@ func (w *Worker) triggerDownstreamJobs(ctx context.Context, m queue.Body, b *bui
 				}
 				mb, err := json.Marshal(qb)
 				if err != nil {
-					w.failBuild(ctx, m, *b, fmt.Errorf("failed to marshal trigger body: %w", err))
-					return
+					w.logger.Error("failed to marshal downstream trigger body", "error", err)
+					continue
 				}
-				w.topic.Send(ctx, &pubsub.Message{Body: mb})
+				if err := w.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
+					w.logger.Error("failed to send downstream trigger message", "job", nj.Name, "error", err)
+				}
 			}
 		}
 	}
@@ -889,9 +891,11 @@ func (w *Worker) triggerResourceJobs(ctx context.Context, m queue.Body, pp *pipe
 				mb, err := json.Marshal(qb)
 				if err != nil {
 					w.logger.Error("failed to marshal trigger body", "error", err)
-					return
+					continue
 				}
-				w.topic.Send(ctx, &pubsub.Message{Body: mb})
+				if err := w.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
+					w.logger.Error("failed to send trigger message", "job", j.Name, "error", err)
+				}
 			}
 		}
 	}

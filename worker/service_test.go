@@ -1932,5 +1932,57 @@ func TestFetchSecrets_RawFormat(t *testing.T) {
 	assert.Equal(t, pemContent, result["secret_content"], "raw format should return trimmed file content under 'content' key")
 }
 
+func TestTriggerResourceJobs_MultipleJobsSameResource(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, _, topic := newTestWorker(ctrl)
+
+	ctx := context.Background()
+
+	r := resource.Resource{
+		ID:        1,
+		Name:      "my-repo",
+		Type:      "git",
+		Canonical: "git.my-repo",
+	}
+	cv := &resource.Version{ID: 42}
+
+	pp := &pipeline.Pipeline{
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "lint",
+				Plan: []job.PlanStep{
+					{Type: job.StepTypeGet, Get: &job.GetStep{Type: "git", Name: "my-repo", Trigger: true}},
+				},
+			},
+			{
+				ID:   2,
+				Name: "test-mock",
+				Plan: []job.PlanStep{
+					{Type: job.StepTypeGet, Get: &job.GetStep{Type: "git", Name: "my-repo", Trigger: true}},
+				},
+			},
+			{
+				ID:   3,
+				Name: "test-integration",
+				Plan: []job.PlanStep{
+					{Type: job.StepTypeGet, Get: &job.GetStep{Type: "git", Name: "my-repo", Trigger: true}},
+				},
+			},
+		},
+	}
+
+	m := queue.Body{
+		TeamCanonical: "tc",
+		PipelineName:  "test-pipeline",
+	}
+
+	// Expect Send to be called 3 times, once for each job
+	topic.EXPECT().Send(ctx, gomock.Any()).Times(3).Return(nil)
+
+	w.triggerResourceJobs(ctx, m, pp, r, cv)
+}
+
 // Silence the unused import warnings
 var _ = time.Now
