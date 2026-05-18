@@ -28,7 +28,7 @@ resource_type "git" {
           REPO=$(echo "$URL" | sed -E 's|https?://github\.com/||;s|\.git$||')
           curl -sf -H "Authorization: token $TOKEN" \
             "https://api.github.com/repos/$REPO/pulls?state=open&sort=updated&direction=desc&per_page=100" \
-            | jq '[.[] | {"ref": .head.sha, "pr": (.number | tostring)}]'
+            | jq -c '[.[] | {"ref": .head.sha, "pr": (.number | tostring)}]'
           exit 0
         fi
 
@@ -37,7 +37,7 @@ resource_type "git" {
           PROJECT=$(echo "$URL" | sed -E 's|https?://gitlab\.com/||;s|\.git$||' | sed 's|/|%2F|g')
           curl -sf -H "PRIVATE-TOKEN: $TOKEN" \
             "https://gitlab.com/api/v4/projects/$PROJECT/merge_requests?state=opened&order_by=updated_at&sort=desc&per_page=100" \
-            | jq '[.[] | {"ref": .sha, "pr": (.iid | tostring)}]'
+            | jq -c '[.[] | {"ref": .sha, "pr": (.iid | tostring)}]'
           exit 0
         fi
 
