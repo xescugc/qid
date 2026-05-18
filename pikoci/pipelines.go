@@ -410,15 +410,26 @@ func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipe
 	graph.SetStrict(true)
 	graph.AddAttr(pn, string(gographviz.RankDir), "LR")
 
+	// Collect resources referenced by get steps
+	referencedResources := make(map[string]bool)
+	for _, j := range pp.Jobs {
+		for _, g := range j.GetSteps() {
+			referencedResources[g.ResourceCanonical()] = true
+		}
+	}
+
 	resourceBorders := make(map[string]string)
 	// Print all the resources
 	for _, r := range pp.Resources {
-		vurl := fmt.Sprintf(`"/teams/%s/pipelines/%s/resources/%s/versions"`, tc, pp.Name, r.Canonical)
 		borderColor := colorResourceBorder
 		if r.Logs != "" {
 			borderColor = colorError
 		}
 		resourceBorders[r.Canonical] = borderColor
+		if !referencedResources[r.Canonical] {
+			continue
+		}
+		vurl := fmt.Sprintf(`"/teams/%s/pipelines/%s/resources/%s/versions"`, tc, pp.Name, r.Canonical)
 		err = graph.AddNode(pn, fmt.Sprintf(`"%s"`, r.Canonical), map[string]string{
 			string(gographviz.Margin):    "0.2",
 			string(gographviz.Shape):     "cds",
