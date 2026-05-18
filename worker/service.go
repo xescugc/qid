@@ -718,6 +718,8 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 				params[k] = v
 			}
 			rc.Params = params
+			replaceSecretPlaceholders(rc.Params, resolved)
+			replaceSecretPlaceholdersInSlice(rc.Args, resolved)
 			if len(buildStatus) > 0 {
 				rc.Params["BUILD_STATUS"] = buildStatus[0]
 			}
