@@ -317,6 +317,7 @@ func (r *ResourceRepository) FilterVersions(ctx context.Context, tc, pn, rCan st
 		JOIN teams AS t
 			ON p.team_id = t.id
 		WHERE t.canonical = ? AND p.name = ? AND r.canonical = ?
+		ORDER BY rv.id ASC
 	`, tc, pn, rCan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter Resources: %w", err)

@@ -2,12 +2,16 @@ package pikoci_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xescugc/pikoci/pikoci/job"
+	"github.com/xescugc/pikoci/pikoci/queue"
+	"github.com/xescugc/pikoci/pikoci/resource"
 	"go.uber.org/mock/gomock"
+	"gocloud.dev/pubsub"
 )
 
 func TestGetPipelineJob_InvalidCanonical(t *testing.T) {
@@ -73,4 +77,50 @@ func TestTriggerPipelineJob_SendError(t *testing.T) {
 	err := s.S.TriggerPipelineJob(ctx, "main", "pp", "jn")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to Trigger Job")
+}
+
+func TestTriggerPipelineJob_PinsLatestVersion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+	tc := "main"
+	ppn := "pp"
+	jn := "jn"
+
+	j := &job.Job{
+		ID:   1,
+		Name: jn,
+		Plan: []job.PlanStep{
+			{
+				Type: job.StepTypeGet,
+				Get:  &job.GetStep{Type: "git", Name: "my-repo", Trigger: true},
+			},
+		},
+	}
+
+	versions := []*resource.Version{
+		{ID: 10},
+		{ID: 20},
+		{ID: 30},
+	}
+
+	rCan := j.GetSteps()[0].ResourceCanonical()
+
+	s.Jobs.EXPECT().Find(ctx, tc, ppn, jn).Return(j, nil)
+	s.Resources.EXPECT().FilterVersions(ctx, tc, ppn, rCan).Return(versions, nil)
+
+	m := queue.Body{
+		TeamCanonical:     tc,
+		PipelineName:      ppn,
+		JobName:           jn,
+		ResourceCanonical: rCan,
+		VersionID:         30,
+	}
+	mb, err := json.Marshal(m)
+	require.NoError(t, err)
+
+	s.Topic.EXPECT().Send(ctx, &pubsub.Message{Body: mb}).Return(nil)
+
+	err = s.S.TriggerPipelineJob(ctx, tc, ppn, jn)
+	require.NoError(t, err)
 }
