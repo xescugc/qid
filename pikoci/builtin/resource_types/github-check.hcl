@@ -67,7 +67,7 @@ resource_type "github-check" {
       if [ -z "$RESOURCE_NAME" ]; then
         RESOURCE_NAME="github-check"
       fi
-      ID_FILE="$WORKDIR/.github-check-${RESOURCE_NAME}.id"
+      ID_FILE="$WORKDIR/.github-check-$${RESOURCE_NAME}.id"
 
       if [ -n "$STATUS" ] && [ "$STATUS" = "in_progress" ]; then
         # Create a new check run
