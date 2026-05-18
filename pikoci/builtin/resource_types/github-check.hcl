@@ -26,9 +26,15 @@ resource_type "github-check" {
         CHECK_NAME="$BUILD_PIPELINE_NAME/$BUILD_JOB_NAME"
       fi
 
-      # Default head SHA from git if not provided
+      # Default head SHA from git if not provided.
+      # Try any git repo found in WORKDIR (the get step clones there).
       if [ -z "$HEAD_SHA" ]; then
-        HEAD_SHA=$(git rev-parse HEAD 2>/dev/null || true)
+        for d in "$WORKDIR"/*/; do
+          if [ -d "$d/.git" ]; then
+            HEAD_SHA=$(git -C "$d" rev-parse HEAD 2>/dev/null || true)
+            break
+          fi
+        done
       fi
 
       if [ -z "$HEAD_SHA" ]; then
