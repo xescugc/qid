@@ -1598,5 +1598,224 @@ func TestProcessResourceCheck_WithSecretVars(t *testing.T) {
 	w.processResourceCheck(ctx, m, cwd, pp)
 }
 
+func TestParseEnvFormat(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected map[string]string
+	}{
+		{
+			name:  "basic key=value",
+			input: "DB_HOST=localhost\nDB_PORT=5432\n",
+			expected: map[string]string{
+				"DB_HOST": "localhost",
+				"DB_PORT": "5432",
+			},
+		},
+		{
+			name:  "double quoted values stripped",
+			input: `DB_USER="admin"`,
+			expected: map[string]string{
+				"DB_USER": "admin",
+			},
+		},
+		{
+			name:  "single quoted values stripped",
+			input: `DB_PASS='s3cret'`,
+			expected: map[string]string{
+				"DB_PASS": "s3cret",
+			},
+		},
+		{
+			name:  "comments and blank lines ignored",
+			input: "# comment\n\nKEY=value\n  \n",
+			expected: map[string]string{
+				"KEY": "value",
+			},
+		},
+		{
+			name:  "value containing equals sign",
+			input: "CONN=host=db;port=5432\n",
+			expected: map[string]string{
+				"CONN": "host=db;port=5432",
+			},
+		},
+		{
+			name:     "empty input",
+			input:    "",
+			expected: map[string]string{},
+		},
+		{
+			name:  "CRLF line endings",
+			input: "KEY=value\r\n",
+			expected: map[string]string{
+				"KEY": "value",
+			},
+		},
+		{
+			name:  "invalid variable names skipped",
+			input: "VALID=yes\n123BAD=no\n-also-bad=no\n",
+			expected: map[string]string{
+				"VALID": "yes",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseEnvFormat(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestProcessResourceCheck_SecretResolutionError_UpdatesResourceLogs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical:     "main",
+		PipelineName:      "test-pipeline",
+		ResourceCanonical: "git.repo",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Resources: []resource.Resource{
+			{
+				ID: 1, Name: "repo", Type: "git", Canonical: "git.repo",
+				Params: &resource.Params{
+					Params: map[string]string{
+						"url":   "https://github.com/example/repo.git",
+						"token": "__pikoci_secret:vault:secret/bad:token__",
+					},
+				},
+			},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "git",
+				Params: []string{"url", "token"},
+				Check: &utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", `echo "check"`},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+		SecretTypes: []sectype.SecretType{
+			{
+				Name: "vault",
+				Get: utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", `exit 1`},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+			},
+		},
+		SecretVars: map[string]pipeline.VariableSecret{
+			"git_token": {Type: "vault", Path: "secret/bad", Key: "token"},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "git.repo").
+		Return([]*resource.Version{}, nil)
+
+	// Expect the resource to be updated with error logs
+	svc.EXPECT().UpdatePipelineResource(ctx, m.TeamCanonical, m.PipelineName, "git.repo", gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ string, r resource.Resource) error {
+			assert.NotEmpty(t, r.Logs, "resource logs should contain the error")
+			assert.Contains(t, r.Logs, "failed to resolve secrets")
+			return nil
+		})
+
+	w.processResourceCheck(ctx, m, cwd, pp)
+}
+
+func TestRunRunner_ShellVariablesNotDestroyed(t *testing.T) {
+	// Verifies that shell-local variables in command args are not
+	// destroyed by os.Expand — they should pass through to the shell.
+	ctrl := gomock.NewController(t)
+	w, _, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+
+	ru := runner.Runner{
+		Name: "exec",
+		Run:  utils.RunCommand{Path: "$path", Args: []string{"$args"}},
+	}
+
+	// This script sets a shell variable and uses it.
+	// Before the fix, os.Expand would empty $MY_VAR.
+	rc := utils.RunnerCommand{
+		Runner: "exec",
+		Args:   []string{"-ec", `MY_VAR="hello_from_shell"; echo "$MY_VAR"`},
+		Params: map[string]string{"path": "/bin/sh"},
+	}
+
+	out, _, err := w.runRunner(ctx, ru, cwd, rc)
+	require.NoError(t, err)
+	assert.Contains(t, out, "hello_from_shell", "shell variable should survive and be echoed")
+}
+
+func TestRunRunner_AwkPositionalArgsWork(t *testing.T) {
+	// Verifies that awk $1, $0 etc. work in command args.
+	ctrl := gomock.NewController(t)
+	w, _, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+
+	ru := runner.Runner{
+		Name: "exec",
+		Run:  utils.RunCommand{Path: "$path", Args: []string{"$args"}},
+	}
+
+	rc := utils.RunnerCommand{
+		Runner: "exec",
+		Args:   []string{"-ec", `echo "foo bar" | awk '{print $1}'`},
+		Params: map[string]string{"path": "/bin/sh"},
+	}
+
+	out, _, err := w.runRunner(ctx, ru, cwd, rc)
+	require.NoError(t, err)
+	assert.Contains(t, out, "foo", "awk $1 should extract first field")
+	assert.NotContains(t, out, "bar", "awk $1 should not include second field")
+}
+
+func TestRunRunner_ParamVarsExpandedByShell(t *testing.T) {
+	// Verifies that $param_* variables are available to the shell via env vars.
+	ctrl := gomock.NewController(t)
+	w, _, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	cwd := t.TempDir()
+
+	ru := runner.Runner{
+		Name: "exec",
+		Run:  utils.RunCommand{Path: "$path", Args: []string{"$args"}},
+	}
+
+	rc := utils.RunnerCommand{
+		Runner: "exec",
+		Args:   []string{"-ec", `echo "url=$param_url"`},
+		Params: map[string]string{
+			"path":      "/bin/sh",
+			"param_url": "https://example.com",
+		},
+	}
+
+	out, _, err := w.runRunner(ctx, ru, cwd, rc)
+	require.NoError(t, err)
+	assert.Contains(t, out, "url=https://example.com", "param_url should be expanded by shell from env")
+}
+
 // Silence the unused import warnings
 var _ = time.Now
