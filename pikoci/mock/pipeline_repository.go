@@ -86,10 +86,10 @@ func (mr *PipelineRepositoryMockRecorder) Filter(ctx, tc any) *gomock.Call {
 }
 
 // FilterAll mocks base method.
-func (m *PipelineRepository) FilterAll(ctx context.Context) ([]*pipeline.PipelineWithTeam, error) {
+func (m *PipelineRepository) FilterAll(ctx context.Context) ([]*pipeline.WithTeam, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FilterAll", ctx)
-	ret0, _ := ret[0].([]*pipeline.PipelineWithTeam)
+	ret0, _ := ret[0].([]*pipeline.WithTeam)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

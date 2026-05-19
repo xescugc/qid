@@ -14,6 +14,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/resource"
+	"github.com/xescugc/pikoci/pikoci/team"
 	"go.uber.org/mock/gomock"
 	"gocloud.dev/pubsub"
 )
@@ -183,7 +184,7 @@ func TestTickJobs_TriggersWhenCommonVersionExists(t *testing.T) {
 
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -206,7 +207,7 @@ func TestTickJobs_TriggersWhenCommonVersionExists(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)
@@ -236,7 +237,7 @@ func TestTickJobs_SkipsWhenNoCommonVersion(t *testing.T) {
 
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -257,7 +258,7 @@ func TestTickJobs_SkipsWhenNoCommonVersion(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)
@@ -277,7 +278,7 @@ func TestTickJobs_SkipsWhenTriggerFalse(t *testing.T) {
 
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -298,7 +299,7 @@ func TestTickJobs_SkipsWhenTriggerFalse(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)
@@ -314,7 +315,7 @@ func TestTickJobs_SkipsJobsWithoutPassedConstraints(t *testing.T) {
 
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -334,7 +335,7 @@ func TestTickJobs_SkipsJobsWithoutPassedConstraints(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)
@@ -350,7 +351,7 @@ func TestTickJobs_MultipleGetSteps_AllMustBeReady(t *testing.T) {
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
 	// Job with TWO get steps with passed constraints — both must be ready
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -380,7 +381,7 @@ func TestTickJobs_MultipleGetSteps_AllMustBeReady(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)
@@ -407,7 +408,7 @@ func TestTickJobs_MultipleGetSteps_BothReady_TriggersOnce(t *testing.T) {
 
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -437,7 +438,7 @@ func TestTickJobs_MultipleGetSteps_BothReady_TriggersOnce(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)
@@ -471,7 +472,7 @@ func TestTickJobs_FindReadyError_SkipsJob(t *testing.T) {
 
 	rr.EXPECT().FilterDueResources(gomock.Any()).Return(nil, nil)
 
-	pps := []*pipeline.PipelineWithTeam{
+	pps := []*pipeline.WithTeam{
 		{
 			Pipeline: pipeline.Pipeline{
 				Name: "my-pipeline",
@@ -492,7 +493,7 @@ func TestTickJobs_FindReadyError_SkipsJob(t *testing.T) {
 					},
 				},
 			},
-			TeamCanonical: "main",
+			Team: team.Team{Canonical: "main"},
 		},
 	}
 	pr.EXPECT().FilterAll(gomock.Any()).Return(pps, nil)

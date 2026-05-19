@@ -116,7 +116,7 @@ func TestFilterAll_ReturnsPipelinesWithTeam(t *testing.T) {
 
 	names := make(map[string]string) // pipeline name -> team canonical
 	for _, p := range pps {
-		names[p.Name] = p.TeamCanonical
+		names[p.Name] = p.Team.Canonical
 	}
 	assert.Equal(t, "main", names["fa-pipe-a"])
 	assert.Equal(t, "main", names["fa-pipe-b"])

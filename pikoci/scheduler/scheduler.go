@@ -123,7 +123,7 @@ func (s *Scheduler) tickJobs(ctx context.Context) {
 // evaluateJob checks whether a job with passed constraints is ready to run.
 // It checks ALL get steps with passed+trigger; if any is not ready, the job
 // is skipped. Once triggered, it breaks — a job is only queued once per tick.
-func (s *Scheduler) evaluateJob(ctx context.Context, pwt *pipeline.PipelineWithTeam, j *job.Job) {
+func (s *Scheduler) evaluateJob(ctx context.Context, pwt *pipeline.WithTeam, j *job.Job) {
 	// Collect all get steps that have passed+trigger constraints.
 	// ALL must be ready for the job to trigger.
 	type candidate struct {
@@ -143,7 +143,7 @@ func (s *Scheduler) evaluateJob(ctx context.Context, pwt *pipeline.PipelineWithT
 		}
 
 		versionID, ready, err := s.builds.FindReadyDownstreamVersion(
-			ctx, pwt.TeamCanonical, pwt.Name,
+			ctx, pwt.Team.Canonical, pwt.Name,
 			g.Passed, j.Name, g.Name, len(g.Passed),
 		)
 		if err != nil {
@@ -168,7 +168,7 @@ func (s *Scheduler) evaluateJob(ctx context.Context, pwt *pipeline.PipelineWithT
 		"pipeline", pwt.Name, "job", j.Name, "version_id", versionID)
 
 	m := queue.Body{
-		TeamCanonical: pwt.TeamCanonical,
+		TeamCanonical: pwt.Team.Canonical,
 		PipelineName:  pwt.Name,
 		JobName:       j.Name,
 		VersionID:     versionID,

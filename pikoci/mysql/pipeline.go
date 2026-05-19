@@ -173,10 +173,10 @@ func (r *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline
 	return pps, nil
 }
 
-func (r *PipelineRepository) FilterAll(ctx context.Context) ([]*pipeline.PipelineWithTeam, error) {
+func (r *PipelineRepository) FilterAll(ctx context.Context) ([]*pipeline.WithTeam, error) {
 	rows, err := r.querier.QueryContext(ctx, `
 		SELECT
-			t.canonical,
+			t.id, t.name, t.canonical,
 			p.id, p.name, p.raw, p.public,
 			j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure,
 			r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.logs, r.last_check, r.next_check,
@@ -203,8 +203,8 @@ func (r *PipelineRepository) FilterAll(ctx context.Context) ([]*pipeline.Pipelin
 	return pps, nil
 }
 
-func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.PipelineWithTeam, error) {
-	pipelineMap := make(map[uint32]*pipeline.PipelineWithTeam)
+func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.WithTeam, error) {
+	pipelineMap := make(map[uint32]*pipeline.WithTeam)
 	var pipelineOrder []uint32
 
 	type seenKey struct {
@@ -216,7 +216,7 @@ func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.PipelineWithTeam, error)
 
 	for rows.Next() {
 		var (
-			tc  sql.NullString
+			tt  dbTeam
 			pp  dbPipeline
 			j   dbJob
 			r   dbResource
@@ -226,7 +226,7 @@ func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.PipelineWithTeam, error)
 		)
 
 		err := rows.Scan(
-			&tc,
+			&tt.ID, &tt.Name, &tt.Canonical,
 			&pp.ID, &pp.Name, &pp.Raw, &pp.Public,
 			&j.ID, &j.Name, &j.Plan, &j.OnSuccess, &j.OnFailure, &j.Ensure,
 			&r.ID, &r.Name, &r.Type, &r.Canonical, &r.Params, &r.CheckInterval, &r.Logs, &r.LastCheck, &r.NextCheck,
@@ -241,9 +241,9 @@ func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.PipelineWithTeam, error)
 		ppID := uint32(pp.ID.Int64)
 		p, ok := pipelineMap[ppID]
 		if !ok {
-			p = &pipeline.PipelineWithTeam{
-				Pipeline:      *pp.toDomainEntity(),
-				TeamCanonical: tc.String,
+			p = &pipeline.WithTeam{
+				Pipeline: *pp.toDomainEntity(),
+				Team:     *tt.toDomainEntity(),
 			}
 			pipelineMap[ppID] = p
 			pipelineOrder = append(pipelineOrder, ppID)
@@ -289,7 +289,7 @@ func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.PipelineWithTeam, error)
 		return nil, fmt.Errorf("failed to iterate rows: %w", err)
 	}
 
-	result := make([]*pipeline.PipelineWithTeam, 0, len(pipelineOrder))
+	result := make([]*pipeline.WithTeam, 0, len(pipelineOrder))
 	for _, id := range pipelineOrder {
 		result = append(result, pipelineMap[id])
 	}
