@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Stream build logs live: switch from `CombinedOutput()` to streaming stdout/stderr with periodic 2s DB flushes, so the frontend shows incremental output while steps are running. Running steps auto-expand and auto-scroll in the UI ([#13](https://github.com/xescugc/pikoci/issues/13))
 - Passed constraints now require a common resource version across all upstream jobs. Previously `passed = ["lint", "test"]` only checked that each job succeeded; now it verifies that both jobs used the same version of the resource, picking the newest common version ([#253](https://github.com/xescugc/pikoci/issues/253))
 - Hide unlinked resources from pipeline graph: resources only used in hook-level `put` steps (on_success/on_failure/ensure) no longer appear as disconnected nodes ([#256](https://github.com/xescugc/pikoci/issues/256))
 - Add `raw` format support to the built-in `file` secret type via `format = "raw"`. Returns the entire file content under a single `content` key, useful for PEM keys and other non-structured files

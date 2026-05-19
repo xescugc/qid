@@ -413,6 +413,11 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		maxAttempts = 1
 	}
 
+	// Append a "running" step and persist it
+	stepIdx := len(b.Steps)
+	b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Status: build.Started})
+	w.updateBuild(ctx, m, *b)
+
 	var out string
 	var d time.Duration
 	var err error
@@ -422,6 +427,12 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 			out += fmt.Sprintf("\n--- attempt %d/%d ---\n", attempt, maxAttempts)
 		}
 
+		prefix := out
+		onPartialLog := func(partial string) {
+			b.Steps[stepIdx].Logs = prefix + partial
+			w.updateBuild(ctx, m, *b)
+		}
+
 		runCtx := ctx
 		var cancel context.CancelFunc
 		if ps.Timeout > 0 {
@@ -429,7 +440,7 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		}
 
 		var attemptOut string
-		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc)
+		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc, onPartialLog)
 		out += attemptOut
 
 		if cancel != nil {
@@ -446,7 +457,7 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 
 	if err != nil {
-		b.Steps = append(b.Steps, build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d, Status: build.Failed})
+		b.Steps[stepIdx] = build.Step{Type: "get", Name: g.Name, Logs: out, Duration: d, Status: build.Failed}
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
 		w.logger.Error("failed to run get step", "step", g.Name, "error", err)
@@ -455,14 +466,14 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return true
 	}
 
-	b.Steps = append(b.Steps, build.Step{
+	b.Steps[stepIdx] = build.Step{
 		Type:      "get",
 		Name:      g.Name,
 		VersionID: usedVersionID,
 		Logs:      out,
 		Duration:  d,
 		Status:    build.Succeeded,
-	})
+	}
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
 	}
@@ -499,6 +510,11 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		maxAttempts = 1
 	}
 
+	// Append a "running" step and persist it
+	stepIdx := len(b.Steps)
+	b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Status: build.Started})
+	w.updateBuild(ctx, m, *b)
+
 	var out string
 	var d time.Duration
 	var err error
@@ -508,6 +524,12 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 			out += fmt.Sprintf("\n--- attempt %d/%d ---\n", attempt, maxAttempts)
 		}
 
+		prefix := out
+		onPartialLog := func(partial string) {
+			b.Steps[stepIdx].Logs = prefix + partial
+			w.updateBuild(ctx, m, *b)
+		}
+
 		runCtx := ctx
 		var cancel context.CancelFunc
 		if ps.Timeout > 0 {
@@ -515,7 +537,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		}
 
 		var attemptOut string
-		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, t.Run)
+		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, t.Run, onPartialLog)
 		out += attemptOut
 
 		if cancel != nil {
@@ -532,7 +554,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 	}
 
 	if err != nil {
-		b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Failed})
+		b.Steps[stepIdx] = build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Failed}
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
 		w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.OnFailure, "on_failure", secretResolved)
@@ -540,7 +562,7 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		return true
 	}
 
-	b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Succeeded})
+	b.Steps[stepIdx] = build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Succeeded}
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
 	}
@@ -610,6 +632,11 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		maxAttempts = 1
 	}
 
+	// Append a "running" step and persist it
+	stepIdx := len(b.Steps)
+	b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Status: build.Started})
+	w.updateBuild(ctx, m, *b)
+
 	var out string
 	var d time.Duration
 	var err error
@@ -619,6 +646,12 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 			out += fmt.Sprintf("\n--- attempt %d/%d ---\n", attempt, maxAttempts)
 		}
 
+		prefix := out
+		onPartialLog := func(partial string) {
+			b.Steps[stepIdx].Logs = prefix + partial
+			w.updateBuild(ctx, m, *b)
+		}
+
 		runCtx := ctx
 		var cancel context.CancelFunc
 		if ps.Timeout > 0 {
@@ -626,7 +659,7 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		}
 
 		var attemptOut string
-		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc)
+		attemptOut, d, err = w.runRunner(runCtx, ru, cwd, rc, onPartialLog)
 		out += attemptOut
 
 		if cancel != nil {
@@ -643,7 +676,7 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 
 	if err != nil {
-		b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d, Status: build.Failed})
+		b.Steps[stepIdx] = build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d, Status: build.Failed}
 		b.Status = build.Failed
 		w.failBuild(ctx, m, *b, nil)
 		w.logger.Error("failed to run put step", "step", p.Name, "error", err)
@@ -652,7 +685,7 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return true
 	}
 
-	b.Steps = append(b.Steps, build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d, Status: build.Succeeded})
+	b.Steps[stepIdx] = build.Step{Type: "put", Name: p.Name, Logs: out, Duration: d, Status: build.Succeeded}
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
 	}
@@ -757,6 +790,19 @@ func (w *Worker) triggerDownstreamJobs(ctx context.Context, m queue.Body, b *bui
 // the results as build steps.
 func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, steps *[]build.Step, cwd string, pp *pipeline.Pipeline, stepName string, hooks []job.HookStep, hookType string, resolved map[string]string, buildStatus ...string) {
 	for i, h := range hooks {
+		// Compute step name early so we can use it for the running step
+		name := hookType
+		if stepName != "" {
+			name = stepName + ":" + hookType
+		}
+		if len(hooks) > 1 {
+			if stepName != "" {
+				name = fmt.Sprintf("%s:%d:%s", stepName, i, hookType)
+			} else {
+				name = fmt.Sprintf("%d:%s", i, hookType)
+			}
+		}
+
 		var out string
 		var d time.Duration
 
@@ -783,7 +829,24 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 			if len(buildStatus) > 0 {
 				rc.Params["BUILD_STATUS"] = buildStatus[0]
 			}
-			out, d, _ = w.runRunner(ctx, ru, cwd, rc)
+
+			// Append a "running" step and persist it
+			stepIdx := len(*steps)
+			*steps = append(*steps, build.Step{Type: "hook", Name: name, Status: build.Started})
+			w.updateBuild(ctx, m, *b)
+
+			onPartialLog := func(partial string) {
+				(*steps)[stepIdx].Logs = partial
+				w.updateBuild(ctx, m, *b)
+			}
+
+			out, d, _ = w.runRunner(ctx, ru, cwd, rc, onPartialLog)
+
+			(*steps)[stepIdx] = build.Step{Type: "hook", Name: name, Logs: out, Duration: d, Status: build.Succeeded}
+			if err := w.updateBuild(ctx, m, *b); err != nil {
+				return
+			}
+			continue
 		case job.StepTypePut:
 			if h.Put == nil {
 				continue
@@ -796,23 +859,6 @@ func (w *Worker) runHooks(ctx context.Context, m queue.Body, b *build.Build, ste
 			continue
 		default:
 			continue
-		}
-
-		name := hookType
-		if stepName != "" {
-			name = stepName + ":" + hookType
-		}
-		if len(hooks) > 1 {
-			if stepName != "" {
-				name = fmt.Sprintf("%s:%d:%s", stepName, i, hookType)
-			} else {
-				name = fmt.Sprintf("%d:%s", i, hookType)
-			}
-		}
-
-		*steps = append(*steps, build.Step{Type: "hook", Name: name, Logs: out, Duration: d, Status: build.Succeeded})
-		if err := w.updateBuild(ctx, m, *b); err != nil {
-			return
 		}
 	}
 }
@@ -988,7 +1034,26 @@ func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
 	}
 }
 
-func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc utils.RunnerCommand) (string, time.Duration, error) {
+// streamWriter is a thread-safe writer that captures stdout/stderr output
+// for streaming to the UI while a command is running.
+type streamWriter struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sw *streamWriter) Write(p []byte) (int, error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.buf.Write(p)
+}
+
+func (sw *streamWriter) String() string {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.buf.String()
+}
+
+func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc utils.RunnerCommand, onPartialLog ...func(string)) (string, time.Duration, error) {
 	envs := map[string]string{"WORKDIR": cwd}
 	for k, v := range rc.Params {
 		envs[k] = v
@@ -1032,10 +1097,50 @@ func (w *Worker) runRunner(ctx context.Context, ru runner.Runner, cwd string, rc
 	}
 
 	w.logger.Debug("running command", "cmd", cmd.String(), "envs", createKeyValuePairs(envs))
+
+	var partialCb func(string)
+	if len(onPartialLog) > 0 {
+		partialCb = onPartialLog[0]
+	}
+
+	sw := &streamWriter{}
+	cmd.Stdout = sw
+	cmd.Stderr = sw
+
 	start := time.Now()
-	stdouterr, err := cmd.CombinedOutput()
+	if err := cmd.Start(); err != nil {
+		out := err.Error()
+		return out, time.Since(start), err
+	}
+
+	var ticker *time.Ticker
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	if partialCb != nil {
+		ticker = time.NewTicker(2 * time.Second)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ticker.C:
+					partialCb(sw.String())
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+
+	err := cmd.Wait()
+	if ticker != nil {
+		ticker.Stop()
+	}
+	close(done)
+	wg.Wait()
+
 	duration := time.Since(start)
-	out += string(stdouterr)
+	out += sw.String()
 	if err != nil {
 		out += "\n" + err.Error()
 	}
@@ -1138,16 +1243,26 @@ func (w *Worker) startServices(ctx context.Context, m queue.Body, b *build.Build
 			Params: params,
 		}
 
-		out, d, err := w.runRunner(ctx, ru, cwd, rc)
+		// Append a "running" step and persist it
+		stepIdx := len(b.Steps)
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Status: build.Started})
+		w.updateBuild(ctx, m, *b)
+
+		onPartialLog := func(partial string) {
+			b.Steps[stepIdx].Logs = partial
+			w.updateBuild(ctx, m, *b)
+		}
+
+		out, d, err := w.runRunner(ctx, ru, cwd, rc, onPartialLog)
 		if err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d, Status: build.Failed})
+			b.Steps[stepIdx] = build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d, Status: build.Failed}
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			w.logger.Error("failed to start service", "service", ss.Name, "error", err)
 			return started
 		}
 
-		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d, Status: build.Succeeded})
+		b.Steps[stepIdx] = build.Step{Type: "service", Name: ss.Name + ":start", Logs: out, Duration: d, Status: build.Succeeded}
 		if err := w.updateBuild(ctx, m, *b); err != nil {
 			return started
 		}
@@ -1329,13 +1444,23 @@ func (w *Worker) stopServices(m queue.Body, b *build.Build, cwd string, pp *pipe
 			Params: params,
 		}
 
-		out, d, err := w.runRunner(stopCtx, ru, cwd, rc)
+		// Append a "running" step and persist it
+		stepIdx := len(b.Steps)
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":stop", Status: build.Started})
+		w.updateBuild(stopCtx, m, *b)
+
+		onPartialLog := func(partial string) {
+			b.Steps[stepIdx].Logs = partial
+			w.updateBuild(stopCtx, m, *b)
+		}
+
+		out, d, err := w.runRunner(stopCtx, ru, cwd, rc, onPartialLog)
 		stepStatus := build.Succeeded
 		if err != nil {
 			stepStatus = build.Failed
 			w.logger.Error("failed to stop service", "service", ss.Name, "error", err)
 		}
-		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":stop", Logs: out, Duration: d, Status: stepStatus})
+		b.Steps[stepIdx] = build.Step{Type: "service", Name: ss.Name + ":stop", Logs: out, Duration: d, Status: stepStatus}
 		w.updateBuild(stopCtx, m, *b)
 	}
 }

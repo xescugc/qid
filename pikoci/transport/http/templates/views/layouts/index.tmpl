@@ -404,7 +404,7 @@
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
             </div>
-            <div class="piko-step-row-body" style="display:none;">
+            <div class="piko-step-row-body" style="display:<%= (s.status === 'started') ? 'block' : 'none' %>;">
 <pre>
 <%- s.logs %>
 </pre>
@@ -424,7 +424,7 @@
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
             </div>
-            <div class="piko-step-row-body" style="display:none;">
+            <div class="piko-step-row-body" style="display:<%= (j.status === 'started') ? 'block' : 'none' %>;">
 <pre>
 <%- j.logs %>
 </pre>
@@ -1568,6 +1568,10 @@
             this.$el.addClass("d-none")
           }
           this.$el.html(this.template(data));
+          var runningPre = this.$el.find('.piko-step-row-body:visible pre').last();
+          if (runningPre.length) {
+            runningPre[0].scrollTop = runningPre[0].scrollHeight;
+          }
           return this; // enable chained calls
         },
       })
