@@ -22,7 +22,7 @@ job "build-latest" {
         <<-EOT
         cd pikoci
 
-        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        echo "${var.docker_password}" | docker login -u "${var.docker_username}" --password-stdin
 
         docker build -t xescugc/pikoci:latest .
         docker push xescugc/pikoci:latest
@@ -50,7 +50,7 @@ job "build-release" {
           exit 0
         fi
 
-        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        echo "${var.docker_password}" | docker login -u "${var.docker_username}" --password-stdin
 
         docker build -t xescugc/pikoci:$TAG .
         docker push xescugc/pikoci:$TAG
