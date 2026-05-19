@@ -111,7 +111,7 @@ resource_type "github-check" {
           --arg url "$DETAILS_URL" \
           '{status: $status, conclusion: $conclusion} | if $url != "" then . + {details_url: $url} else . end')
 
-        curl -sf -X PATCH \
+        curl -sf -o /dev/null -X PATCH \
           -H "Authorization: token $TOKEN" \
           -H "Accept: application/vnd.github+json" \
           "https://api.github.com/repos/$REPO/check-runs/$CHECK_RUN_ID" \
