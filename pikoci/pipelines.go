@@ -401,7 +401,7 @@ func (q *PikoCI) GetPipelineImage(ctx context.Context, tc, pn, format string) ([
 
 func (q *PikoCI) generateImage(ctx context.Context, tc string, pp *pipeline.Pipeline) ([]byte, error) {
 	var (
-		pn  = pp.Name
+		pn  = fmt.Sprintf(`"%s"`, pp.Name)
 		err error
 	)
 
