@@ -71,6 +71,8 @@ type Service interface {
 	CreateResourceVersion(ctx context.Context, tc, pn, rCan string, v resource.Version) (*resource.Version, error)
 	ListResourceVersions(ctx context.Context, tc, pn, rCan string) ([]*resource.Version, error)
 
+	InsertBuildGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error
+
 	WebhookTrigger(ctx context.Context, token string) error
 	RegenerateWebhookToken(ctx context.Context, tc, pn, rCan string) (string, error)
 }
@@ -111,7 +113,7 @@ func New(ctx context.Context, t queue.Topic, ur user.Repository, tr team.Reposit
 		StartUoW:      suow,
 		JWTSecret:     js,
 		logger:        l,
-		scheduler:     scheduler.New(rr, t, l),
+		scheduler:     scheduler.New(rr, pr, br, t, l),
 	}
 }
 

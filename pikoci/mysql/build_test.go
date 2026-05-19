@@ -1,0 +1,268 @@
+package mysql_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/xescugc/pikoci/pikoci/mysql"
+)
+
+func TestInsertGetVersion(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-insert')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	jobID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, jobID)
+	require.NoError(t, err)
+	buildID, _ := res.LastInsertId()
+
+	br := mysql.NewBuildRepository(db)
+
+	err = br.InsertGetVersion(ctx, "main", "bgv-insert", "lint", uint32(buildID), "repo", 42)
+	require.NoError(t, err)
+
+	var versionID int
+	err = db.QueryRowContext(ctx, `SELECT version_id FROM build_get_versions WHERE build_id = ? AND step_name = ?`, buildID, "repo").Scan(&versionID)
+	require.NoError(t, err)
+	assert.Equal(t, 42, versionID)
+
+	// INSERT OR IGNORE: same (build_id, step_name) keeps original value
+	err = br.InsertGetVersion(ctx, "main", "bgv-insert", "lint", uint32(buildID), "repo", 99)
+	require.NoError(t, err)
+
+	err = db.QueryRowContext(ctx, `SELECT version_id FROM build_get_versions WHERE build_id = ? AND step_name = ?`, buildID, "repo").Scan(&versionID)
+	require.NoError(t, err)
+	assert.Equal(t, 42, versionID)
+}
+
+func TestFindReadyDownstreamVersion_BasicCase(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-basic')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	lintJobID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'test')`, ppID)
+	require.NoError(t, err)
+	testJobID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'deploy')`, ppID)
+	require.NoError(t, err)
+
+	// Both upstream jobs succeeded with version 10
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, lintJobID)
+	require.NoError(t, err)
+	lintBuildID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, testJobID)
+	require.NoError(t, err)
+	testBuildID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, lintBuildID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, testBuildID)
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+
+	vID, ready, err := br.FindReadyDownstreamVersion(ctx, "main", "bgv-basic",
+		[]string{"lint", "test"}, "deploy", "repo", 2)
+	require.NoError(t, err)
+	assert.True(t, ready)
+	assert.Equal(t, uint32(10), vID)
+}
+
+func TestFindReadyDownstreamVersion_NotAllUpstreamsReady(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-partial')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	lintJobID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'test')`, ppID)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'deploy')`, ppID)
+	require.NoError(t, err)
+
+	// Only lint succeeded with version 10
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, lintJobID)
+	require.NoError(t, err)
+	lintBuildID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, lintBuildID)
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+
+	_, ready, err := br.FindReadyDownstreamVersion(ctx, "main", "bgv-partial",
+		[]string{"lint", "test"}, "deploy", "repo", 2)
+	require.NoError(t, err)
+	assert.False(t, ready)
+}
+
+func TestFindReadyDownstreamVersion_AlreadyBuiltByDownstream(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-already')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	lintJobID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'deploy')`, ppID)
+	require.NoError(t, err)
+	deployJobID, _ := res.LastInsertId()
+
+	// Lint succeeded with version 10
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, lintJobID)
+	require.NoError(t, err)
+	lintBuildID, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, lintBuildID)
+	require.NoError(t, err)
+
+	// Deploy already consumed version 10
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, deployJobID)
+	require.NoError(t, err)
+	deployBuildID, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, deployBuildID)
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+
+	_, ready, err := br.FindReadyDownstreamVersion(ctx, "main", "bgv-already",
+		[]string{"lint"}, "deploy", "repo", 1)
+	require.NoError(t, err)
+	assert.False(t, ready)
+}
+
+func TestFindReadyDownstreamVersion_FailedUpstreamIgnored(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-failed')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	lintJobID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'deploy')`, ppID)
+	require.NoError(t, err)
+
+	// Lint FAILED with version 10
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'failed')`, lintJobID)
+	require.NoError(t, err)
+	lintBuildID, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, lintBuildID)
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+
+	_, ready, err := br.FindReadyDownstreamVersion(ctx, "main", "bgv-failed",
+		[]string{"lint"}, "deploy", "repo", 1)
+	require.NoError(t, err)
+	assert.False(t, ready)
+}
+
+func TestFindReadyDownstreamVersion_MismatchedVersions(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-mismatch')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	lintJobID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'test')`, ppID)
+	require.NoError(t, err)
+	testJobID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'deploy')`, ppID)
+	require.NoError(t, err)
+
+	// lint succeeded with version 10, test succeeded with version 12 — no common version
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, lintJobID)
+	require.NoError(t, err)
+	lintBuildID, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, lintBuildID)
+	require.NoError(t, err)
+
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, testJobID)
+	require.NoError(t, err)
+	testBuildID, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 12)`, testBuildID)
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+
+	// Should NOT be ready — lint has v10, test has v12, no common version
+	_, ready, err := br.FindReadyDownstreamVersion(ctx, "main", "bgv-mismatch",
+		[]string{"lint", "test"}, "deploy", "repo", 2)
+	require.NoError(t, err)
+	assert.False(t, ready)
+}
+
+func TestFindReadyDownstreamVersion_PicksHighestVersion(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'bgv-highest')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	lintJobID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'deploy')`, ppID)
+	require.NoError(t, err)
+
+	// Lint succeeded with version 5
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, lintJobID)
+	require.NoError(t, err)
+	b1, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 5)`, b1)
+	require.NoError(t, err)
+
+	// Lint also succeeded with version 10
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status) VALUES (?, 'succeeded')`, lintJobID)
+	require.NoError(t, err)
+	b2, _ := res.LastInsertId()
+	_, err = db.ExecContext(ctx, `INSERT INTO build_get_versions (build_id, step_name, version_id) VALUES (?, 'repo', 10)`, b2)
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+
+	vID, ready, err := br.FindReadyDownstreamVersion(ctx, "main", "bgv-highest",
+		[]string{"lint"}, "deploy", "repo", 1)
+	require.NoError(t, err)
+	assert.True(t, ready)
+	assert.Equal(t, uint32(10), vID)
+}

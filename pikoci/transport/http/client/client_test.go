@@ -422,6 +422,25 @@ func TestDeleteJobBuild(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestInsertBuildGetVersion(t *testing.T) {
+	r := mux.NewRouter()
+	r.HandleFunc("/teams/{tc}/pipelines/{pn}/jobs/{jn}/builds/{bid}/get-versions", func(w http.ResponseWriter, req *http.Request) {
+		var body thttp.InsertBuildGetVersionRequest
+		json.NewDecoder(req.Body).Decode(&body)
+		assert.Equal(t, "repo", body.StepName)
+		assert.Equal(t, uint32(42), body.VersionID)
+		jsonHandler(w, thttp.InsertBuildGetVersionResponse{})
+	}).Methods("POST")
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	c, err := client.New(ts.URL, "jwt")
+	require.NoError(t, err)
+
+	err = c.InsertBuildGetVersion(context.Background(), "team", "pipe", "job1", 10, "repo", 42)
+	require.NoError(t, err)
+}
+
 func TestListJobBuilds(t *testing.T) {
 	r := mux.NewRouter()
 	r.HandleFunc("/teams/{tc}/pipelines/{pn}/jobs/{jn}/builds", func(w http.ResponseWriter, req *http.Request) {

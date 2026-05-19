@@ -37,6 +37,7 @@ const (
 	UpdateJobBuild
 	DeleteJobBuild
 	ListJobBuilds
+	InsertBuildGetVersion
 
 	GetPipelineResource
 	UpdatePipelineResource

@@ -130,7 +130,7 @@ func (w *Worker) processMessage(ctx context.Context, m queue.Body, cwd string) {
 }
 
 // processJob handles executing a job: creates a build, runs the plan steps,
-// runs hooks, and triggers downstream jobs.
+// and runs hooks. Downstream job triggering is handled by the scheduler.
 func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *pipeline.Pipeline) {
 	b := build.Build{
 		Status:    build.Started,
@@ -169,7 +169,6 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		if err := w.updateBuild(ctx, m, b); err != nil {
 			return
 		}
-		w.triggerDownstreamJobs(ctx, m, &b, pp, j)
 		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnSuccess, "on_success", resolved, "succeeded")
 	} else {
 		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnFailure, "on_failure", resolved, "failed")
@@ -289,36 +288,18 @@ func (w *Worker) checkVersionAvailability(ctx context.Context, m queue.Body, b *
 	return true
 }
 
-// runPlan runs all plan steps (service/get/task/put) in order.
-// Service steps are collected and started before other steps, then stopped unconditionally after.
+// runPlan runs all plan steps (service/get/task/put) in declaration order.
+// Services are started when their position in the plan is reached and stopped
+// unconditionally after the plan completes (or fails).
 // Returns true if the job failed during plan execution.
 func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job, resolvedVersions map[string]uint32) (bool, map[string]string) {
-	// Collect service steps and remaining steps
-	var serviceSteps []job.ServiceStep
-	var remainingPlan []job.PlanStep
-	for _, ps := range j.Plan {
-		if ps.Type == job.StepTypeService && ps.Service != nil {
-			serviceSteps = append(serviceSteps, *ps.Service)
-		} else {
-			remainingPlan = append(remainingPlan, ps)
+	// Track all started services so we can stop them at the end.
+	var allStartedServices []job.ServiceStep
+	defer func() {
+		if len(allStartedServices) > 0 {
+			w.stopServices(m, b, cwd, pp, allStartedServices)
 		}
-	}
-
-	// Start all services, defer stop
-	if len(serviceSteps) > 0 {
-		startedServices := w.startServices(ctx, m, b, cwd, pp, serviceSteps)
-		defer w.stopServices(m, b, cwd, pp, startedServices)
-
-		// If any service failed to start, fail the build
-		if len(startedServices) != len(serviceSteps) {
-			return true, nil
-		}
-
-		// Wait for ready checks
-		if !w.waitForServices(ctx, m, b, cwd, pp, startedServices) {
-			return true, nil
-		}
-	}
+	}()
 
 	// Resolve secret-backed variables once for the entire job execution.
 	resolved, err := w.resolveSecretVars(ctx, cwd, pp)
@@ -327,9 +308,23 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 		return true, nil
 	}
 
-	// Run remaining plan steps (get/task/put)
-	for _, ps := range remainingPlan {
+	// Run plan steps in declaration order
+	for _, ps := range j.Plan {
 		switch ps.Type {
+		case job.StepTypeService:
+			if ps.Service == nil {
+				continue
+			}
+			// Collect consecutive service steps and start them as a batch
+			batch := []job.ServiceStep{*ps.Service}
+			startedServices := w.startServices(ctx, m, b, cwd, pp, batch)
+			allStartedServices = append(allStartedServices, startedServices...)
+			if len(startedServices) != len(batch) {
+				return true, resolved
+			}
+			if !w.waitForServices(ctx, m, b, cwd, pp, startedServices) {
+				return true, resolved
+			}
 		case job.StepTypeGet:
 			if ps.Get == nil {
 				continue
@@ -476,6 +471,12 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 	}
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
+	}
+
+	if usedVersionID != 0 {
+		if err := w.pikoci.InsertBuildGetVersion(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, g.Name, usedVersionID); err != nil {
+			w.logger.Error("failed to insert build get version", "step", g.Name, "error", err)
+		}
 	}
 	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, g.Name, ps.OnSuccess, "on_success", secretResolved)
 	w.runHooks(ctx, m, b, &b.Steps, cwd, pp, g.Name, ps.Ensure, "ensure", secretResolved)
@@ -754,36 +755,6 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 	}
 
 	return params, versionID
-}
-
-// triggerDownstreamJobs finds jobs that depend on the current job via "passed"
-// and triggers them.
-func (w *Worker) triggerDownstreamJobs(ctx context.Context, m queue.Body, b *build.Build, pp *pipeline.Pipeline, j *job.Job) {
-	for _, nj := range pp.Jobs {
-		for _, ps := range nj.Plan {
-			if ps.Type != job.StepTypeGet || ps.Get == nil {
-				continue
-			}
-			g := ps.Get
-			if slices.Contains(g.Passed, j.Name) && g.Trigger {
-				qb := queue.Body{
-					TeamCanonical:     m.TeamCanonical,
-					PipelineName:      pp.Name,
-					JobName:           nj.Name,
-					ResourceCanonical: g.ResourceCanonical(),
-					VersionID:         m.VersionID,
-				}
-				mb, err := json.Marshal(qb)
-				if err != nil {
-					w.logger.Error("failed to marshal downstream trigger body", "error", err)
-					continue
-				}
-				if err := w.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
-					w.logger.Error("failed to send downstream trigger message", "job", nj.Name, "error", err)
-				}
-			}
-		}
-	}
 }
 
 // runHooks runs a list of hooks (on_success, on_failure, ensure) and appends
@@ -1316,6 +1287,35 @@ func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Bui
 		err  error
 	}
 
+	// Pre-allocate a "running" build step for each ready_check so
+	// the UI shows progress while polling.
+	type readyStepRef struct {
+		name    string
+		stepIdx int
+	}
+	var refs []readyStepRef
+	for _, ss := range startedServices {
+		svc, ok := pp.Service(ss.Name)
+		if !ok || svc.ReadyCheck == nil {
+			continue
+		}
+		if _, ok := pp.Runner(svc.ReadyCheck.Runner); !ok {
+			continue
+		}
+		idx := len(b.Steps)
+		b.Steps = append(b.Steps, build.Step{Type: "service", Name: ss.Name + ":ready", Status: build.Started})
+		refs = append(refs, readyStepRef{name: ss.Name, stepIdx: idx})
+	}
+	if len(refs) > 0 {
+		w.updateBuild(ctx, m, *b)
+	}
+
+	// Build a map for goroutines to find their step index.
+	stepIdxByName := make(map[string]int)
+	for _, ref := range refs {
+		stepIdxByName[ref.name] = ref.stepIdx
+	}
+
 	var wg sync.WaitGroup
 	results := make(chan readyResult, len(startedServices))
 
@@ -1412,14 +1412,18 @@ func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Bui
 
 	allReady := true
 	for r := range results {
+		idx, ok := stepIdxByName[r.name]
+		if !ok {
+			continue
+		}
 		if r.err != nil {
-			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d, Status: build.Failed})
+			b.Steps[idx] = build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d, Status: build.Failed}
 			b.Status = build.Failed
 			w.failBuild(ctx, m, *b, nil)
 			w.logger.Error("service ready_check failed", "service", r.name, "error", r.err)
 			allReady = false
 		} else {
-			b.Steps = append(b.Steps, build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d, Status: build.Succeeded})
+			b.Steps[idx] = build.Step{Type: "service", Name: r.name + ":ready", Logs: r.out, Duration: r.d, Status: build.Succeeded}
 			w.updateBuild(ctx, m, *b)
 		}
 	}

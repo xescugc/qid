@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
+	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/queue"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"gocloud.dev/pubsub"
@@ -14,15 +17,19 @@ import (
 // Scheduler polls the database for resources due for a check and sends messages to the topic.
 type Scheduler struct {
 	resources resource.Repository
+	pipelines pipeline.Repository
+	builds    build.Repository
 	topic     queue.Topic
 	logger    *slog.Logger
 	interval  time.Duration
 }
 
 // New creates a new Scheduler.
-func New(resources resource.Repository, topic queue.Topic, logger *slog.Logger) *Scheduler {
+func New(resources resource.Repository, pipelines pipeline.Repository, builds build.Repository, topic queue.Topic, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
 		resources: resources,
+		pipelines: pipelines,
+		builds:    builds,
 		topic:     topic,
 		logger:    logger,
 		interval:  10 * time.Second,
@@ -46,6 +53,11 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 func (s *Scheduler) tick(ctx context.Context) {
+	s.tickResources(ctx)
+	s.tickJobs(ctx)
+}
+
+func (s *Scheduler) tickResources(ctx context.Context) {
 	due, err := s.resources.FilterDueResources(ctx)
 	if err != nil {
 		s.logger.Error("failed to filter due resources", "error", err)
@@ -91,5 +103,83 @@ func (s *Scheduler) tick(ctx context.Context) {
 		if err != nil {
 			s.logger.Error("failed to update resource", "error", err)
 		}
+	}
+}
+
+func (s *Scheduler) tickJobs(ctx context.Context) {
+	pps, err := s.pipelines.FilterAll(ctx)
+	if err != nil {
+		s.logger.Error("failed to filter all pipelines", "error", err)
+		return
+	}
+
+	for _, pwt := range pps {
+		for _, j := range pwt.Jobs {
+			s.evaluateJob(ctx, pwt, &j)
+		}
+	}
+}
+
+// evaluateJob checks whether a job with passed constraints is ready to run.
+// It checks ALL get steps with passed+trigger; if any is not ready, the job
+// is skipped. Once triggered, it breaks — a job is only queued once per tick.
+func (s *Scheduler) evaluateJob(ctx context.Context, pwt *pipeline.PipelineWithTeam, j *job.Job) {
+	// Collect all get steps that have passed+trigger constraints.
+	// ALL must be ready for the job to trigger.
+	type candidate struct {
+		stepName  string
+		passed    []string
+		versionID uint32
+	}
+	var candidates []candidate
+
+	for _, ps := range j.Plan {
+		if ps.Type != job.StepTypeGet || ps.Get == nil {
+			continue
+		}
+		g := ps.Get
+		if len(g.Passed) == 0 || !g.Trigger {
+			continue
+		}
+
+		versionID, ready, err := s.builds.FindReadyDownstreamVersion(
+			ctx, pwt.TeamCanonical, pwt.Name,
+			g.Passed, j.Name, g.Name, len(g.Passed),
+		)
+		if err != nil {
+			s.logger.Error("failed to find ready downstream version",
+				"pipeline", pwt.Name, "job", j.Name, "error", err)
+			return
+		}
+		if !ready {
+			return
+		}
+		candidates = append(candidates, candidate{g.Name, g.Passed, versionID})
+	}
+
+	if len(candidates) == 0 {
+		return
+	}
+
+	// Use the version from the first candidate for the queue message.
+	versionID := candidates[0].versionID
+
+	s.logger.Info("Triggering downstream job",
+		"pipeline", pwt.Name, "job", j.Name, "version_id", versionID)
+
+	m := queue.Body{
+		TeamCanonical: pwt.TeamCanonical,
+		PipelineName:  pwt.Name,
+		JobName:       j.Name,
+		VersionID:     versionID,
+	}
+	mb, err := json.Marshal(m)
+	if err != nil {
+		s.logger.Error("failed to marshal downstream trigger body", "error", err)
+		return
+	}
+	if err := s.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
+		s.logger.Error("failed to send downstream trigger message",
+			"job", j.Name, "error", err)
 	}
 }

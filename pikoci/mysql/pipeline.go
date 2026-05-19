@@ -173,6 +173,129 @@ func (r *PipelineRepository) Filter(ctx context.Context, tc string) ([]*pipeline
 	return pps, nil
 }
 
+func (r *PipelineRepository) FilterAll(ctx context.Context) ([]*pipeline.PipelineWithTeam, error) {
+	rows, err := r.querier.QueryContext(ctx, `
+		SELECT
+			t.canonical,
+			p.id, p.name, p.raw, p.public,
+			j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure,
+			r.id, r.name, r.type, r.canonical, r.params, r.check_interval, r.logs, r.last_check, r.next_check,
+			rt.id, rt.name, rt.`+"`check`"+`, rt.pull, rt.push, rt.params,
+			ru.id, ru.name, ru.run,
+			st.id, st.name, st.source, st.get, st.params, st.config
+		FROM pipelines AS p
+		JOIN teams AS t ON p.team_id = t.id
+		LEFT JOIN jobs AS j ON j.pipeline_id = p.id
+		LEFT JOIN resources AS r ON r.pipeline_id = p.id
+		LEFT JOIN resource_types AS rt ON rt.pipeline_id = p.id
+		LEFT JOIN runners AS ru ON ru.pipeline_id = p.id
+		LEFT JOIN secret_types AS st ON st.pipeline_id = p.id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all Pipelines: %w", err)
+	}
+
+	pps, err := scanPipelinesWithTeam(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan all Pipelines: %w", err)
+	}
+
+	return pps, nil
+}
+
+func scanPipelinesWithTeam(rows *sql.Rows) ([]*pipeline.PipelineWithTeam, error) {
+	pipelineMap := make(map[uint32]*pipeline.PipelineWithTeam)
+	var pipelineOrder []uint32
+
+	type seenKey struct {
+		pipelineID uint32
+		table      string
+		id         uint32
+	}
+	seen := make(map[seenKey]bool)
+
+	for rows.Next() {
+		var (
+			tc  sql.NullString
+			pp  dbPipeline
+			j   dbJob
+			r   dbResource
+			rt  dbResourceType
+			ru  dbRunner
+			st  dbSecretType
+		)
+
+		err := rows.Scan(
+			&tc,
+			&pp.ID, &pp.Name, &pp.Raw, &pp.Public,
+			&j.ID, &j.Name, &j.Plan, &j.OnSuccess, &j.OnFailure, &j.Ensure,
+			&r.ID, &r.Name, &r.Type, &r.Canonical, &r.Params, &r.CheckInterval, &r.Logs, &r.LastCheck, &r.NextCheck,
+			&rt.ID, &rt.Name, &rt.Check, &rt.Pull, &rt.Push, &rt.Params,
+			&ru.ID, &ru.Name, &ru.Run,
+			&st.ID, &st.Name, &st.Source, &st.Get, &st.Params, &st.Config,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan: %w", err)
+		}
+
+		ppID := uint32(pp.ID.Int64)
+		p, ok := pipelineMap[ppID]
+		if !ok {
+			p = &pipeline.PipelineWithTeam{
+				Pipeline:      *pp.toDomainEntity(),
+				TeamCanonical: tc.String,
+			}
+			pipelineMap[ppID] = p
+			pipelineOrder = append(pipelineOrder, ppID)
+		}
+
+		if j.ID.Valid {
+			k := seenKey{ppID, "j", uint32(j.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Jobs = append(p.Jobs, *j.toDomainEntity())
+			}
+		}
+		if r.ID.Valid {
+			k := seenKey{ppID, "r", uint32(r.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Resources = append(p.Resources, *r.toDomainEntity())
+			}
+		}
+		if rt.ID.Valid {
+			k := seenKey{ppID, "rt", uint32(rt.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.ResourceTypes = append(p.ResourceTypes, *rt.toDomainEntity())
+			}
+		}
+		if ru.ID.Valid {
+			k := seenKey{ppID, "ru", uint32(ru.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.Runners = append(p.Runners, *ru.toDomainEntity())
+			}
+		}
+		if st.ID.Valid {
+			k := seenKey{ppID, "st", uint32(st.ID.Int64)}
+			if !seen[k] {
+				seen[k] = true
+				p.SecretTypes = append(p.SecretTypes, *st.toDomainEntity())
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate rows: %w", err)
+	}
+
+	result := make([]*pipeline.PipelineWithTeam, 0, len(pipelineOrder))
+	for _, id := range pipelineOrder {
+		result = append(result, pipelineMap[id])
+	}
+	return result, nil
+}
+
 func (r *PipelineRepository) Delete(ctx context.Context, tc, pn string) error {
 	// Use a two-step delete: first resolve the ID, then delete by ID.
 	// SQLite does not trigger ON DELETE CASCADE with subquery-based deletes.

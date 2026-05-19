@@ -98,6 +98,58 @@ func TestDeletePipeline_CascadesResourceTypes(t *testing.T) {
 	assert.Equal(t, 0, count, "resource_types should be cascade-deleted when pipeline is deleted")
 }
 
+func TestFilterAll_ReturnsPipelinesWithTeam(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	// Create two pipelines under the seeded "main" team
+	_, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name, raw) VALUES (1, 'fa-pipe-a', '')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name, raw) VALUES (1, 'fa-pipe-b', '')`)
+	require.NoError(t, err)
+
+	pr := mysql.NewPipelineRepository(db)
+	pps, err := pr.FilterAll(ctx)
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, len(pps), 2)
+
+	names := make(map[string]string) // pipeline name -> team canonical
+	for _, p := range pps {
+		names[p.Name] = p.TeamCanonical
+	}
+	assert.Equal(t, "main", names["fa-pipe-a"])
+	assert.Equal(t, "main", names["fa-pipe-b"])
+}
+
+func TestFilterAll_IncludesJobs(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name, raw) VALUES (1, 'fa-pipe-jobs', '')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'lint')`, ppID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'test')`, ppID)
+	require.NoError(t, err)
+
+	pr := mysql.NewPipelineRepository(db)
+	pps, err := pr.FilterAll(ctx)
+	require.NoError(t, err)
+
+	var found bool
+	for _, p := range pps {
+		if p.Name == "fa-pipe-jobs" {
+			found = true
+			assert.Equal(t, 2, len(p.Jobs))
+			break
+		}
+	}
+	assert.True(t, found, "fa-pipe-jobs should be in results")
+}
+
 func TestDeletePipeline_CascadesRunners(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()

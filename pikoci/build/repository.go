@@ -10,4 +10,6 @@ type Repository interface {
 	Filter(ctx context.Context, tc, pn, jn string) ([]*Build, error)
 	Update(ctx context.Context, tc, pn, jn string, bID uint32, b Build) error
 	Delete(ctx context.Context, tc, pn, jn string, bID uint32) error
+	InsertGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error
+	FindReadyDownstreamVersion(ctx context.Context, tc, pn string, upstreamJobs []string, downstreamJob string, stepName string, upstreamCount int) (uint32, bool, error)
 }

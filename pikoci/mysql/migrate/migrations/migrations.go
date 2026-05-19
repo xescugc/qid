@@ -12,7 +12,7 @@ type Migration struct {
 // in compilation time if some order is wrong
 // if it where to have more than one person working
 // on it
-var Migrations = [16]Migration{
+var Migrations = [17]Migration{
 	V0Initial,
 	V1ResourceCheckInterval,
 	V2JobsAndBuilds,
@@ -29,4 +29,5 @@ var Migrations = [16]Migration{
 	V13Scheduler,
 	V14Secrets,
 	V15SecretTypeConfig,
+	V16BuildGetVersions,
 }
