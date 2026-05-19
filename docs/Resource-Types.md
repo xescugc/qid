@@ -191,7 +191,7 @@ resource "git" "my-repo" {
 | `branch` | no       | Branch to track (defaults to HEAD)               |
 | `token`  | no       | API/HTTPS auth token for private repos           |
 | `pr`     | no       | Set to `"true"` to check for open pull requests instead of commits (requires `token`, GitHub/GitLab only) |
-| `tag`    | no       | Set to `"true"` to check for tags instead of commits (requires `token`, GitHub/GitLab only) |
+| `tag`    | no       | Set to `true` to check for tags instead of commits (requires `token`, GitHub/GitLab only) |
 
 ### Token setup
 
@@ -319,7 +319,7 @@ resource "git" "tags" {
     url   = "https://github.com/myorg/my-repo.git"
     name  = "my-repo"
     token = var.github_token
-    tag   = "true"
+    tag   = true
   }
 }
 

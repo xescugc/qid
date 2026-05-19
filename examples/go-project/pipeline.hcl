@@ -1,7 +1,3 @@
-resource_type "git" {
-  source = "pikoci://git"
-}
-
 resource "git" "repo" {
   params {
     url  = var.repo_url
