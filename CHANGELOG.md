@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Passed constraints now require a common resource version across all upstream jobs. Previously `passed = ["lint", "test"]` only checked that each job succeeded; now it verifies that both jobs used the same version of the resource, picking the newest common version ([#253](https://github.com/xescugc/pikoci/issues/253))
 - Hide unlinked resources from pipeline graph: resources only used in hook-level `put` steps (on_success/on_failure/ensure) no longer appear as disconnected nodes ([#256](https://github.com/xescugc/pikoci/issues/256))
 - Add `raw` format support to the built-in `file` secret type via `format = "raw"`. Returns the entire file content under a single `content` key, useful for PEM keys and other non-structured files
 - Add `.env` format support to the built-in `file` secret type via `format = "env"` config attribute. The default format remains `json` (backwards compatible)

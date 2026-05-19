@@ -609,12 +609,141 @@ func TestCheckPassedConstraints_AllPassed(t *testing.T) {
 	}
 
 	svc.EXPECT().ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, "job-a").
-		Return([]*build.Build{{ID: 1, Status: build.Succeeded}}, nil)
+		Return([]*build.Build{{ID: 1, Status: build.Succeeded, Steps: []build.Step{
+			{Type: "get", Name: "my-cron", VersionID: 5},
+		}}}, nil)
 	svc.EXPECT().ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, "job-b").
-		Return([]*build.Build{{ID: 2, Status: build.Succeeded}}, nil)
+		Return([]*build.Build{{ID: 2, Status: build.Succeeded, Steps: []build.Step{
+			{Type: "get", Name: "my-cron", VersionID: 5},
+		}}}, nil)
 
-	result := w.checkPassedConstraints(ctx, m, &b, j)
-	assert.True(t, result)
+	ok, resolved := w.checkPassedConstraints(ctx, m, &b, j)
+	assert.True(t, ok)
+	assert.Equal(t, map[string]uint32{"cron.my-cron": 5}, resolved)
+}
+
+func TestCheckPassedConstraints_NoCommonVersion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "downstream-job",
+	}
+	b := build.Build{ID: 51}
+	j := &job.Job{
+		Name: "downstream-job",
+		Plan: []job.PlanStep{
+			{
+				Type: job.StepTypeGet,
+				Get: &job.GetStep{
+					Type:   "git",
+					Name:   "my-repo",
+					Passed: []string{"lint", "test"},
+				},
+			},
+		},
+	}
+
+	// lint succeeded with version 5, test succeeded with version 6
+	svc.EXPECT().ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, "lint").
+		Return([]*build.Build{{ID: 10, Status: build.Succeeded, Steps: []build.Step{
+			{Type: "get", Name: "my-repo", VersionID: 5},
+		}}}, nil)
+	svc.EXPECT().ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, "test").
+		Return([]*build.Build{{ID: 11, Status: build.Succeeded, Steps: []build.Step{
+			{Type: "get", Name: "my-repo", VersionID: 6},
+		}}}, nil)
+
+	// Build should be deleted
+	svc.EXPECT().DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(51)).
+		Return(nil)
+
+	ok, resolved := w.checkPassedConstraints(ctx, m, &b, j)
+	assert.False(t, ok)
+	assert.Nil(t, resolved)
+}
+
+func TestCheckPassedConstraints_PicksNewestCommon(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "deploy",
+	}
+	b := build.Build{ID: 52}
+	j := &job.Job{
+		Name: "deploy",
+		Plan: []job.PlanStep{
+			{
+				Type: job.StepTypeGet,
+				Get: &job.GetStep{
+					Type:   "git",
+					Name:   "my-repo",
+					Passed: []string{"lint", "test"},
+				},
+			},
+		},
+	}
+
+	// lint has builds with versions {3, 5}
+	svc.EXPECT().ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, "lint").
+		Return([]*build.Build{
+			{ID: 10, Status: build.Succeeded, Steps: []build.Step{
+				{Type: "get", Name: "my-repo", VersionID: 5},
+			}},
+			{ID: 9, Status: build.Succeeded, Steps: []build.Step{
+				{Type: "get", Name: "my-repo", VersionID: 3},
+			}},
+		}, nil)
+	// test has builds with versions {5, 7}
+	svc.EXPECT().ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, "test").
+		Return([]*build.Build{
+			{ID: 12, Status: build.Succeeded, Steps: []build.Step{
+				{Type: "get", Name: "my-repo", VersionID: 7},
+			}},
+			{ID: 11, Status: build.Succeeded, Steps: []build.Step{
+				{Type: "get", Name: "my-repo", VersionID: 5},
+			}},
+		}, nil)
+
+	ok, resolved := w.checkPassedConstraints(ctx, m, &b, j)
+	assert.True(t, ok)
+	assert.Equal(t, map[string]uint32{"git.my-repo": 5}, resolved)
+}
+
+func TestCheckPassedConstraints_NoPassedField(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, _, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "simple-job",
+	}
+	b := build.Build{ID: 53}
+	j := &job.Job{
+		Name: "simple-job",
+		Plan: []job.PlanStep{
+			{
+				Type: job.StepTypeGet,
+				Get: &job.GetStep{
+					Type: "git",
+					Name: "my-repo",
+				},
+			},
+		},
+	}
+
+	ok, resolved := w.checkPassedConstraints(ctx, m, &b, j)
+	assert.True(t, ok)
+	assert.Equal(t, map[string]uint32{}, resolved)
 }
 
 func TestRunHooks(t *testing.T) {
@@ -779,10 +908,11 @@ func TestBuildPullParams_WithVersionID(t *testing.T) {
 			{ID: 5, Version: map[string]interface{}{"ref": "def"}},
 		}, nil).AnyTimes()
 
-	params := w.buildPullParams(ctx, m, &b, rt, r, g)
+	params, vid := w.buildPullParams(ctx, m, &b, rt, r, g, 0)
 	require.NotNil(t, params)
 	assert.Equal(t, "def", params["version_ref"])
 	assert.Equal(t, "http://example.com", params["param_url"])
+	assert.Equal(t, uint32(5), vid)
 }
 
 func TestBuildPullParams_NoVersionID_UsesLatest(t *testing.T) {
@@ -812,9 +942,10 @@ func TestBuildPullParams_NoVersionID_UsesLatest(t *testing.T) {
 			{ID: 2, Version: map[string]interface{}{"ref": "latest"}},
 		}, nil).AnyTimes()
 
-	params := w.buildPullParams(ctx, m, &b, rt, r, g)
+	params, vid := w.buildPullParams(ctx, m, &b, rt, r, g, 0)
 	require.NotNil(t, params)
 	assert.Equal(t, "latest", params["version_ref"])
+	assert.Equal(t, uint32(2), vid)
 }
 
 func TestBuildPullParams_NoVersions_Fails(t *testing.T) {
@@ -842,8 +973,40 @@ func TestBuildPullParams_NoVersions_Fails(t *testing.T) {
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(72), gomock.Any()).
 		Return(nil)
 
-	params := w.buildPullParams(ctx, m, &b, rt, r, g)
+	params, _ := w.buildPullParams(ctx, m, &b, rt, r, g, 0)
 	assert.Nil(t, params)
+}
+
+func TestBuildPullParams_ResolvedVersionTakesPriority(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "test-job",
+		VersionID:     5, // queue says version 5
+	}
+	b := build.Build{ID: 73}
+
+	rt := restype.ResourceType{
+		Pull: &utils.RunnerCommand{Params: map[string]string{}},
+	}
+	r := resource.Resource{Canonical: "git.my-repo"}
+	g := job.GetStep{}
+
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "git.my-repo").
+		Return([]*resource.Version{
+			{ID: 5, Version: map[string]interface{}{"ref": "queue-ver"}},
+			{ID: 10, Version: map[string]interface{}{"ref": "resolved-ver"}},
+		}, nil).AnyTimes()
+
+	// resolvedVersionID=10 should take priority over m.VersionID=5
+	params, vid := w.buildPullParams(ctx, m, &b, rt, r, g, 10)
+	require.NotNil(t, params)
+	assert.Equal(t, uint32(10), vid)
+	assert.Equal(t, "resolved-ver", params["version_ref"])
 }
 
 func TestCheckVersionAvailability_NoVersions_DeletesBuild(t *testing.T) {
