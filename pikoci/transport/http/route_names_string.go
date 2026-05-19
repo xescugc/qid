@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-const _RouteNameName = "user_loginrefresh_tokencreate_userlist_userscreate_teamlist_teamsget_teamupdate_teamdelete_teamcreate_team_memberupdate_team_memberdelete_team_membercreate_pipelineupdate_pipelineget_pipelinedelete_pipelinelist_pipelinesget_pipeline_imagecreate_pipeline_imagetrigger_pipeline_jobget_pipeline_jobcreate_job_buildupdate_job_builddelete_job_buildlist_job_buildsget_pipeline_resourceupdate_pipeline_resourcetrigger_pipeline_resourcecreate_resource_versionlist_resource_versionswebhook_triggerregenerate_webhook_token"
+const _RouteNameName = "user_loginrefresh_tokencreate_userlist_userscreate_teamlist_teamsget_teamupdate_teamdelete_teamcreate_team_memberupdate_team_memberdelete_team_membercreate_pipelineupdate_pipelineget_pipelinedelete_pipelinelist_pipelinesget_pipeline_imagecreate_pipeline_imagetrigger_pipeline_jobget_pipeline_jobcreate_job_buildupdate_job_builddelete_job_buildlist_job_buildsinsert_build_get_versionget_pipeline_resourceupdate_pipeline_resourcetrigger_pipeline_resourcecreate_resource_versionlist_resource_versionswebhook_triggerregenerate_webhook_token"
 
-var _RouteNameIndex = [...]uint16{0, 10, 23, 34, 44, 55, 65, 73, 84, 95, 113, 131, 149, 164, 179, 191, 206, 220, 238, 259, 279, 295, 311, 327, 343, 358, 379, 403, 428, 451, 473, 488, 512}
+var _RouteNameIndex = [...]uint16{0, 10, 23, 34, 44, 55, 65, 73, 84, 95, 113, 131, 149, 164, 179, 191, 206, 220, 238, 259, 279, 295, 311, 327, 343, 358, 382, 403, 427, 452, 475, 497, 512, 536}
 
-const _RouteNameLowerName = "user_loginrefresh_tokencreate_userlist_userscreate_teamlist_teamsget_teamupdate_teamdelete_teamcreate_team_memberupdate_team_memberdelete_team_membercreate_pipelineupdate_pipelineget_pipelinedelete_pipelinelist_pipelinesget_pipeline_imagecreate_pipeline_imagetrigger_pipeline_jobget_pipeline_jobcreate_job_buildupdate_job_builddelete_job_buildlist_job_buildsget_pipeline_resourceupdate_pipeline_resourcetrigger_pipeline_resourcecreate_resource_versionlist_resource_versionswebhook_triggerregenerate_webhook_token"
+const _RouteNameLowerName = "user_loginrefresh_tokencreate_userlist_userscreate_teamlist_teamsget_teamupdate_teamdelete_teamcreate_team_memberupdate_team_memberdelete_team_membercreate_pipelineupdate_pipelineget_pipelinedelete_pipelinelist_pipelinesget_pipeline_imagecreate_pipeline_imagetrigger_pipeline_jobget_pipeline_jobcreate_job_buildupdate_job_builddelete_job_buildlist_job_buildsinsert_build_get_versionget_pipeline_resourceupdate_pipeline_resourcetrigger_pipeline_resourcecreate_resource_versionlist_resource_versionswebhook_triggerregenerate_webhook_token"
 
 func (i RouteName) String() string {
 	if i < 0 || i >= RouteName(len(_RouteNameIndex)-1) {
@@ -49,16 +49,17 @@ func _RouteNameNoOp() {
 	_ = x[UpdateJobBuild-(22)]
 	_ = x[DeleteJobBuild-(23)]
 	_ = x[ListJobBuilds-(24)]
-	_ = x[GetPipelineResource-(25)]
-	_ = x[UpdatePipelineResource-(26)]
-	_ = x[TriggerPipelineResource-(27)]
-	_ = x[CreateResourceVersion-(28)]
-	_ = x[ListResourceVersions-(29)]
-	_ = x[WebhookTrigger-(30)]
-	_ = x[RegenerateWebhookToken-(31)]
+	_ = x[InsertBuildGetVersion-(25)]
+	_ = x[GetPipelineResource-(26)]
+	_ = x[UpdatePipelineResource-(27)]
+	_ = x[TriggerPipelineResource-(28)]
+	_ = x[CreateResourceVersion-(29)]
+	_ = x[ListResourceVersions-(30)]
+	_ = x[WebhookTrigger-(31)]
+	_ = x[RegenerateWebhookToken-(32)]
 }
 
-var _RouteNameValues = []RouteName{UserLogin, RefreshToken, CreateUser, ListUsers, CreateTeam, ListTeams, GetTeam, UpdateTeam, DeleteTeam, CreateTeamMember, UpdateTeamMember, DeleteTeamMember, CreatePipeline, UpdatePipeline, GetPipeline, DeletePipeline, ListPipelines, GetPipelineImage, CreatePipelineImage, TriggerPipelineJob, GetPipelineJob, CreateJobBuild, UpdateJobBuild, DeleteJobBuild, ListJobBuilds, GetPipelineResource, UpdatePipelineResource, TriggerPipelineResource, CreateResourceVersion, ListResourceVersions, WebhookTrigger, RegenerateWebhookToken}
+var _RouteNameValues = []RouteName{UserLogin, RefreshToken, CreateUser, ListUsers, CreateTeam, ListTeams, GetTeam, UpdateTeam, DeleteTeam, CreateTeamMember, UpdateTeamMember, DeleteTeamMember, CreatePipeline, UpdatePipeline, GetPipeline, DeletePipeline, ListPipelines, GetPipelineImage, CreatePipelineImage, TriggerPipelineJob, GetPipelineJob, CreateJobBuild, UpdateJobBuild, DeleteJobBuild, ListJobBuilds, InsertBuildGetVersion, GetPipelineResource, UpdatePipelineResource, TriggerPipelineResource, CreateResourceVersion, ListResourceVersions, WebhookTrigger, RegenerateWebhookToken}
 
 var _RouteNameNameToValueMap = map[string]RouteName{
 	_RouteNameName[0:10]:         UserLogin,
@@ -111,20 +112,22 @@ var _RouteNameNameToValueMap = map[string]RouteName{
 	_RouteNameLowerName[327:343]: DeleteJobBuild,
 	_RouteNameName[343:358]:      ListJobBuilds,
 	_RouteNameLowerName[343:358]: ListJobBuilds,
-	_RouteNameName[358:379]:      GetPipelineResource,
-	_RouteNameLowerName[358:379]: GetPipelineResource,
-	_RouteNameName[379:403]:      UpdatePipelineResource,
-	_RouteNameLowerName[379:403]: UpdatePipelineResource,
-	_RouteNameName[403:428]:      TriggerPipelineResource,
-	_RouteNameLowerName[403:428]: TriggerPipelineResource,
-	_RouteNameName[428:451]:      CreateResourceVersion,
-	_RouteNameLowerName[428:451]: CreateResourceVersion,
-	_RouteNameName[451:473]:      ListResourceVersions,
-	_RouteNameLowerName[451:473]: ListResourceVersions,
-	_RouteNameName[473:488]:      WebhookTrigger,
-	_RouteNameLowerName[473:488]: WebhookTrigger,
-	_RouteNameName[488:512]:      RegenerateWebhookToken,
-	_RouteNameLowerName[488:512]: RegenerateWebhookToken,
+	_RouteNameName[358:382]:      InsertBuildGetVersion,
+	_RouteNameLowerName[358:382]: InsertBuildGetVersion,
+	_RouteNameName[382:403]:      GetPipelineResource,
+	_RouteNameLowerName[382:403]: GetPipelineResource,
+	_RouteNameName[403:427]:      UpdatePipelineResource,
+	_RouteNameLowerName[403:427]: UpdatePipelineResource,
+	_RouteNameName[427:452]:      TriggerPipelineResource,
+	_RouteNameLowerName[427:452]: TriggerPipelineResource,
+	_RouteNameName[452:475]:      CreateResourceVersion,
+	_RouteNameLowerName[452:475]: CreateResourceVersion,
+	_RouteNameName[475:497]:      ListResourceVersions,
+	_RouteNameLowerName[475:497]: ListResourceVersions,
+	_RouteNameName[497:512]:      WebhookTrigger,
+	_RouteNameLowerName[497:512]: WebhookTrigger,
+	_RouteNameName[512:536]:      RegenerateWebhookToken,
+	_RouteNameLowerName[512:536]: RegenerateWebhookToken,
 }
 
 var _RouteNameNames = []string{
@@ -153,13 +156,14 @@ var _RouteNameNames = []string{
 	_RouteNameName[311:327],
 	_RouteNameName[327:343],
 	_RouteNameName[343:358],
-	_RouteNameName[358:379],
-	_RouteNameName[379:403],
-	_RouteNameName[403:428],
-	_RouteNameName[428:451],
-	_RouteNameName[451:473],
-	_RouteNameName[473:488],
-	_RouteNameName[488:512],
+	_RouteNameName[358:382],
+	_RouteNameName[382:403],
+	_RouteNameName[403:427],
+	_RouteNameName[427:452],
+	_RouteNameName[452:475],
+	_RouteNameName[475:497],
+	_RouteNameName[497:512],
+	_RouteNameName[512:536],
 }
 
 // RouteNameString retrieves an enum value from the enum constants string name.

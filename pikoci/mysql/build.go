@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cycloidio/sqlr"
@@ -188,6 +189,71 @@ func (r *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, bID uin
 	}
 
 	return nil
+}
+
+func (r *BuildRepository) InsertGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error {
+	_, err := r.querier.ExecContext(ctx, `
+		INSERT OR IGNORE INTO build_get_versions(build_id, step_name, version_id)
+		VALUES (?, ?, ?)
+	`, buildID, stepName, versionID)
+	if err != nil {
+		return fmt.Errorf("failed to insert build get version: %w", err)
+	}
+	return nil
+}
+
+// FindReadyDownstreamVersion finds the highest version_id that ALL upstream
+// jobs succeeded with but the downstream job hasn't built yet (regardless of
+// downstream build status). This means if a downstream build consumed a version
+// and then failed, that version will NOT be retried — preventing infinite retry
+// loops. Manual re-trigger can still be used for failed builds.
+func (r *BuildRepository) FindReadyDownstreamVersion(ctx context.Context, tc, pn string, upstreamJobs []string, downstreamJob string, stepName string, upstreamCount int) (uint32, bool, error) {
+	// Build the IN clause placeholders
+	placeholders := make([]string, len(upstreamJobs))
+	args := make([]interface{}, 0, len(upstreamJobs)+5)
+	args = append(args, tc, pn)
+	for i, j := range upstreamJobs {
+		placeholders[i] = "?"
+		args = append(args, j)
+	}
+	args = append(args, stepName)
+	// Args for the NOT IN subquery
+	args = append(args, downstreamJob, stepName)
+	// HAVING count
+	args = append(args, upstreamCount)
+
+	query := `
+		SELECT bgv.version_id
+		FROM build_get_versions bgv
+		JOIN builds b ON bgv.build_id = b.id
+		JOIN jobs j ON b.job_id = j.id
+		JOIN pipelines p ON j.pipeline_id = p.id
+		JOIN teams t ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND b.status = 'succeeded'
+		  AND j.name IN (` + strings.Join(placeholders, ", ") + `)
+		  AND bgv.step_name = ?
+		  AND bgv.version_id NOT IN (
+			  SELECT bgv2.version_id FROM build_get_versions bgv2
+			  JOIN builds b2 ON bgv2.build_id = b2.id
+			  JOIN jobs j2 ON b2.job_id = j2.id
+			  WHERE j2.pipeline_id = p.id AND j2.name = ?
+				AND bgv2.step_name = ?
+		  )
+		GROUP BY bgv.version_id
+		HAVING COUNT(DISTINCT j.name) = ?
+		ORDER BY bgv.version_id DESC
+		LIMIT 1
+	`
+
+	var versionID uint32
+	err := r.querier.QueryRowContext(ctx, query, args...).Scan(&versionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("failed to find ready downstream version: %w", err)
+	}
+	return versionID, true, nil
 }
 
 func scanBuild(s sqlr.Scanner) (*build.Build, error) {

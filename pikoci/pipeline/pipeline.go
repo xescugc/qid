@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/xescugc/pikoci/pikoci/builtin"
-	"github.com/zclconf/go-cty/cty"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
@@ -15,7 +14,9 @@ import (
 	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/service"
 	"github.com/xescugc/pikoci/pikoci/source"
+	"github.com/xescugc/pikoci/pikoci/team"
 	"github.com/xescugc/pikoci/pikoci/utils"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // TypeEvalContext returns an HCL eval context with the type pseudo-variables
@@ -28,6 +29,11 @@ func TypeEvalContext() *hcl.EvalContext {
 			"bool":   cty.StringVal("bool"),
 		},
 	}
+}
+
+type WithTeam struct {
+	Pipeline
+	Team team.Team
 }
 
 type Pipeline struct {

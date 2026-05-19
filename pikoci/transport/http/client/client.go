@@ -482,6 +482,26 @@ func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uin
 	return nil
 }
 
+func (cl *Client) InsertBuildGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error {
+	var resp thttp.InsertBuildGetVersionResponse
+
+	body := thttp.InsertBuildGetVersionRequest{
+		StepName:  stepName,
+		VersionID: versionID,
+	}
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d/get-versions", cl.url, tc, pn, jn, buildID), body, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
 func (cl *Client) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
 	var resp thttp.ListJobBuildsResponse
 

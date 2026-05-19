@@ -30,6 +30,9 @@ func newTestWorker(ctrl *gomock.Controller) (*Worker, *mock.Service, *mock.Topic
 	topic := mock.NewTopic(ctrl)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
+	// InsertBuildGetVersion is called after every successful get step; allow it globally.
+	svc.EXPECT().InsertBuildGetVersion(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
 	w := &Worker{
 		pikoci: svc,
 		topic:  topic,
@@ -232,6 +235,80 @@ func TestProcessJob_Success_WithGetAndTask(t *testing.T) {
 	w.processJob(ctx, m, cwd, pp)
 }
 
+func TestInsertBuildGetVersion_CalledWithCorrectArgs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	// Don't use newTestWorker — we need precise control over InsertBuildGetVersion.
+	svc := mock.NewService(ctrl)
+	topic := mock.NewTopic(ctrl)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	w := &Worker{pikoci: svc, topic: topic, logger: logger}
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "test-job",
+		VersionID:     1,
+	}
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "test-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
+					},
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run:  utils.RunnerCommand{Runner: "exec", Args: []string{"hello"}, Params: map[string]string{"path": "echo"}},
+						},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-cron", Type: "cron", Canonical: "cron.my-cron"},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "cron",
+				Pull: &utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"pulling"},
+					Params: map[string]string{"path": "echo"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, "main", "test-pipeline", "test-job", gomock.Any()).
+		Return(&build.Build{ID: 10}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, "main", "test-pipeline", "test-job").
+		Return(&pp.Jobs[0], nil)
+	svc.EXPECT().ListResourceVersions(ctx, "main", "test-pipeline", "cron.my-cron").
+		Return([]*resource.Version{
+			{ID: 1, Version: map[string]interface{}{"date": "now"}},
+		}, nil).AnyTimes()
+	svc.EXPECT().UpdateJobBuild(ctx, "main", "test-pipeline", "test-job", uint32(10), gomock.Any()).
+		Return(nil).AnyTimes()
+
+	// Verify InsertBuildGetVersion is called with exact correct arguments
+	svc.EXPECT().InsertBuildGetVersion(ctx, "main", "test-pipeline", "test-job", uint32(10), "my-cron", uint32(1)).
+		Return(nil)
+
+	w.processJob(ctx, m, cwd, pp)
+}
+
 func TestProcessJob_FailedPassedConstraint_NoBuilds(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	w, svc, _ := newTestWorker(ctrl)
@@ -425,9 +502,11 @@ func TestProcessJob_TaskFailure_RunsHooks(t *testing.T) {
 	w.processJob(ctx, m, cwd, pp)
 }
 
-func TestProcessJob_TriggersDownstream(t *testing.T) {
+func TestProcessJob_NoDownstreamTrigger(t *testing.T) {
+	// Downstream triggering is now handled by the scheduler (pull-based).
+	// This test verifies that the worker does NOT send downstream trigger messages.
 	ctrl := gomock.NewController(t)
-	w, svc, topic := newTestWorker(ctrl)
+	w, svc, _ := newTestWorker(ctrl)
 
 	ctx := context.Background()
 	m := queue.Body{
@@ -500,16 +579,7 @@ func TestProcessJob_TriggersDownstream(t *testing.T) {
 	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(40), gomock.Any()).
 		Return(nil).AnyTimes()
 
-	// Should trigger downstream-job
-	topic.EXPECT().Send(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, msg *pubsub.Message) error {
-		var body queue.Body
-		err := json.Unmarshal(msg.Body, &body)
-		require.NoError(t, err)
-		assert.Equal(t, "downstream-job", body.JobName)
-		assert.Equal(t, "test-pipeline", body.PipelineName)
-		assert.Equal(t, "cron.my-cron", body.ResourceCanonical)
-		return nil
-	})
+	// No topic.Send expected — downstream is now scheduler-driven
 
 	w.processJob(ctx, m, cwd, pp)
 }

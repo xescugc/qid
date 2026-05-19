@@ -357,6 +357,20 @@ func (mr *ServiceMockRecorder) GetUser(ctx, un any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*Service)(nil).GetUser), ctx, un)
 }
 
+// InsertBuildGetVersion mocks base method.
+func (m *Service) InsertBuildGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertBuildGetVersion", ctx, tc, pn, jn, buildID, stepName, versionID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertBuildGetVersion indicates an expected call of InsertBuildGetVersion.
+func (mr *ServiceMockRecorder) InsertBuildGetVersion(ctx, tc, pn, jn, buildID, stepName, versionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBuildGetVersion", reflect.TypeOf((*Service)(nil).InsertBuildGetVersion), ctx, tc, pn, jn, buildID, stepName, versionID)
+}
+
 // ListJobBuilds mocks base method.
 func (m *Service) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
 	m.ctrl.T.Helper()

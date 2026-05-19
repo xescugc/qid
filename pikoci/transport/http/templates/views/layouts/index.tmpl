@@ -1465,7 +1465,7 @@
               that.currentBuildID = bid
               var tc = that.collection.job.collection.pipeline.collection.team.get("canonical")
               var url = new URL(location.origin+"/teams/"+tc+"/pipelines/"+that.pipeline.get("name")+"/jobs/"+that.job.get("name")+"/builds/"+bid)
-              app.router.navigate(url.pathname, { trigger: false });
+              app.router.navigate(url.pathname, { trigger: false, replace: true });
             },
           })
 
@@ -1520,7 +1520,7 @@
           this.currentBuildID = bid
           var tc = this.collection.job.collection.pipeline.collection.team.get("canonical")
           var url = new URL(location.origin+"/teams/"+tc+"/pipelines/"+this.pipeline.get("name")+"/jobs/"+this.job.get("name")+"/builds/"+bid)
-          app.router.navigate(url.pathname, { trigger: false });
+          app.router.navigate(url.pathname, { trigger: false, replace: true });
         }
       })
       app.JobBuildsTabView = Backbone.View.extend({

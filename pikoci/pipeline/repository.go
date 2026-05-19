@@ -12,6 +12,7 @@ type Repository interface {
 	Find(ctx context.Context, tc, pn string) (*Pipeline, error)
 	FindPublic(ctx context.Context, tc, pn string) (*Pipeline, error)
 	Filter(ctx context.Context, tc string) ([]*Pipeline, error)
+	FilterAll(ctx context.Context) ([]*WithTeam, error)
 	SetPublic(ctx context.Context, tc, pn string, public bool) error
 	Delete(ctx context.Context, tc, pn string) error
 }

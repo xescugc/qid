@@ -214,6 +214,7 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 	api.Methods(http.MethodGet).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds").Name(ListJobBuilds.String()).Handler(listJobBuilds(s))
 	api.Methods(http.MethodPut).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}").Name(UpdateJobBuild.String()).Handler(updateJobBuild(s))
 	api.Methods(http.MethodDelete).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}").Name(DeleteJobBuild.String()).Handler(deleteJobBuild(s))
+	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/jobs/{job_name}/builds/{build_id}/get-versions").Name(InsertBuildGetVersion.String()).Handler(insertBuildGetVersion(s))
 
 	api.Methods(http.MethodPost).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Name(CreateResourceVersion.String()).Handler(createResourceVersion(s))
 	api.Methods(http.MethodGet).Path("/teams/{team_canonical}/pipelines/{pipeline_name}/resources/{resource_canonical}/versions").Name(ListResourceVersions.String()).Handler(listResourceVersions(s))

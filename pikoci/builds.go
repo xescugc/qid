@@ -69,6 +69,10 @@ func (q *PikoCI) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint
 	return nil
 }
 
+func (q *PikoCI) InsertBuildGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error {
+	return q.Builds.InsertGetVersion(ctx, tc, pn, jn, buildID, stepName, versionID)
+}
+
 func (q *PikoCI) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
 	if !utils.ValidateCanonical(tc) {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
