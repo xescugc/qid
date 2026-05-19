@@ -104,6 +104,11 @@ job "gen" {
 ```
 
 
+## Examples
+
+The [`examples/`](examples/) folder contains ready-to-run pipelines and a Docker Compose file for one-command evaluation. See the [examples README](examples/README.md) for details.
+
+
 ## Pipeline Visualization
 
 PikoCI can export pipeline state as a [DOT graph](https://graphviz.org/doc/info/lang.html):

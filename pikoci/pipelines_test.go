@@ -1159,6 +1159,42 @@ func TestGetPipelineImage_HidesUnlinkedResources(t *testing.T) {
 	}
 }
 
+func TestGetPipelineImage_QuotesHyphenatedName(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	pp := &pipeline.Pipeline{
+		Name: "hello-world",
+		Resources: []resource.Resource{
+			{ID: 1, Canonical: "cron.tick"},
+		},
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "hello",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "tick", Trigger: true},
+					},
+				},
+			},
+		},
+	}
+
+	s.Pipelines.EXPECT().Find(ctx, "main", "hello-world").Return(pp, nil)
+	s.Builds.EXPECT().Filter(ctx, "main", "hello-world", "hello").Return([]*build.Build{}, nil)
+
+	img, err := s.S.GetPipelineImage(ctx, "main", "hello-world", "dot")
+	require.NoError(t, err)
+
+	dot := string(img)
+	// Pipeline name must be quoted in DOT output so hyphens aren't parsed as minus operator
+	assert.True(t, strings.Contains(dot, `"hello-world"`), "hyphenated pipeline name should be quoted in DOT output")
+	assert.False(t, strings.HasPrefix(strings.TrimSpace(dot), "strict graph hello-world"), "unquoted hyphenated name should not appear")
+}
+
 func TestGetPipelineImage_ShowsLinkedResources(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)

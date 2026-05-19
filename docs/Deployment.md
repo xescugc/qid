@@ -38,6 +38,15 @@ curl -L https://github.com/xescugc/pikoci/releases/latest/download/linux-amd64 -
 chmod +x /usr/local/bin/pikoci
 ```
 
+Alternatively, use the Docker image:
+
+```bash
+docker pull xescugc/pikoci:latest
+docker run -p 8080:8080 xescugc/pikoci:latest server --db-system mem --pubsub-system mem --jwt-secret my-secret --run-worker
+```
+
+The image is based on Alpine and includes git, jq, curl, openssl, and docker-cli. See the [Dockerfile](https://github.com/xescugc/pikoci/blob/master/Dockerfile) for details.
+
 ### 2. Install prerequisites
 
 The server needs `git`, `jq`, and `curl` for the built-in resource types (e.g. the `git` resource type uses `jq` and `curl` to query GitHub/GitLab APIs). Docker is required for the `docker` runner and for supporting services.
