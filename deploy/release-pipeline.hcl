@@ -2,58 +2,6 @@ resource_type "git" {
   source = "pikoci://git"
 }
 
-resource_type "git-tag" {
-  params = [
-    "url",
-    "name",
-    "token",
-  ]
-  check "exec" {
-    path = "/bin/sh"
-    args = [
-      "-ec",
-      <<-EOT
-      URL="$param_url"
-      TOKEN="$param_token"
-
-      REPO=$(echo "$URL" | sed -E 's|https?://github\.com/||;s|\.git$||')
-      TAG=$(curl -sf -H "Authorization: token $TOKEN" \
-        "https://api.github.com/repos/$REPO/tags?per_page=1" \
-        | jq -r '.[0].name // empty')
-
-      if [ -z "$TAG" ]; then
-        echo "[]"
-        exit 0
-      fi
-
-      SHA=$(curl -sf -H "Authorization: token $TOKEN" \
-        "https://api.github.com/repos/$REPO/git/ref/tags/$TAG" \
-        | jq -r '.object.sha')
-
-      echo "[{\"ref\":\"$SHA\",\"tag\":\"$TAG\"}]"
-      EOT
-    ]
-  }
-  pull "exec" {
-    path = "/bin/sh"
-    args = [
-      "-ec",
-      <<-EOT
-      URL="$param_url"
-      TOKEN="$param_token"
-      TAG="$version_tag"
-
-      if [ -n "$TOKEN" ]; then
-        URL=$(echo "$URL" | sed -E "s|https://|https://oauth2:$${TOKEN}@|")
-      fi
-
-      git clone -b "$TAG" --depth 1 "$URL" "$param_name"
-      EOT
-    ]
-  }
-  push "exec" { }
-}
-
 resource "git" "pikoci" {
   params {
     url    = "https://github.com/xescugc/pikoci"
@@ -62,11 +10,12 @@ resource "git" "pikoci" {
   }
 }
 
-resource "git-tag" "pikoci-tag" {
+resource "git" "pikoci-tag" {
   params {
     url   = "https://github.com/xescugc/pikoci"
     name  = "pikoci"
     token = var.github_token
+    tag   = true
   }
 }
 
@@ -93,7 +42,7 @@ job "build-latest" {
 }
 
 job "build-release" {
-  get "git-tag" "pikoci-tag" {
+  get "git" "pikoci-tag" {
     trigger = true
   }
   task "docker-build-push-tag" {

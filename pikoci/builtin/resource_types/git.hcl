@@ -5,6 +5,7 @@ resource_type "git" {
     "name",
     "token",
     "pr",
+    "tag",
   ]
   check "exec" {
     path = "/bin/sh"
@@ -15,6 +16,36 @@ resource_type "git" {
       BRANCH="$${param_branch:-HEAD}"
       TOKEN="$param_token"
       PR="$param_pr"
+      TAG="$param_tag"
+
+      # Tag mode: check for latest tags
+      if [ "$TAG" = "true" ]; then
+        if [ -z "$TOKEN" ]; then
+          echo "error: tag=true requires a token" >&2
+          exit 1
+        fi
+
+        # GitHub tags
+        if echo "$URL" | grep -q "github.com"; then
+          REPO=$(echo "$URL" | sed -E 's|https?://github\.com/||;s|\.git$||')
+          curl -sf -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$REPO/tags?per_page=100" \
+            | jq -c '[.[] | {"ref": .commit.sha, "tag": .name}]'
+          exit 0
+        fi
+
+        # GitLab tags
+        if echo "$URL" | grep -q "gitlab.com"; then
+          PROJECT=$(echo "$URL" | sed -E 's|https?://gitlab\.com/||;s|\.git$||' | sed 's|/|%2F|g')
+          curl -sf -H "PRIVATE-TOKEN: $TOKEN" \
+            "https://gitlab.com/api/v4/projects/$PROJECT/repository/tags?order_by=updated&sort=desc&per_page=100" \
+            | jq -c '[.[] | {"ref": .commit.id, "tag": .name}]'
+          exit 0
+        fi
+
+        echo "error: tag=true is only supported for github.com and gitlab.com" >&2
+        exit 1
+      fi
 
       # PR mode: check for open pull requests
       if [ "$PR" = "true" ]; then
@@ -91,13 +122,17 @@ resource_type "git" {
       TOKEN="$param_token"
       BRANCH="$param_branch"
       PR="$param_pr"
+      TAG="$param_tag"
 
       # Inject token into HTTPS URL if provided
       if [ -n "$TOKEN" ]; then
         URL=$(echo "$URL" | sed -E "s|https://|https://oauth2:$${TOKEN}@|")
       fi
 
-      if [ "$PR" = "true" ] && [ -n "$version_pr" ]; then
+      if [ "$TAG" = "true" ] && [ -n "$version_tag" ]; then
+        # Tag mode: clone at the specific tag
+        git clone -b "$version_tag" --depth 1 "$URL" "$param_name"
+      elif [ "$PR" = "true" ] && [ -n "$version_pr" ]; then
         # PR mode: fetch the PR head ref
         git clone "$URL" "$param_name"
         cd "$param_name"
