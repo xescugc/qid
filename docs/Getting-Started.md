@@ -14,6 +14,12 @@ curl -L https://github.com/xescugc/pikoci/releases/latest/download/darwin-amd64 
 chmod +x pikoci
 ```
 
+Or pull the Docker image:
+
+```bash
+docker pull xescugc/pikoci:latest
+```
+
 Or build from source:
 
 ```bash
@@ -74,6 +80,17 @@ The default user is `admin` / `admin123` (created by the initial database migrat
 # Pass it to the server (also works to update the default admin password)
 ./pikoci server --jwt-secret my-secret --users 'myuser:$2a$10$...'
 ```
+
+## Try with Docker Compose
+
+The [`examples/`](https://github.com/xescugc/pikoci/tree/master/examples) folder contains ready-to-run pipelines. The fastest way to try PikoCI:
+
+```bash
+cd examples
+docker compose up
+```
+
+Open [http://localhost:8080](http://localhost:8080) and log in with `admin` / `admin123`. The hello-world pipeline runs automatically every 10 seconds.
 
 ## Next steps
 

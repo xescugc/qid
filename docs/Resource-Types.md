@@ -191,6 +191,7 @@ resource "git" "my-repo" {
 | `branch` | no       | Branch to track (defaults to HEAD)               |
 | `token`  | no       | API/HTTPS auth token for private repos           |
 | `pr`     | no       | Set to `"true"` to check for open pull requests instead of commits (requires `token`, GitHub/GitLab only) |
+| `tag`    | no       | Set to `"true"` to check for tags instead of commits (requires `token`, GitHub/GitLab only) |
 
 ### Token setup
 
@@ -235,6 +236,18 @@ When `pr = "true"` is set, the check command lists open pull requests (or merge 
 ```
 
 When a new PR is opened or an existing PR is updated (new commits pushed), PikoCI detects the change and triggers the job. The pull step fetches the PR's head ref so your CI runs against the PR code.
+
+This requires a `token` and is supported on GitHub and GitLab.
+
+### Tag mode
+
+When `tag = "true"` is set, the check command lists tags instead of checking for commits. Each tag becomes a version with its commit SHA and tag name:
+
+```json
+[{"ref": "abc123", "tag": "v1.0.0"}, {"ref": "def456", "tag": "v0.9.0"}]
+```
+
+When a new tag is pushed, PikoCI detects it and triggers the job. The pull step clones the repository at the specific tag. The tag name is available as `$version_tag` in task commands.
 
 This requires a `token` and is supported on GitHub and GitLab.
 
@@ -293,6 +306,32 @@ job "ci" {
     run "docker" {
       image = "golang:1.23"
       cmd   = "cd my-repo && make test"
+    }
+  }
+}
+```
+
+Build Docker image on new tags:
+
+```hcl
+resource "git" "tags" {
+  params {
+    url   = "https://github.com/myorg/my-repo.git"
+    name  = "my-repo"
+    token = var.github_token
+    tag   = "true"
+  }
+}
+
+job "release" {
+  get "git" "tags" {
+    trigger = true
+  }
+
+  task "build" {
+    run "exec" {
+      path = "/bin/sh"
+      args = ["-ec", "cd my-repo && docker build -t myorg/my-repo:$version_tag ."]
     }
   }
 }
