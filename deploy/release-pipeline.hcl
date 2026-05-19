@@ -52,11 +52,12 @@ job "build-release" {
         "-ec",
         <<-EOT
         cd pikoci
+        TAG=$(git describe --tags --exact-match)
 
         echo "${var.docker_password}" | docker login -u "${var.docker_username}" --password-stdin
 
-        docker build -t xescugc/pikoci:$version_tag .
-        docker push xescugc/pikoci:$version_tag
+        docker build -t xescugc/pikoci:$TAG .
+        docker push xescugc/pikoci:$TAG
         EOT
       ]
     }
