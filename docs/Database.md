@@ -24,6 +24,8 @@ pikoci server --jwt-secret my-secret --db-system sqlite --db-name pikoci.db
 |------|-------------|
 | `--db-name` | Path to the SQLite database file |
 
+PikoCI automatically enables [WAL mode](https://www.sqlite.org/wal.html) and a 5-second `busy_timeout` on file-backed SQLite connections. WAL allows concurrent reads during writes, and `busy_timeout` prevents immediate `SQLITE_BUSY` errors when multiple workers access the database simultaneously. In-memory databases (`mem`) only use `busy_timeout` since WAL requires a file on disk.
+
 ## mysql
 
 MySQL or MariaDB.

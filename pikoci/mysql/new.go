@@ -68,11 +68,15 @@ func New(host string, port int, user, password string, ops Options) (*sql.DB, er
 		// In-memory SQLite with shared cache (so multiple connections see the same data).
 		// _pragma=foreign_keys(1) enables ON DELETE CASCADE on every connection in the pool
 		// (per-connection PRAGMA wouldn't work with sql.DB's connection pool).
-		db, err = sql.Open("sqlite", "file::memory:?cache=shared&_pragma=foreign_keys(1)")
+		// busy_timeout(5000) waits up to 5s before returning SQLITE_BUSY.
+		// Note: WAL is not supported on in-memory databases, only busy_timeout applies here.
+		db, err = sql.Open("sqlite", "file::memory:?cache=shared&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	case SQLite:
 		// File-backed SQLite. Data persists across restarts.
 		// _pragma=foreign_keys(1) enables ON DELETE CASCADE on every connection in the pool.
-		db, err = sql.Open("sqlite", ops.DBFile+"?_pragma=foreign_keys(1)")
+		// journal_mode(WAL) allows concurrent reads during writes.
+		// busy_timeout(5000) waits up to 5s before returning SQLITE_BUSY.
+		db, err = sql.Open("sqlite", ops.DBFile+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	case PostgreSQL:
 		// PostgreSQL has foreign keys enabled by default. sslmode=disable for local/dev setups.
 		dsn := fmt.Sprintf(
