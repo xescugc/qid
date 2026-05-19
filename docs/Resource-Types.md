@@ -247,7 +247,7 @@ When `tag = "true"` is set, the check command lists tags instead of checking for
 [{"ref": "abc123", "tag": "v1.0.0"}, {"ref": "def456", "tag": "v0.9.0"}]
 ```
 
-When a new tag is pushed, PikoCI detects it and triggers the job. The pull step clones the repository at the specific tag. The tag name is available as `$version_tag` in task commands.
+When a new tag is pushed, PikoCI detects it and triggers the job. The pull step clones the repository at the specific tag. Since version variables (`$version_tag`) are only available in pull steps, use `git describe --tags --exact-match` in task steps to retrieve the tag name.
 
 This requires a `token` and is supported on GitHub and GitLab.
 
@@ -331,7 +331,7 @@ job "release" {
   task "build" {
     run "exec" {
       path = "/bin/sh"
-      args = ["-ec", "cd my-repo && docker build -t myorg/my-repo:$version_tag ."]
+      args = ["-ec", "cd my-repo && TAG=$(git describe --tags --exact-match) && docker build -t myorg/my-repo:$TAG ."]
     }
   }
 }
