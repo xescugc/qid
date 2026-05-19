@@ -1179,6 +1179,15 @@ func (w *Worker) fetchSecrets(ctx context.Context, cwd string, pp *pipeline.Pipe
 			return nil, fmt.Errorf("runner %q not found for secret_type %q", st.Get.Runner, st.Name)
 		}
 
+		// Resolve relative param_path to absolute so the command works
+		// regardless of which working directory it runs in.
+		if p, ok := params["param_path"]; ok && !filepath.IsAbs(p) {
+			abs, err := filepath.Abs(p)
+			if err == nil {
+				params["param_path"] = abs
+			}
+		}
+
 		rc := utils.RunnerCommand{
 			Runner: st.Get.Runner,
 			Args:   st.Get.Args,

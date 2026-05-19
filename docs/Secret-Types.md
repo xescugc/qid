@@ -193,7 +193,7 @@ secret_type "my-file" {
 | Attribute | Required | Default | Description                                      |
 |-----------|----------|---------|--------------------------------------------------|
 | `format`  | no       | `json`  | File format: `json`, `env`, or `raw`              |
-| `path`    | no       |         | Default file path; can be overridden per-variable |
+| `path`    | no       |         | Default file path; can be overridden per-variable. Relative paths resolve from the server's working directory. |
 
 The file path can be set on the `secret_type` block as a default, on each variable's `secret` block, or both (the variable-level `path` takes precedence):
 
