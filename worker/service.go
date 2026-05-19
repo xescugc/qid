@@ -921,6 +921,9 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 			Version: v,
 		})
 		if err != nil {
+			if isDuplicateKeyError(err) {
+				continue
+			}
 			w.logger.Error("failed to create resource version", "error", err)
 			return
 		}
@@ -1445,4 +1448,12 @@ func createKeyValuePairs(m map[string]string) string {
 		fmt.Fprintf(b, "%s=%s ", key, value)
 	}
 	return b.String()
+}
+
+// isDuplicateKeyError returns true if the error is a unique constraint violation.
+func isDuplicateKeyError(err error) bool {
+	s := err.Error()
+	return strings.Contains(s, "UNIQUE constraint failed") || // SQLite
+		strings.Contains(s, "Duplicate entry") || // MySQL
+		strings.Contains(s, "duplicate key value") // PostgreSQL
 }

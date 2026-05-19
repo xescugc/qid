@@ -583,6 +583,93 @@ func TestProcessResourceCheck_NewVersions(t *testing.T) {
 	w.processResourceCheck(ctx, m, cwd, pp)
 }
 
+func TestProcessResourceCheck_DuplicateVersionSkipped_NewVersionTriggered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, topic := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical:     "main",
+		PipelineName:      "test-pipeline",
+		ResourceCanonical: "git.my-repo",
+	}
+	// Check script returns 2 versions: first already exists, second is new
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "lint",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "git", Name: "my-repo", Trigger: true},
+					},
+				},
+			},
+			{
+				ID:   2,
+				Name: "test",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "git", Name: "my-repo", Trigger: true},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-repo", Type: "git", Canonical: "git.my-repo"},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "git",
+				Check: &utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"-ec", `printf '[{"ref":"old"},{"ref":"new"}]\n'`},
+					Params: map[string]string{"path": "/bin/sh"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, "git.my-repo").
+		Return([]*resource.Version{}, nil).AnyTimes()
+
+	// First version: duplicate error (already exists)
+	svc.EXPECT().CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, "git.my-repo", gomock.Any()).
+		Return(nil, fmt.Errorf("failed to Create Resource Version: failed to execute query: constraint failed: UNIQUE constraint failed: resource_versions.resource_id, resource_versions.version (2067)"))
+
+	// Second version: new, created successfully
+	svc.EXPECT().CreateResourceVersion(ctx, m.TeamCanonical, m.PipelineName, "git.my-repo", gomock.Any()).
+		Return(&resource.Version{ID: 2, Version: map[string]interface{}{"ref": "new"}}, nil)
+
+	// Should trigger both jobs for the new version only
+	topic.EXPECT().Send(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, msg *pubsub.Message) error {
+		var body queue.Body
+		err := json.Unmarshal(msg.Body, &body)
+		require.NoError(t, err)
+		assert.Equal(t, "lint", body.JobName)
+		assert.Equal(t, uint32(2), body.VersionID)
+		return nil
+	})
+	topic.EXPECT().Send(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, msg *pubsub.Message) error {
+		var body queue.Body
+		err := json.Unmarshal(msg.Body, &body)
+		require.NoError(t, err)
+		assert.Equal(t, "test", body.JobName)
+		assert.Equal(t, uint32(2), body.VersionID)
+		return nil
+	})
+
+	w.processResourceCheck(ctx, m, cwd, pp)
+}
+
 func TestCheckPassedConstraints_AllPassed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	w, svc, _ := newTestWorker(ctrl)
