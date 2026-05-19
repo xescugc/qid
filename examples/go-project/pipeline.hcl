@@ -48,10 +48,10 @@ job "build" {
 
 variable "repo_url" {
   type    = string
-  default = "https://github.com/xescugc/qid"
+  default = "https://github.com/xescugc/pikoci"
 }
 
 variable "repo_name" {
   type    = string
-  default = "qid"
+  default = "pikoci"
 }
