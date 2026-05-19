@@ -150,7 +150,8 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		return
 	}
 
-	if !w.checkPassedConstraints(ctx, m, &b, j) {
+	ok, resolvedVersions := w.checkPassedConstraints(ctx, m, &b, j)
+	if !ok {
 		return
 	}
 
@@ -161,7 +162,7 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		return
 	}
 
-	failed, resolved := w.runPlan(ctx, m, &b, cwd, pp, j)
+	failed, resolved := w.runPlan(ctx, m, &b, cwd, pp, j, resolvedVersions)
 
 	if !failed {
 		b.Status = build.Succeeded
@@ -181,34 +182,77 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 }
 
 // checkPassedConstraints verifies that all jobs in the "passed" list have a
-// successful latest build. If not, the build is deleted and false is returned.
-func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *build.Build, j *job.Job) bool {
+// successful build that used a common resource version. The returned map
+// contains resourceCanonical → resolvedVersionID for each get step with Passed.
+// If no common version exists, the build is deleted and (false, nil) is returned.
+func (w *Worker) checkPassedConstraints(ctx context.Context, m queue.Body, b *build.Build, j *job.Job) (bool, map[string]uint32) {
+	resolvedVersions := make(map[string]uint32)
 	for _, ps := range j.Plan {
 		if ps.Type != job.StepTypeGet || ps.Get == nil {
 			continue
 		}
 		g := ps.Get
+		if len(g.Passed) == 0 {
+			continue
+		}
+		rCan := g.ResourceCanonical()
+
+		var intersection map[uint32]bool
+		var hasSucceeded bool
 		for _, p := range g.Passed {
 			builds, err := w.pikoci.ListJobBuilds(ctx, m.TeamCanonical, m.PipelineName, p)
 			if err != nil {
 				w.failBuild(ctx, m, *b, fmt.Errorf("failed to list builds for passed job %q: %w", p, err))
-				return false
+				return false, nil
 			}
-			if len(builds) == 0 {
-				w.logger.Info("job will not run: passed job has no builds",
-					"job", m.JobName, "pipeline", m.PipelineName, "passed_job", p)
-				w.deleteBuild(ctx, m, *b)
-				return false
+
+			// Collect version IDs from successful builds where a get step matches this resource
+			versionSet := make(map[uint32]bool)
+			for _, bu := range builds {
+				if bu.Status != build.Succeeded {
+					continue
+				}
+				hasSucceeded = true
+				for _, step := range bu.Steps {
+					if step.Type == "get" && step.Name == g.Name && step.VersionID != 0 {
+						versionSet[step.VersionID] = true
+					}
+				}
 			}
-			if builds[0].Status != build.Succeeded {
-				w.logger.Info("job will not run: passed job is not succeeded",
-					"job", m.JobName, "pipeline", m.PipelineName, "passed_job", p)
-				w.deleteBuild(ctx, m, *b)
-				return false
+
+			if intersection == nil {
+				intersection = versionSet
+			} else {
+				for vid := range intersection {
+					if !versionSet[vid] {
+						delete(intersection, vid)
+					}
+				}
 			}
 		}
+
+		if len(intersection) == 0 {
+			if hasSucceeded {
+				w.logger.Info("job will not run: no common version across passed jobs",
+					"job", m.JobName, "pipeline", m.PipelineName, "resource", rCan)
+			} else {
+				w.logger.Info("job will not run: no successful builds in passed jobs",
+					"job", m.JobName, "pipeline", m.PipelineName, "resource", rCan)
+			}
+			w.deleteBuild(ctx, m, *b)
+			return false, nil
+		}
+
+		// Pick the highest version ID (newest)
+		var best uint32
+		for vid := range intersection {
+			if vid > best {
+				best = vid
+			}
+		}
+		resolvedVersions[rCan] = best
 	}
-	return true
+	return true, resolvedVersions
 }
 
 // checkVersionAvailability verifies that all get steps in the plan have a
@@ -221,7 +265,7 @@ func (w *Worker) checkVersionAvailability(ctx context.Context, m queue.Body, b *
 			continue
 		}
 		g := ps.Get
-		rCan := utils.ResourceCanonical(g.Type, g.Name)
+		rCan := g.ResourceCanonical()
 		r, ok := pp.Resource(rCan)
 		if !ok {
 			w.logger.Warn("get step references unknown resource", "resource", rCan, "job", m.JobName)
@@ -248,7 +292,7 @@ func (w *Worker) checkVersionAvailability(ctx context.Context, m queue.Body, b *
 // runPlan runs all plan steps (service/get/task/put) in order.
 // Service steps are collected and started before other steps, then stopped unconditionally after.
 // Returns true if the job failed during plan execution.
-func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job) (bool, map[string]string) {
+func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, j *job.Job, resolvedVersions map[string]uint32) (bool, map[string]string) {
 	// Collect service steps and remaining steps
 	var serviceSteps []job.ServiceStep
 	var remainingPlan []job.PlanStep
@@ -290,7 +334,7 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 			if ps.Get == nil {
 				continue
 			}
-			if w.runGetStep(ctx, m, b, cwd, pp, *ps.Get, ps, resolved) {
+			if w.runGetStep(ctx, m, b, cwd, pp, *ps.Get, ps, resolvedVersions, resolved) {
 				return true, resolved
 			}
 		case job.StepTypeTask:
@@ -314,12 +358,13 @@ func (w *Worker) runPlan(ctx context.Context, m queue.Body, b *build.Build, cwd 
 
 // runGetStep runs a single get step (resource pull).
 // Returns true if the step failed.
-func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, g job.GetStep, ps job.PlanStep, resolved ...map[string]string) bool {
+func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, cwd string, pp *pipeline.Pipeline, g job.GetStep, ps job.PlanStep, resolvedVersions map[string]uint32, resolved ...map[string]string) bool {
 	var secretResolved map[string]string
 	if len(resolved) > 0 {
 		secretResolved = resolved[0]
 	}
-	r, ok := pp.Resource(utils.ResourceCanonical(g.Type, g.Name))
+	rCan := g.ResourceCanonical()
+	r, ok := pp.Resource(rCan)
 	if !ok {
 		return false
 	}
@@ -332,7 +377,12 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 		return false
 	}
 
-	params := w.buildPullParams(ctx, m, b, rt, r, g)
+	var passedVersionID uint32
+	if resolvedVersions != nil {
+		passedVersionID = resolvedVersions[rCan]
+	}
+
+	params, usedVersionID := w.buildPullParams(ctx, m, b, rt, r, g, passedVersionID)
 	if params == nil {
 		return true
 	}
@@ -408,7 +458,7 @@ func (w *Worker) runGetStep(ctx context.Context, m queue.Body, b *build.Build, c
 	b.Steps = append(b.Steps, build.Step{
 		Type:      "get",
 		Name:      g.Name,
-		VersionID: m.VersionID,
+		VersionID: usedVersionID,
 		Logs:      out,
 		Duration:  d,
 		Status:    build.Succeeded,
@@ -612,8 +662,9 @@ func (w *Worker) runPutStep(ctx context.Context, m queue.Body, b *build.Build, c
 }
 
 // buildPullParams assembles the environment parameters needed to pull a resource version.
-// Returns nil if an error occurred (error is already handled via failBuild).
-func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Build, rt restype.ResourceType, r resource.Resource, g job.GetStep) map[string]string {
+// Returns (nil, 0) if an error occurred (error is already handled via failBuild).
+// The second return value is the version ID actually used.
+func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Build, rt restype.ResourceType, r resource.Resource, g job.GetStep, resolvedVersionID uint32) (map[string]string, uint32) {
 	var params map[string]string
 	if rt.Pull != nil && rt.Pull.Params != nil {
 		params = make(map[string]string)
@@ -627,13 +678,19 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 	dbvers, err := w.pikoci.ListResourceVersions(ctx, m.TeamCanonical, m.PipelineName, r.Canonical)
 	if err != nil {
 		w.failBuild(ctx, m, *b, fmt.Errorf("failed to list resource versions: %w", err))
-		return nil
+		return nil, 0
 	}
 
-	if m.VersionID != 0 {
+	// Version priority: resolvedVersionID (from passed constraints) > m.VersionID (from queue) > latest
+	versionID := resolvedVersionID
+	if versionID == 0 {
+		versionID = m.VersionID
+	}
+
+	if versionID != 0 {
 		var found bool
 		for _, ver := range dbvers {
-			if ver.ID == m.VersionID {
+			if ver.ID == versionID {
 				found = true
 				for k, v := range ver.Version {
 					params["version_"+k] = fmt.Sprintf("%s", v)
@@ -643,14 +700,15 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 		}
 		if !found {
 			w.failBuild(ctx, m, *b, fmt.Errorf("no version found for resource %q", r.Canonical))
-			return nil
+			return nil, 0
 		}
 	} else {
 		if len(dbvers) == 0 {
 			w.failBuild(ctx, m, *b, fmt.Errorf("no versions for resource %q", r.Canonical))
-			return nil
+			return nil, 0
 		}
 		slices.Reverse(dbvers)
+		versionID = dbvers[0].ID
 		for k, v := range dbvers[0].Version {
 			params["version_"+k] = fmt.Sprintf("%s", v)
 		}
@@ -662,7 +720,7 @@ func (w *Worker) buildPullParams(ctx context.Context, m queue.Body, b *build.Bui
 		}
 	}
 
-	return params
+	return params, versionID
 }
 
 // triggerDownstreamJobs finds jobs that depend on the current job via "passed"
