@@ -1276,13 +1276,12 @@
         },
         render: function () {
           this.$el.html(this.template(addSessionFunctions({ pipeline: this.model.toJSON(), team: this.model.collection.team.toJSON() })));
-          this.graphView = new app.PipelineGraphView({model: this.image})
-          this.$el.find("#graphviz").html(this.graphView.render().el)
+          this.$el.find("#graphviz").html(new app.PipelineGraphView({model: this.image}).render().el)
+          this.image.trigger("change", this.image)
           return this; // enable chained calls
         },
         remove: function() {
           clearInterval(this.intervalID)
-          if (this.graphView) this.graphView.remove()
           Backbone.View.prototype.remove.call(this);
         },
         clickPipeline: function(event) {
