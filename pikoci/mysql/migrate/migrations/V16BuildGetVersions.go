@@ -7,9 +7,9 @@ var V16BuildGetVersions = Migration{
 	Name: "BuildGetVersions",
 	SQL: `
 		CREATE TABLE build_get_versions (
-			build_id INT NOT NULL,
+			build_id INT UNSIGNED NOT NULL,
 			step_name VARCHAR(255) NOT NULL,
-			version_id INT NOT NULL,
+			version_id INT UNSIGNED NOT NULL,
 			PRIMARY KEY (build_id, step_name),
 			FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
 		);
