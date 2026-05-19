@@ -1,9 +1,11 @@
 package pipeline_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
 	"github.com/xescugc/pikoci/pikoci/resource"
 	"github.com/xescugc/pikoci/pikoci/restype"
@@ -122,4 +124,95 @@ func TestPipeline_Runner(t *testing.T) {
 		_, ok := pp.Runner("unknown")
 		assert.False(t, ok)
 	})
+}
+
+func TestParseServicesFromRaw_WithVarReferences(t *testing.T) {
+	raw := []byte(`
+variable "timeout" {
+  type    = string
+  default = "5m"
+}
+
+service_type "mydb" {
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "docker run -d mydb"]
+  }
+  ready_check "exec" {
+    path     = "/bin/sh"
+    args     = ["-ec", "echo ready"]
+    interval = "2s"
+    timeout  = var.timeout
+  }
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "docker rm -f mydb"]
+  }
+}
+`)
+
+	svcs, err := pipeline.ParseServicesFromRaw(context.Background(), raw)
+	require.NoError(t, err)
+	require.Len(t, svcs, 1)
+	assert.Equal(t, "mydb", svcs[0].Name)
+	require.NotNil(t, svcs[0].ReadyCheck)
+	assert.Equal(t, "5m", svcs[0].ReadyCheck.Timeout)
+}
+
+func TestParseServicesFromRaw_NoVariables(t *testing.T) {
+	raw := []byte(`
+service_type "simple" {
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo start"]
+  }
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "echo stop"]
+  }
+}
+`)
+
+	svcs, err := pipeline.ParseServicesFromRaw(context.Background(), raw)
+	require.NoError(t, err)
+	require.Len(t, svcs, 1)
+	assert.Equal(t, "simple", svcs[0].Name)
+}
+
+func TestParseServicesFromRaw_SecretVariable(t *testing.T) {
+	raw := []byte(`
+secret_type "env" {
+  source = "pikoci://file"
+  path   = "/etc/test.env"
+}
+
+variable "db_pass" {
+  type = string
+  secret "env" {
+    key = "DB_PASSWORD"
+  }
+}
+
+service_type "db" {
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "docker run -e PASS=${var.db_pass} mydb"]
+  }
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-ec", "docker rm -f mydb"]
+  }
+}
+`)
+
+	svcs, err := pipeline.ParseServicesFromRaw(context.Background(), raw)
+	require.NoError(t, err)
+	require.Len(t, svcs, 1)
+	assert.Equal(t, "db", svcs[0].Name)
+}
+
+func TestParseServicesFromRaw_EmptyRaw(t *testing.T) {
+	svcs, err := pipeline.ParseServicesFromRaw(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Nil(t, svcs)
 }
