@@ -10,7 +10,7 @@ job "lint"{
       image = "golang:1.25.1"
       cmd = "cd ${var.git_name} && make lint"
       args = [
-        "-v", "pikoci-go-mod:/root/go/pkg/mod",
+        "-v", "pikoci-go-mod:/go/pkg/mod",
         "-v", "pikoci-build:/root/.cache/go-build",
       ]
     }
@@ -37,6 +37,10 @@ job "test-mock" {
     run "docker"{
       image = "golang:1.25.1"
       cmd = "cd ${var.git_name} && make test-mock"
+      args = [
+        "-v", "pikoci-go-mod:/go/pkg/mod",
+        "-v", "pikoci-build:/root/.cache/go-build",
+      ]
     }
   }
   on_success {
@@ -62,7 +66,7 @@ job "test-integration" {
       image = "golang:1.25.1"
       cmd = "cd ${var.git_name} && make test-integration"
       args = [
-        "-v", "pikoci-go-mod:/root/go/pkg/mod",
+        "-v", "pikoci-go-mod:/go/pkg/mod",
         "-v", "pikoci-build:/root/.cache/go-build",
       ]
     }
@@ -103,7 +107,7 @@ job "test-backends" {
       cmd = "cd ${var.git_name} && make test-backends"
       args = [
         "--network=host",
-        "-v", "pikoci-go-mod:/root/go/pkg/mod",
+        "-v", "pikoci-go-mod:/go/pkg/mod",
         "-v", "pikoci-build:/root/.cache/go-build",
       ]
     }
@@ -193,7 +197,7 @@ resource "git" "pikoci_pr"{
 }
 
 resource_type "github-check" {
-  source = "https://github-check"
+  source = "pikoci://github-check"
 }
 
 resource "github-check" "ci" {
