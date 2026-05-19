@@ -56,14 +56,14 @@ gen: ## Runs go generate
 
 .PHONY: lint
 lint: ## Runs staticcheck linter
-	@GOFLAGS=-buildvcs=false go tool staticcheck ./...
+	GOFLAGS=-buildvcs=false go tool staticcheck ./...
 
 .PHONY: test
 test: test-mock test-integration test-backends ## Runs all tests
 
 .PHONY: test-mock
 test-mock: ## Runs unit/mock tests (no services needed)
-	@go test ./... -timeout 120s
+	go test ./... -timeout 120s
 
 .PHONY: test-integration
 test-integration: ## Runs integration tests with in-memory backends (no services needed)
