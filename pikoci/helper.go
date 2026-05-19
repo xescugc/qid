@@ -260,14 +260,8 @@ func hclFunctions() map[string]function.Function {
 
 func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]interface{}) (*pipeline.Pipeline, error) {
 	funcs := hclFunctions()
-	ectx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"string": cty.StringVal("string"),
-			"number": cty.StringVal("number"),
-			"bool":   cty.StringVal("bool"),
-		},
-		Functions: funcs,
-	}
+	ectx := pipeline.TypeEvalContext()
+	ectx.Functions = funcs
 	var pvars pipeline.Variables
 	err := hclsimple.Decode("pipeline.hcl", rpp, ectx, &pvars)
 	if err != nil {

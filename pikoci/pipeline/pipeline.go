@@ -18,6 +18,18 @@ import (
 	"github.com/xescugc/pikoci/pikoci/utils"
 )
 
+// TypeEvalContext returns an HCL eval context with the type pseudo-variables
+// (string, number, bool) needed to parse variable declarations.
+func TypeEvalContext() *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"string": cty.StringVal("string"),
+			"number": cty.StringVal("number"),
+			"bool":   cty.StringVal("bool"),
+		},
+	}
+}
+
 type Pipeline struct {
 	ID            uint32                    `json:"id"`
 	Name          string                    `json:"name"`
@@ -142,9 +154,14 @@ func ParseServicesFromRaw(ctx context.Context, raw []byte) ([]service.Service, e
 		return nil, nil
 	}
 
+	ectx, err := buildVarEvalContext(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve variables for service parsing: %w", err)
+	}
+
 	// Parse top-level service blocks
 	var hp hclPipelineServices
-	err := hclsimple.Decode("pipeline.hcl", raw, nil, &hp)
+	err = hclsimple.Decode("pipeline.hcl", raw, ectx, &hp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse services from raw HCL: %w", err)
 	}
@@ -219,13 +236,7 @@ func ParseSecretVarsFromRaw(raw []byte, vars map[string]interface{}) (map[string
 		return nil, nil
 	}
 
-	ectx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"string": cty.StringVal("string"),
-			"number": cty.StringVal("number"),
-			"bool":   cty.StringVal("bool"),
-		},
-	}
+	ectx := TypeEvalContext()
 
 	var pv hclPipelineVariables
 	err := hclsimple.Decode("pipeline.hcl", raw, ectx, &pv)
@@ -247,5 +258,62 @@ func ParseSecretVarsFromRaw(raw []byte, vars map[string]interface{}) (map[string
 		return nil, nil
 	}
 	return secretVars, nil
+}
+
+// buildVarEvalContext parses variable declarations from raw HCL and builds
+// an hcl.EvalContext with their default values, so that other blocks
+// (e.g. service_type) referencing var.* can be decoded.
+func buildVarEvalContext(raw []byte) (*hcl.EvalContext, error) {
+	typeCtx := TypeEvalContext()
+
+	var pvars Variables
+	if err := hclsimple.Decode("pipeline.hcl", raw, typeCtx, &pvars); err != nil {
+		return nil, fmt.Errorf("failed to parse variables: %w", err)
+	}
+
+	ecvars := make(map[string]cty.Value)
+	for _, v := range pvars.Variables {
+		if v.Secret != nil {
+			placeholder := fmt.Sprintf("__pikoci_secret:%s:%s:%s__",
+				v.Secret.Type, v.Secret.Path, v.Secret.Key)
+			ecvars[v.Name] = cty.StringVal(placeholder)
+			continue
+		}
+		a, ok := v.Default.(*hcl.Attribute)
+		if !ok {
+			switch v.Type {
+			case "number":
+				ecvars[v.Name] = cty.NumberIntVal(0)
+			case "bool":
+				ecvars[v.Name] = cty.False
+			default:
+				ecvars[v.Name] = cty.StringVal("")
+			}
+			continue
+		}
+		ctyv, diags := a.Expr.Value(typeCtx)
+		if diags.HasErrors() {
+			switch v.Type {
+			case "number":
+				ecvars[v.Name] = cty.NumberIntVal(0)
+			case "bool":
+				ecvars[v.Name] = cty.False
+			default:
+				ecvars[v.Name] = cty.StringVal("")
+			}
+			continue
+		}
+		ecvars[v.Name] = ctyv
+	}
+
+	// TODO: include HCL standard functions (format, join, etc.) once
+	// hclFunctions() is extracted from the pikoci package to avoid a
+	// circular import. For now, service blocks using HCL functions in
+	// attribute values will fail to parse.
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"var": cty.ObjectVal(ecvars),
+		},
+	}, nil
 }
 
