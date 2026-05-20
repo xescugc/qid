@@ -131,8 +131,9 @@
     </script>
 
     <script type="text/template" id="team-show-view">
-      <div class="mb-3">
-        <h1 class="h4 fw-bold">Team: <%- name %></h1>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 fw-bold mb-0">Team: <%- name %></h1>
+        <a href="/teams/<%- canonical %>/pipelines" class="btn btn-primary"><i class="bi bi-diagram-2"></i> Pipelines</a>
       </div>
       <form style="max-width:480px;">
         <div class="mb-3">
