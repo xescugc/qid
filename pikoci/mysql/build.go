@@ -256,6 +256,54 @@ func (r *BuildRepository) FindReadyDownstreamVersion(ctx context.Context, tc, pn
 	return versionID, true, nil
 }
 
+func (r *BuildRepository) LastBuildAtByPipeline(ctx context.Context, tc string) (map[uint32]time.Time, error) {
+	rows, err := r.querier.QueryContext(ctx, `
+		SELECT p.id, MAX(b.started_at)
+		FROM builds AS b
+		JOIN jobs AS j ON b.job_id = j.id
+		JOIN pipelines AS p ON j.pipeline_id = p.id
+		JOIN teams AS t ON p.team_id = t.id
+		WHERE t.canonical = ?
+		GROUP BY p.id
+	`, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query last build timestamps: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uint32]time.Time)
+	for rows.Next() {
+		var pipelineID uint32
+		var startedAtStr sql.NullString
+		if err := rows.Scan(&pipelineID, &startedAtStr); err != nil {
+			return nil, fmt.Errorf("failed to scan last build timestamp: %w", err)
+		}
+		if startedAtStr.Valid && startedAtStr.String != "" {
+			var t time.Time
+			var parseErr error
+			for _, layout := range []string{
+				time.RFC3339,
+				"2006-01-02 15:04:05 -0700 MST",
+				"2006-01-02 15:04:05",
+				"2006-01-02T15:04:05Z",
+			} {
+				t, parseErr = time.Parse(layout, startedAtStr.String)
+				if parseErr == nil {
+					break
+				}
+			}
+			if parseErr == nil {
+				result[pipelineID] = t
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate last build timestamps: %w", err)
+	}
+
+	return result, nil
+}
+
 func scanBuild(s sqlr.Scanner) (*build.Build, error) {
 	var b dbBuild
 

@@ -1240,12 +1240,21 @@
               if (fill === "#00a83a") hasSucceeded = true
             })
             var html = ''
+            var timeAgo = ''
+            var lastBuildAt = that.model.get('last_build_at')
+            if (lastBuildAt) {
+              var seconds = Math.floor((Date.now() - new Date(lastBuildAt).getTime()) / 1000)
+              if (seconds < 60) timeAgo = ' · just now'
+              else if (seconds < 3600) timeAgo = ' · ' + Math.floor(seconds / 60) + 'm ago'
+              else if (seconds < 86400) timeAgo = ' · ' + Math.floor(seconds / 3600) + 'h ago'
+              else timeAgo = ' · ' + Math.floor(seconds / 86400) + 'd ago'
+            }
             if (hasFailed) {
-              html = '<span class="piko-card-status-dot" style="background:#FF004D;"></span> Last build failed'
+              html = '<span class="piko-card-status-dot" style="background:#FF004D;"></span> Last build failed' + timeAgo
             } else if (hasRunning) {
-              html = '<span class="piko-card-status-dot" style="background:#FFA300;"></span> Running'
+              html = '<span class="piko-card-status-dot" style="background:#FFA300;"></span> Running' + timeAgo
             } else if (hasSucceeded) {
-              html = '<span class="piko-card-status-dot" style="background:#00A83A;"></span> Last build passed'
+              html = '<span class="piko-card-status-dot" style="background:#00A83A;"></span> Last build passed' + timeAgo
             } else {
               html = '<span style="color:var(--text-muted);">No builds</span>'
             }

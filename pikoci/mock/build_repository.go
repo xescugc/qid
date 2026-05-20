@@ -12,6 +12,7 @@ package mock
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	build "github.com/xescugc/pikoci/pikoci/build"
 	gomock "go.uber.org/mock/gomock"
@@ -128,6 +129,21 @@ func (m *BuildRepository) InsertGetVersion(ctx context.Context, tc, pn, jn strin
 func (mr *BuildRepositoryMockRecorder) InsertGetVersion(ctx, tc, pn, jn, buildID, stepName, versionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGetVersion", reflect.TypeOf((*BuildRepository)(nil).InsertGetVersion), ctx, tc, pn, jn, buildID, stepName, versionID)
+}
+
+// LastBuildAtByPipeline mocks base method.
+func (m *BuildRepository) LastBuildAtByPipeline(ctx context.Context, tc string) (map[uint32]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LastBuildAtByPipeline", ctx, tc)
+	ret0, _ := ret[0].(map[uint32]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LastBuildAtByPipeline indicates an expected call of LastBuildAtByPipeline.
+func (mr *BuildRepositoryMockRecorder) LastBuildAtByPipeline(ctx, tc any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBuildAtByPipeline", reflect.TypeOf((*BuildRepository)(nil).LastBuildAtByPipeline), ctx, tc)
 }
 
 // Update mocks base method.

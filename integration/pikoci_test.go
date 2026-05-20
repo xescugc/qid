@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -406,8 +407,32 @@ job "gen" {
 			}, 5*time.Second)
 
 		})
+		t.Run("Pipeline Card Last Build Timestamp", func(t *testing.T) {
+			// Navigate to pipelines list
+			ppsBtn, err := wd.FindElement(selenium.ByLinkText, "Pipelines")
+			require.NoError(t, err)
+
+			err = ppsBtn.Click()
+			require.NoError(t, err)
+
+			waitFor(t, wd, eqText(selenium.ByCSSSelector, "#breadcrumb", "Teams\nMain\nPipelines"), 5*time.Second)
+
+			// Wait for the card status to include a relative timestamp
+			waitFor(t, wd, func(t *testing.T, wd selenium.WebDriver) bool {
+				el, err := wd.FindElement(selenium.ByCSSSelector, ".piko-card-status")
+				if err != nil {
+					return false
+				}
+				txt, err := el.Text()
+				if err != nil {
+					return false
+				}
+				// After builds have run, the card footer should contain "ago"
+				return containsString(txt, "ago") || containsString(txt, "just now")
+			}, 10*time.Second)
+		})
 		t.Run("Delete Pipeline", func(t *testing.T) {
-			ppBtn, err := wd.FindElement(selenium.ByLinkText, "cron")
+			ppBtn, err := wd.FindElement(selenium.ByCSSSelector, ".card")
 			require.NoError(t, err)
 
 			err = ppBtn.Click()
@@ -880,6 +905,10 @@ func eqText(by, value, txt string) waitForFn {
 
 		return weTxt == txt
 	}
+}
+
+func containsString(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
 
 func screenshot(t *testing.T, wd selenium.WebDriver) {

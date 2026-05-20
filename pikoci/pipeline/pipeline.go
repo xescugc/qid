@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
@@ -49,6 +50,7 @@ type Pipeline struct {
 	SecretVars    map[string]VariableSecret `json:"secret_vars,omitempty"`
 	Remain        hcl.Body                  `json:"-" hcl:",remain"`
 	Raw           []byte                    `json:"raw"`
+	LastBuildAt   *time.Time                `json:"last_build_at,omitempty"`
 }
 
 type Variables struct {
