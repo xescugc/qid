@@ -154,16 +154,28 @@ job "deploy" {
     trigger = true
     passed  = ["build-latest"]
   }
-  task "deploy" {
+  task "build-and-replace" {
+    run "docker" {
+      image = "golang:1.25.1"
+      cmd   = <<-EOT
+        cd ${var.git_name}
+        GOOS=linux GOARCH=arm64 go build -buildvcs=false -o /tmp/pikoci-new .
+        mv /tmp/pikoci-new /hostbin/pikoci
+      EOT
+      args = [
+        "-v", "pikoci-go-mod:/go/pkg/mod",
+        "-v", "pikoci-build:/root/.cache/go-build",
+        "-v", "/usr/local/bin:/hostbin",
+      ]
+    }
+  }
+  task "restart" {
     run "exec" {
       path = "/bin/sh"
       args = [
         "-ec",
         <<-EOT
-        cd ${var.git_name}
-        GOOS=linux GOARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') go build -o /tmp/pikoci-new .
-        sudo cp /tmp/pikoci-new /usr/local/bin/pikoci
-        sudo kill -QUIT $(pidof pikoci)
+        kill -QUIT $(pidof pikoci)
         EOT
       ]
     }

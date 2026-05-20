@@ -138,6 +138,7 @@ ssh "$SSH_HOST" 'systemctl stop pikoci 2>/dev/null || true'
 
 echo "==> Copying binary to $SSH_HOST..."
 scp "$BINARY" "$SSH_HOST":/usr/local/bin/pikoci
+ssh "$SSH_HOST" 'chown pikoci:pikoci /usr/local/bin/pikoci'
 
 # --- Sync deploy configs ---
 # Creates directories and the pikoci system user on first run.
