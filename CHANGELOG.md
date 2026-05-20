@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add live status toggle on pipelines list view: a "Live" toggle next to the heading enables periodic polling of pipeline graph images so status dots update without reloading the page. Toggle state persists via localStorage ([#282](https://github.com/xescugc/pikoci/issues/282))
 - Add "Pipelines" link button to the team manage/edit page heading for quick navigation to the team's pipelines ([#265](https://github.com/xescugc/pikoci/issues/265))
 - Add Bootstrap Icons library and icons across the UI (buttons, navigation, step type labels) with a copy-to-clipboard button on build step logs ([#254](https://github.com/xescugc/pikoci/issues/254))
 - Fix accordion closing on live updates: preserve user-expanded/collapsed state across poll-driven re-renders for both build steps and resource versions, so manually opened rows stay open while the page polls for updates ([#289](https://github.com/xescugc/pikoci/issues/289))
