@@ -274,12 +274,27 @@ func (r *BuildRepository) LastBuildAtByPipeline(ctx context.Context, tc string) 
 	result := make(map[uint32]time.Time)
 	for rows.Next() {
 		var pipelineID uint32
-		var startedAt sql.NullTime
-		if err := rows.Scan(&pipelineID, &startedAt); err != nil {
+		var startedAtStr sql.NullString
+		if err := rows.Scan(&pipelineID, &startedAtStr); err != nil {
 			return nil, fmt.Errorf("failed to scan last build timestamp: %w", err)
 		}
-		if startedAt.Valid {
-			result[pipelineID] = startedAt.Time
+		if startedAtStr.Valid && startedAtStr.String != "" {
+			var t time.Time
+			var parseErr error
+			for _, layout := range []string{
+				time.RFC3339,
+				"2006-01-02 15:04:05 -0700 MST",
+				"2006-01-02 15:04:05",
+				"2006-01-02T15:04:05Z",
+			} {
+				t, parseErr = time.Parse(layout, startedAtStr.String)
+				if parseErr == nil {
+					break
+				}
+			}
+			if parseErr == nil {
+				result[pipelineID] = t
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
