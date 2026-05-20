@@ -1,9 +1,10 @@
-FROM golang:1.25.1 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.1 AS builder
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /pikoci .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /pikoci .
 
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates git jq curl openssl docker-cli

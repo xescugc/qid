@@ -141,8 +141,8 @@ job "build-latest" {
 
         echo "${var.docker_password}" | docker login -u "${var.docker_username}" --password-stdin
 
-        docker build -t xescugc/pikoci:latest .
-        docker push xescugc/pikoci:latest
+        docker buildx create --use --name pikoci-builder 2>/dev/null || docker buildx use pikoci-builder
+        docker buildx build --platform linux/amd64,linux/arm64 -t xescugc/pikoci:latest --push .
         EOT
       ]
     }
@@ -197,8 +197,8 @@ job "build-release" {
 
         echo "${var.docker_password}" | docker login -u "${var.docker_username}" --password-stdin
 
-        docker build -t xescugc/pikoci:$TAG .
-        docker push xescugc/pikoci:$TAG
+        docker buildx create --use --name pikoci-builder 2>/dev/null || docker buildx use pikoci-builder
+        docker buildx build --platform linux/amd64,linux/arm64 -t xescugc/pikoci:$TAG --push .
         EOT
       ]
     }
