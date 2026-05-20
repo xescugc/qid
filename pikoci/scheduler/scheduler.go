@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -164,8 +165,9 @@ func (s *Scheduler) evaluateJob(ctx context.Context, pwt *pipeline.WithTeam, j *
 	// Use the version from the first candidate for the queue message.
 	versionID := candidates[0].versionID
 
-	s.logger.Info("Triggering downstream job",
-		"pipeline", pwt.Name, "job", j.Name, "version_id", versionID)
+	s.logger.Info("[debug-297] Triggering downstream job",
+		"pipeline", pwt.Name, "job", j.Name, "version_id", versionID,
+		"candidates", fmt.Sprintf("%+v", candidates))
 
 	m := queue.Body{
 		TeamCanonical: pwt.Team.Canonical,

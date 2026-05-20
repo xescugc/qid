@@ -147,12 +147,17 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		Steps:     []build.Step{},
 		StartedAt: time.Now().Round(0),
 	}
+	w.logger.Info("[debug-297] processJob called",
+		"pipeline", m.PipelineName, "job", m.JobName, "version_id", m.VersionID,
+		"resource", m.ResourceCanonical)
 	nb, err := w.pikoci.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
 	if err != nil {
 		w.logger.Error("failed create build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 		return
 	}
 	b.ID = nb.ID
+	w.logger.Info("[debug-297] build created",
+		"pipeline", m.PipelineName, "job", m.JobName, "build_id", b.ID, "version_id", m.VersionID)
 
 	j, err := w.pikoci.GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName)
 	if err != nil {
@@ -949,11 +954,15 @@ func (w *Worker) processResourceCheck(ctx context.Context, m queue.Body, cwd str
 		})
 		if err != nil {
 			if isDuplicateKeyError(err) {
+				w.logger.Info("[debug-297] duplicate version skipped",
+					"pipeline", m.PipelineName, "resource", r.Canonical, "version", v)
 				continue
 			}
 			w.logger.Error("failed to create resource version", "error", err)
 			return
 		}
+		w.logger.Info("[debug-297] new version created, triggering jobs",
+			"pipeline", m.PipelineName, "resource", r.Canonical, "version_id", cv.ID)
 		w.triggerResourceJobs(ctx, m, pp, r, cv)
 	}
 }
@@ -981,6 +990,9 @@ func (w *Worker) triggerResourceJobs(ctx context.Context, m queue.Body, pp *pipe
 					w.logger.Error("failed to marshal trigger body", "error", err)
 					continue
 				}
+				w.logger.Info("[debug-297] sending trigger message",
+					"pipeline", pp.Name, "job", j.Name, "resource", r.Canonical,
+					"version_id", cv.ID, "step", g.Name)
 				if err := w.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
 					w.logger.Error("failed to send trigger message", "job", j.Name, "error", err)
 				}
