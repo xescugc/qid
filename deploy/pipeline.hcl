@@ -149,6 +149,27 @@ job "build-latest" {
   }
 }
 
+job "deploy" {
+  get "git" "pikoci_master" {
+    trigger = true
+    passed  = ["build-latest"]
+  }
+  task "deploy" {
+    run "exec" {
+      path = "/bin/sh"
+      args = [
+        "-ec",
+        <<-EOT
+        cd ${var.git_name}
+        GOOS=linux GOARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') go build -o /tmp/pikoci-new .
+        sudo cp /tmp/pikoci-new /usr/local/bin/pikoci
+        sudo kill -QUIT $(pidof pikoci)
+        EOT
+      ]
+    }
+  }
+}
+
 job "build-release" {
   get "git" "pikoci_tag" {
     trigger = true

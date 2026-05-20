@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -8,7 +9,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/cycloidio/sqlr"
 	"github.com/golang-jwt/jwt/v5"
@@ -25,6 +28,7 @@ import (
 	tshttp "github.com/xescugc/pikoci/pikoci/transport/http"
 	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/user"
+	"github.com/xescugc/pikoci/worker"
 	"gocloud.dev/pubsub"
 
 	"gocloud.dev/pubsub/mempubsub"
@@ -44,7 +48,8 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Starts the PikoCI server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
+		ctx, cancel := context.WithCancel(cmd.Context())
+		defer cancel()
 
 		// Load config file if provided
 		cfgFile, _ := cmd.Flags().GetString("config")
@@ -156,25 +161,24 @@ var serverCmd = &cobra.Command{
 			Handler: handlers.CombinedLoggingHandler(os.Stdout, mux),
 		}
 
-		errs := make(chan error)
-
-		go func() {
-			c := make(chan os.Signal, 1)
-			signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-			errs <- fmt.Errorf("%s", <-c)
-		}()
+		errs := make(chan error, 1)
 
 		go func() {
 			logger.Info("starting HTTP transport", "port", cfg.Port)
 			errs <- svr.ListenAndServe()
 		}()
 
+		var workers []*worker.Worker
+		var wg *sync.WaitGroup
 		if cfg.RunWorker {
 			logger.Info("Starting Worker ...")
-			go func() {
-				err := runWorker(ctx, cfg.PubSubSystem, topic, svc, cfg.Concurrency, cfg.LogLevel)
-				errs <- fmt.Errorf("worker failed to start: %w", err)
-			}()
+			var werr error
+			var workerCleanup func()
+			workers, wg, workerCleanup, werr = runWorker(ctx, cfg.PubSubSystem, topic, svc, cfg.Concurrency, cfg.LogLevel)
+			if werr != nil {
+				return fmt.Errorf("worker failed to start: %w", werr)
+			}
+			defer workerCleanup()
 		}
 
 		pipelineName := serverViper.GetString("pipeline-name")
@@ -201,7 +205,46 @@ var serverCmd = &cobra.Command{
 			}
 		}
 
-		logger.Error("exit", "error", <-errs)
+		quit := make(chan os.Signal, 1)
+		stop := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGQUIT)
+		signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+		select {
+		case sig := <-quit:
+			logger.Info("received signal, starting graceful shutdown", "signal", sig)
+
+			if cfg.RunWorker && workers != nil {
+				for _, w := range workers {
+					w.Drain()
+				}
+				logger.Info("workers draining, waiting for in-flight jobs to finish...")
+
+				done := make(chan struct{})
+				go func() { wg.Wait(); close(done) }()
+
+				select {
+				case <-done:
+					logger.Info("all workers finished")
+				case <-time.After(10 * time.Minute):
+					logger.Warn("graceful shutdown timed out, forcing exit")
+				}
+			}
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+			svr.Shutdown(shutdownCtx)
+
+		case sig := <-stop:
+			logger.Info("received signal, shutting down immediately", "signal", sig)
+			cancel()
+			svr.Close()
+
+		case err := <-errs:
+			logger.Error("component failed", "error", err)
+			cancel()
+			svr.Close()
+		}
 
 		return nil
 	},

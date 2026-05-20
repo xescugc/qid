@@ -84,3 +84,20 @@ pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --jwt-secret 
 # Machine B
 pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --jwt-secret my-secret --concurrency 4
 ```
+
+## Signal handling
+
+Standalone workers support the same two shutdown modes as the server:
+
+| Signal | Behavior |
+|--------|----------|
+| `SIGQUIT` | Stop accepting new jobs, wait for in-flight jobs to finish (up to 10 minutes), then exit. |
+| `SIGTERM` / `SIGINT` | Cancel running jobs and exit immediately. |
+
+```bash
+# Graceful shutdown
+kill -QUIT $(pidof pikoci)
+
+# Immediate shutdown
+kill -TERM $(pidof pikoci)
+```

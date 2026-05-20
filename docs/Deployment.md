@@ -178,10 +178,36 @@ It downloads the binary (or builds it with `--build`), copies it and all configs
 
 ## Self-deploy pipeline
 
-PikoCI can deploy itself. A basic pipeline would:
+PikoCI can deploy itself using graceful shutdown. The included `deploy/pipeline.hcl` has a `deploy` job that:
 
-1. Watch the git repo for new commits
-2. Build the binary
-3. Copy it to the server and restart the service
+1. Waits for the `build-latest` Docker image job to pass
+2. Builds a new binary from master
+3. Copies it to `/usr/local/bin/pikoci`
+4. Sends `SIGQUIT` to the running process
 
-See [Pipeline Reference](Pipeline) for how to set up git resources and task steps.
+`SIGQUIT` triggers a graceful shutdown: PikoCI finishes the deploy job itself, then exits cleanly. Because the systemd unit uses `Restart=always`, systemd automatically restarts PikoCI with the new binary.
+
+```hcl
+job "deploy" {
+  get "git" "pikoci_master" {
+    trigger = true
+    passed  = ["build-latest"]
+  }
+  task "deploy" {
+    run "exec" {
+      path = "/bin/sh"
+      args = [
+        "-ec",
+        <<-EOT
+        cd ${var.git_name}
+        GOOS=linux GOARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') go build -o /tmp/pikoci-new .
+        sudo cp /tmp/pikoci-new /usr/local/bin/pikoci
+        sudo kill -QUIT $(pidof pikoci)
+        EOT
+      ]
+    }
+  }
+}
+```
+
+See [Server Configuration — Signal handling](Server#signal-handling) for details on `SIGQUIT` vs `SIGTERM` behavior.

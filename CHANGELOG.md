@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add graceful shutdown with `SIGQUIT`: stops accepting new jobs, waits for in-flight jobs to finish, then exits cleanly. `SIGTERM`/`SIGINT` still exit immediately. Enables zero-downtime self-deploy via systemd `Restart=always` and a deploy pipeline job ([#281](https://github.com/xescugc/pikoci/issues/281))
 - Fix browser back navigation from build page: use `replace: true` when updating the URL on build tab clicks and auto-selection so the history stack doesn't accumulate build IDs ([#263](https://github.com/xescugc/pikoci/issues/263))
 - Fix secret fetch commands running from build temp directory instead of server working directory, causing relative file paths in secret type configs to fail
 - Stream build logs live: switch from `CombinedOutput()` to streaming stdout/stderr with periodic 2s DB flushes, so the frontend shows incremental output while steps are running. Running steps auto-expand and auto-scroll in the UI ([#13](https://github.com/xescugc/pikoci/issues/13))
