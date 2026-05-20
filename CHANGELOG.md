@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fix build step accordion closing on live updates: preserve user-expanded/collapsed step state across poll-driven re-renders so manually opened steps stay open while viewing a running build ([#289](https://github.com/xescugc/pikoci/issues/289))
+- Fix accordion closing on live updates: preserve user-expanded/collapsed state across poll-driven re-renders for both build steps and resource versions, so manually opened rows stay open while the page polls for updates ([#289](https://github.com/xescugc/pikoci/issues/289))
 - Add graceful shutdown with `SIGQUIT`: stops accepting new jobs, waits for in-flight jobs to finish, then exits cleanly. `SIGTERM`/`SIGINT` still exit immediately. Enables zero-downtime self-deploy via systemd `Restart=always` and a deploy pipeline job ([#281](https://github.com/xescugc/pikoci/issues/281))
 - Fix browser back navigation from build page: use `replace: true` when updating the URL on build tab clicks and auto-selection so the history stack doesn't accumulate build IDs ([#263](https://github.com/xescugc/pikoci/issues/263))
 - Fix secret fetch commands running from build temp directory instead of server working directory, causing relative file paths in secret type configs to fail
