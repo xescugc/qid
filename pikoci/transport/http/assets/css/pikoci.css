@@ -600,6 +600,35 @@ textarea.form-control {
   margin: 0;
 }
 
+/* Copy logs button */
+.piko-copy-logs-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+.piko-copy-logs-btn:hover {
+  opacity: 1;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+[data-theme="dark"] .piko-copy-logs-btn {
+  background: #0d1a38;
+  border-color: #2a3a65;
+}
+[data-theme="dark"] .piko-copy-logs-btn:hover {
+  background: #1D2B53;
+}
+
 /* Status badges (used in build meta + step rows) */
 .piko-badge {
   display: inline-flex;
