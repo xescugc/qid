@@ -524,6 +524,18 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 		t.Run.Params[k] = v
 	}
 
+	for _, input := range t.Inputs {
+		if _, err := os.Stat(filepath.Join(cwd, input)); err != nil {
+			errMsg := fmt.Sprintf("input %q does not exist", input)
+			b.Steps = append(b.Steps, build.Step{Type: "task", Name: t.Name, Logs: errMsg, Status: build.Failed})
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.OnFailure, "on_failure", secretResolved)
+			w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.Ensure, "ensure", secretResolved)
+			return true
+		}
+	}
+
 	maxAttempts := ps.Attempts
 	if maxAttempts <= 0 {
 		maxAttempts = 1
@@ -582,6 +594,19 @@ func (w *Worker) runTaskStep(ctx context.Context, m queue.Body, b *build.Build, 
 	}
 
 	b.Steps[stepIdx] = build.Step{Type: "task", Name: t.Name, Logs: out, Duration: d, Status: build.Succeeded}
+
+	for _, output := range t.Outputs {
+		if _, err := os.Stat(filepath.Join(cwd, output)); err != nil {
+			errMsg := fmt.Sprintf("task finished but output %q was not produced", output)
+			b.Steps[stepIdx] = build.Step{Type: "task", Name: t.Name, Logs: out + "\n" + errMsg, Duration: d, Status: build.Failed}
+			b.Status = build.Failed
+			w.failBuild(ctx, m, *b, nil)
+			w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.OnFailure, "on_failure", secretResolved)
+			w.runHooks(ctx, m, b, &b.Steps, cwd, pp, t.Name, ps.Ensure, "ensure", secretResolved)
+			return true
+		}
+	}
+
 	if err := w.updateBuild(ctx, m, *b); err != nil {
 		return true
 	}

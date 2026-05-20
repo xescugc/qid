@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `inputs` and `outputs` on task steps: declarative filesystem checks that validate required paths exist before a task runs (inputs) and after it finishes (outputs), providing clear error messages instead of confusing script failures ([#177](https://github.com/xescugc/pikoci/issues/177))
 - Add live status toggle on pipelines list view: a "Live" toggle next to the heading enables periodic polling of pipeline graph images so status dots update without reloading the page. Toggle state persists via localStorage ([#282](https://github.com/xescugc/pikoci/issues/282))
 - Add "Pipelines" link button to the team manage/edit page heading for quick navigation to the team's pipelines ([#265](https://github.com/xescugc/pikoci/issues/265))
 - Add Bootstrap Icons library and icons across the UI (buttons, navigation, step type labels) with a copy-to-clipboard button on build step logs ([#254](https://github.com/xescugc/pikoci/issues/254))
