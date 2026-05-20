@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/adrg/xdg"
@@ -38,7 +39,8 @@ type Worker struct {
 	pikoci       pikoci.Service
 	subscription queue.Subscription
 
-	logger *slog.Logger
+	draining atomic.Bool
+	logger   *slog.Logger
 }
 
 func New(s pikoci.Service, t queue.Topic, ss queue.Subscription, l *slog.Logger) *Worker {
@@ -50,9 +52,17 @@ func New(s pikoci.Service, t queue.Topic, ss queue.Subscription, l *slog.Logger)
 	}
 }
 
+func (w *Worker) Drain() {
+	w.draining.Store(true)
+}
+
 func (w *Worker) Run(ctx context.Context) error {
 	w.logger.Info("Worker waiting for messages...")
 	for {
+		if w.draining.Load() {
+			w.logger.Info("Worker draining, stopping message receive")
+			return nil
+		}
 		msg, err := w.subscription.Receive(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to receive message: %w", err)

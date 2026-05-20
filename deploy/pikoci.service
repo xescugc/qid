@@ -10,7 +10,7 @@ ExecStart=/usr/local/bin/pikoci server
 EnvironmentFile=/etc/pikoci/pikoci.env
 Environment=HOME=/var/lib/pikoci
 WorkingDirectory=/var/lib/pikoci
-Restart=on-failure
+Restart=always
 RestartSec=5
 
 # Hardening

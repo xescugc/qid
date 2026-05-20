@@ -16,8 +16,9 @@ type Config struct {
 	DBPassword string `mapstructure:"db-password"`
 	DBName     string `mapstructure:"db-name"`
 
-	RunWorker   bool `mapstructure:"run-worker"`
-	Concurrency int  `mapstructure:"concurrency"`
+	RunWorker    bool   `mapstructure:"run-worker"`
+	Concurrency  int    `mapstructure:"concurrency"`
+	DrainTimeout string `mapstructure:"drain-timeout"`
 
 	PubSubSystem string `mapstructure:"pubsub-system"`
 

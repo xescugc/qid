@@ -22,6 +22,7 @@ pikoci server [flags]
 | `--run-migrations` | | `true` | no | Run database migrations on startup |
 | `--run-worker` | | `true` | no | Run an embedded worker |
 | `--concurrency` | | `1` | no | Number of worker goroutines |
+| `--drain-timeout` | | `10m` | no | Max time to wait for in-flight jobs during graceful shutdown (`SIGQUIT`) |
 | `--pubsub-system` | | `mem` | no | Queue backend: `mem`, `nats`, `rabbit`, `kafka` |
 | `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
 | `--config` | `-c` | | no | Path to a config file |
@@ -111,5 +112,26 @@ pikoci server \
 PikoCI supports running multiple server instances concurrently when using PostgreSQL or MySQL as the database backend. The scheduler uses `SELECT ... FOR UPDATE SKIP LOCKED` to ensure each resource check is processed by only one instance.
 
 SQLite and in-memory backends are single-instance only (no locking support).
+
+## Signal handling
+
+PikoCI supports two shutdown modes:
+
+| Signal | Behavior |
+|--------|----------|
+| `SIGQUIT` | **Graceful shutdown.** Stops accepting new jobs, waits for in-flight jobs to finish (up to `--drain-timeout`, default 10m), then gracefully shuts down the HTTP server. |
+| `SIGTERM` / `SIGINT` | **Immediate shutdown.** Cancels all running jobs and exits. |
+
+Graceful shutdown (`SIGQUIT`) is designed for zero-downtime self-deploys: a pipeline job builds the new binary, copies it, and sends `SIGQUIT`. The running job finishes, PikoCI exits cleanly, and systemd restarts with the new binary.
+
+When `--run-worker=false` (external workers), the server shuts down the HTTP server immediately on `SIGQUIT` since workers are separate processes.
+
+```bash
+# Graceful shutdown (finish running jobs first)
+kill -QUIT $(pidof pikoci)
+
+# Immediate shutdown
+kill -TERM $(pidof pikoci)
+```
 
 See also: [Database Backends](Database) · [Queue Backends](Queue) · [Running Workers Separately](Workers)

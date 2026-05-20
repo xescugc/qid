@@ -58,6 +58,7 @@ pikoci worker \
 | `--pikoci-url` | `-u` | `localhost:8080` | no | PikoCI server URL |
 | `--pubsub-system` | | `mem` | no | Queue backend (must match server) |
 | `--concurrency` | | `1` | no | Number of parallel job goroutines |
+| `--drain-timeout` | | `10m` | no | Max time to wait for in-flight jobs during graceful shutdown (`SIGQUIT`) |
 | `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
 | `--jwt-secret` | | | **yes** | Must match the server's `--jwt-secret` |
 | `--config` | `-c` | | no | Path to a config file |
@@ -83,4 +84,21 @@ pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --jwt-secret 
 
 # Machine B
 pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --jwt-secret my-secret --concurrency 4
+```
+
+## Signal handling
+
+Standalone workers support the same two shutdown modes as the server:
+
+| Signal | Behavior |
+|--------|----------|
+| `SIGQUIT` | Stop accepting new jobs, wait for in-flight jobs to finish (up to `--drain-timeout`, default 10m), then exit. |
+| `SIGTERM` / `SIGINT` | Cancel running jobs and exit immediately. |
+
+```bash
+# Graceful shutdown
+kill -QUIT $(pidof pikoci)
+
+# Immediate shutdown
+kill -TERM $(pidof pikoci)
 ```
