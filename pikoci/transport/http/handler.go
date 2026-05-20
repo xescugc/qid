@@ -236,6 +236,7 @@ func Handler(s pikoci.Service, ts []byte, l *slog.Logger) http.Handler {
 	r.PathPrefix("/css/").Handler(http.FileServer(http.FS(assets.Assets)))
 	r.PathPrefix("/js/").Handler(http.FileServer(http.FS(assets.Assets)))
 	r.PathPrefix("/images/").Handler(http.FileServer(http.FS(assets.Assets)))
+	r.PathPrefix("/fonts/").Handler(http.FileServer(http.FS(assets.Assets)))
 
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t, ok := templates.Templates["views/layouts/index.tmpl"]

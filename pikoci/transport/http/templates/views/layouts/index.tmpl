@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/css/pikoci.css" rel="stylesheet" />
+    <link href="/css/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/images/favicon.svg" rel="icon" type="image/svg+xml"/>
   </head>
 
@@ -54,7 +55,7 @@
                   </a>
                 </li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" id="logout" href="/logout">Logout</a></li>
+                <li><a class="dropdown-item" id="logout" href="/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
               </ul>
             </div>
           <% } %>
@@ -98,7 +99,7 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h1 class="h4 fw-bold mb-0">Teams</h1>
         <% if (isAdmin()) { %>
-          <a type="button" id="team-new" class="btn btn-success" href="/teams/new">+ New</a>
+          <a type="button" id="team-new" class="btn btn-success" href="/teams/new"><i class="bi bi-plus"></i> New</a>
         <% } %>
       </div>
       <div id="team-list">
@@ -121,10 +122,10 @@
     <script type="text/template" id="team-row-view">
       <div class="piko-team-name"><%- name %></div>
       <div class="piko-team-actions">
-        <a id="pipelines" href="/teams/<%- canonical %>/pipelines" type="button" class="btn btn-primary">Pipelines</a>
-        <a id="manage" href="/teams/<%- canonical %>" type="button" class="btn btn-info">Manage</a>
+        <a id="pipelines" href="/teams/<%- canonical %>/pipelines" type="button" class="btn btn-primary"><i class="bi bi-diagram-2"></i> Pipelines</a>
+        <a id="manage" href="/teams/<%- canonical %>" type="button" class="btn btn-info"><i class="bi bi-gear"></i> Manage</a>
         <% if (isAdmin(canonical)) { %>
-          <button id="delete" type="button" class="btn btn-danger">Delete</button>
+          <button id="delete" type="button" class="btn btn-danger"><i class="bi bi-trash"></i> Delete</button>
         <% } %>
       </div>
     </script>
@@ -150,7 +151,7 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h3 class="h5 fw-bold mb-0">Members</h3>
         <% if (isAdmin(canonical)) { %>
-          <a type="button" id="new-member" class="btn btn-success">+ New Member</a>
+          <a type="button" id="new-member" class="btn btn-success"><i class="bi bi-person-plus"></i> New Member</a>
         <% } %>
       </div>
       <table class="table">
@@ -204,7 +205,7 @@
       <td>
 				<div class="btn-group" role="group">
           <% if (isAdmin(team.canonical)) { %>
-					  <button id="delete" type="button" class="btn btn-danger">Delete</button>
+					  <button id="delete" type="button" class="btn btn-danger"><i class="bi bi-trash"></i> Delete</button>
           <% } %>
 				</div>
       </td>
@@ -214,7 +215,7 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h1 class="h4 fw-bold mb-0">Pipelines</h1>
         <% if (isAdmin(team.canonical)) { %>
-          <a type="button" id="pipelines-new" class="btn btn-success" href="/teams/<%- team.canonical %>/pipelines/new">+ New</a>
+          <a type="button" id="pipelines-new" class="btn btn-success" href="/teams/<%- team.canonical %>/pipelines/new"><i class="bi bi-plus"></i> New</a>
         <% } %>
       </div>
       <div class="row row-cols-1 row-cols-md-3 g-4" id="pipelines">
@@ -247,8 +248,8 @@
         </h1>
         <% if (isAdmin(team.canonical)) { %>
           <div class="btn-group">
-            <button type="button" id="edit-pipeline" class="btn btn-info">Edit</button>
-            <button type="button" id="delete-pipeline" class="btn btn-danger">Delete</button>
+            <button type="button" id="edit-pipeline" class="btn btn-info"><i class="bi bi-pencil"></i> Edit</button>
+            <button type="button" id="delete-pipeline" class="btn btn-danger"><i class="bi bi-trash"></i> Delete</button>
           </div>
         <% } %>
       </div>
@@ -320,7 +321,7 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h1 class="h4 fw-bold mb-0"><%- job.name %></h1>
         <% if (isMember(team.canonical)) { %>
-          <button type="button" id="trigger-job" class="btn btn-warning">Trigger Job</button>
+          <button type="button" id="trigger-job" class="btn btn-warning"><i class="bi bi-play-circle"></i> Trigger Job</button>
         <% } %>
       </div>
       <div class="piko-build-tabs" id="builds-tabs">
@@ -395,7 +396,7 @@
         <% _.each(_steps, function(s, i) { %>
           <div class="piko-step-row">
             <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-              <span><span class="piko-step-label"><%- s.type || "step" %></span> <%- s.name %> <span style="color:var(--text-muted);">(<%- s.duration %>)</span></span>
+              <span><span class="piko-step-label"><i class="bi <%= ({get:'bi-cloud-download',task:'bi-terminal',put:'bi-cloud-upload',service:'bi-hdd-stack',runner:'bi-gear'})[s.type] || 'bi-terminal' %>"></i> <%- s.type || "step" %></span> <%- s.name %> <span style="color:var(--text-muted);">(<%- s.duration %>)</span></span>
               <% if (s.status === "failed") { %>
                 <span class="piko-badge piko-badge-failed">fail</span>
               <% } else if (s.status === "started") { %>
@@ -405,9 +406,14 @@
               <% } %>
             </div>
             <div class="piko-step-row-body" style="display:<%= (s.status === 'started') ? 'block' : 'none' %>;">
+              <div style="position:relative;">
+                <button class="piko-copy-logs-btn" onclick="var pre=this.parentElement.querySelector('pre');navigator.clipboard.writeText(pre.textContent.trim());var icon=this.querySelector('i');icon.className='bi bi-check2';setTimeout(function(){icon.className='bi bi-clipboard';},1500);" title="Copy logs">
+                  <i class="bi bi-clipboard"></i>
+                </button>
 <pre>
 <%- s.logs %>
 </pre>
+              </div>
             </div>
           </div>
         <% }) %>
@@ -415,7 +421,7 @@
         <% _.each(_job, function(j, i) { %>
           <div class="piko-step-row">
             <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-              <span><span class="piko-step-label">job</span> <%- j.name %> <span style="color:var(--text-muted);">(<%- j.duration %>)</span></span>
+              <span><span class="piko-step-label"><i class="bi bi-braces"></i> job</span> <%- j.name %> <span style="color:var(--text-muted);">(<%- j.duration %>)</span></span>
               <% if (j.status === "failed") { %>
                 <span class="piko-badge piko-badge-failed">fail</span>
               <% } else if (j.status === "started") { %>
@@ -425,9 +431,14 @@
               <% } %>
             </div>
             <div class="piko-step-row-body" style="display:<%= (j.status === 'started') ? 'block' : 'none' %>;">
+              <div style="position:relative;">
+                <button class="piko-copy-logs-btn" onclick="var pre=this.parentElement.querySelector('pre');navigator.clipboard.writeText(pre.textContent.trim());var icon=this.querySelector('i');icon.className='bi bi-check2';setTimeout(function(){icon.className='bi bi-clipboard';},1500);" title="Copy logs">
+                  <i class="bi bi-clipboard"></i>
+                </button>
 <pre>
 <%- j.logs %>
 </pre>
+              </div>
             </div>
           </div>
         <% }) %>
@@ -444,7 +455,7 @@
         <h1 class="h4 fw-bold mb-0"><%- resource.canonical %></h1>
         <% if (isMember(team.canonical)) { %>
           <div class="btn-group">
-            <button type="button" id="trigger-resource" class="btn btn-warning">Trigger Resource</button>
+            <button type="button" id="trigger-resource" class="btn btn-warning"><i class="bi bi-play-circle"></i> Trigger Resource</button>
             <% if (isAdmin(team.canonical)) { %>
               <button type="button" class="btn btn-warning dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
                 <span class="visually-hidden">Toggle Dropdown</span>
@@ -460,11 +471,11 @@
         <label class="fw-bold">Webhook URL</label>
         <div class="d-flex gap-2 align-items-center">
           <code id="webhook-url" class="text-break"></code>
-          <button id="copy-webhook" class="btn btn-sm btn-info">Copy</button>
+          <button id="copy-webhook" class="btn btn-sm btn-info"><i class="bi bi-clipboard"></i> Copy</button>
         </div>
         <div class="mt-2 d-flex justify-content-between align-items-center">
           <small class="text-muted">Regenerating invalidates the current URL</small>
-          <button id="regenerate-webhook" class="btn btn-sm btn-outline-danger">Regenerate Token</button>
+          <button id="regenerate-webhook" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-clockwise"></i> Regenerate Token</button>
         </div>
       </div>
       <div class="piko-resource-info">

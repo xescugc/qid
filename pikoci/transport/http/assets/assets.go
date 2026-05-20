@@ -6,5 +6,5 @@ import (
 
 // Assets defines the embedded files
 //
-//go:embed css/* js/* images/*
+//go:embed css/* js/* images/* fonts/*
 var Assets embed.FS

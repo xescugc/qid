@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add Bootstrap Icons library and icons across the UI (buttons, navigation, step type labels) with a copy-to-clipboard button on build step logs ([#254](https://github.com/xescugc/pikoci/issues/254))
 - Fix accordion closing on live updates: preserve user-expanded/collapsed state across poll-driven re-renders for both build steps and resource versions, so manually opened rows stay open while the page polls for updates ([#289](https://github.com/xescugc/pikoci/issues/289))
 - Add graceful shutdown with `SIGQUIT`: stops accepting new jobs, waits for in-flight jobs to finish, then exits cleanly. `SIGTERM`/`SIGINT` still exit immediately. Enables zero-downtime self-deploy via systemd `Restart=always` and a deploy pipeline job ([#281](https://github.com/xescugc/pikoci/issues/281))
 - Fix browser back navigation from build page: use `replace: true` when updating the URL on build tab clicks and auto-selection so the history stack doesn't accumulate build IDs ([#263](https://github.com/xescugc/pikoci/issues/263))
