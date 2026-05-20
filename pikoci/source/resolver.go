@@ -13,6 +13,7 @@ import (
 	"github.com/xescugc/pikoci/pikoci/runner"
 	"github.com/xescugc/pikoci/pikoci/sectype"
 	"github.com/xescugc/pikoci/pikoci/service"
+	"github.com/xescugc/pikoci/pikoci/utils"
 )
 
 const (
@@ -32,8 +33,52 @@ type hclSecretType struct {
 	SecretTypes []sectype.SecretType `hcl:"secret_type,block"`
 }
 
-type hclService struct {
-	Services []service.Service `hcl:"service_type,block"`
+type hclServiceFile struct {
+	Services []hclServiceBlock `hcl:"service_type,block"`
+}
+
+type hclServiceBlock struct {
+	Name       string                `hcl:"name,label"`
+	Source     string                `hcl:"source,optional"`
+	Params     []string              `hcl:"params,optional"`
+	Start      []utils.RunnerCommand `hcl:"start,block"`
+	ReadyCheck []hclReadyCheck       `hcl:"ready_check,block"`
+	Stop       []utils.RunnerCommand `hcl:"stop,block"`
+}
+
+type hclReadyCheck struct {
+	Runner   string            `hcl:"runner,label"`
+	Args     []string          `hcl:"args,optional"`
+	Interval string            `hcl:"interval,optional"`
+	Timeout  string            `hcl:"timeout,optional"`
+	Params   map[string]string `hcl:",remain"`
+}
+
+func (hs hclServiceBlock) toService() service.Service {
+	s := service.Service{
+		Name:   hs.Name,
+		Source: hs.Source,
+		Params: hs.Params,
+	}
+	if len(hs.Start) > 0 {
+		s.Start = hs.Start[0]
+	}
+	if len(hs.Stop) > 0 {
+		s.Stop = hs.Stop[0]
+	}
+	if len(hs.ReadyCheck) > 0 {
+		rc := hs.ReadyCheck[0]
+		s.ReadyCheck = &service.ReadyCheck{
+			RunnerCommand: utils.RunnerCommand{
+				Runner: rc.Runner,
+				Args:   rc.Args,
+				Params: rc.Params,
+			},
+			Interval: rc.Interval,
+			Timeout:  rc.Timeout,
+		}
+	}
+	return s
 }
 
 func ResolveResourceType(ctx context.Context, src string) (*restype.ResourceType, error) {
@@ -93,7 +138,7 @@ func ResolveService(ctx context.Context, src string) (*service.Service, error) {
 		return nil, err
 	}
 
-	var hs hclService
+	var hs hclServiceFile
 	err = hclsimple.Decode("source.hcl", data, nil, &hs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode service from source %q: %w", src, err)
@@ -101,7 +146,8 @@ func ResolveService(ctx context.Context, src string) (*service.Service, error) {
 	if len(hs.Services) == 0 {
 		return nil, fmt.Errorf("no service_type block found in source %q", src)
 	}
-	return &hs.Services[0], nil
+	svc := hs.Services[0].toService()
+	return &svc, nil
 }
 
 func resolveHCL(ctx context.Context, src, kind string) ([]byte, error) {
