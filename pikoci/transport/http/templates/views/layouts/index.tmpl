@@ -214,7 +214,13 @@
 
     <script type="text/template" id="pipelines-view">
       <div class="d-flex align-items-center justify-content-between mb-3">
-        <h1 class="h4 fw-bold mb-0">Pipelines</h1>
+        <div class="d-flex align-items-center gap-2">
+          <h1 class="h4 fw-bold mb-0">Pipelines</h1>
+          <span class="piko-toggle" id="live-status-toggle">
+            <span class="piko-toggle-thumb"></span>
+          </span>
+          <label for="live-status-toggle" class="form-label mb-0" style="font-size:0.85rem;cursor:pointer;">Live</label>
+        </div>
         <% if (isAdmin(team.canonical)) { %>
           <a type="button" id="pipelines-new" class="btn btn-success" href="/teams/<%- team.canonical %>/pipelines/new"><i class="bi bi-plus"></i> New</a>
         <% } %>
@@ -1191,25 +1197,59 @@
       app.PipelinesView = Backbone.View.extend({
         template: _.template($('#pipelines-view').html()),
         initialize: function() {
+          this.cardViews = []
           this.listenTo(this.collection, "add", this.addPipeline)
 
           this.collection.fetch()
         },
         events: {
           'click #pipelines-new': 'clickLink',
+          'click #live-status-toggle': 'toggleLive',
         },
         addPipeline: function(pp) {
-          var view = new app.PipelinesCardView({model: pp});
+          var liveEnabled = localStorage.getItem("liveStatusEnabled") === "true"
+          var view = new app.PipelinesCardView({model: pp, liveEnabled: liveEnabled});
+          this.cardViews.push(view)
           this.$el.find('#pipelines').append(view.render().el);
         },
         render: function () {
+          for (var i = 0; i < this.cardViews.length; i++) {
+            this.cardViews[i].remove()
+          }
+          this.cardViews = []
+
           this.$el.html(this.template(addSessionFunctions({team: this.collection.team.toJSON()})));
+
+          if (localStorage.getItem("liveStatusEnabled") === "true") {
+            this.$el.find('#live-status-toggle').addClass('on')
+          }
 
           var that = this
           this.collection.each(function(m) {
             that.addPipeline(m)
           })
           return this; // enable chained calls
+        },
+        toggleLive: function(event) {
+          event.preventDefault()
+          var isOn = localStorage.getItem("liveStatusEnabled") === "true"
+          var newState = !isOn
+          localStorage.setItem("liveStatusEnabled", newState ? "true" : "false")
+          this.$el.find('#live-status-toggle').toggleClass('on', newState)
+          for (var i = 0; i < this.cardViews.length; i++) {
+            if (newState) {
+              this.cardViews[i].startPolling()
+            } else {
+              this.cardViews[i].stopPolling()
+            }
+          }
+        },
+        remove: function() {
+          for (var i = 0; i < this.cardViews.length; i++) {
+            this.cardViews[i].remove()
+          }
+          this.cardViews = []
+          Backbone.View.prototype.remove.call(this);
         },
         clickLink: function(event) {
           event.preventDefault();
@@ -1225,10 +1265,31 @@
         events: {
           'click': 'clickCard',
         },
-        initialize: function() {
+        initialize: function(options) {
+          this.intervalID = null
           this.image = new app.PipelineImage(null, {pipeline: this.model})
           this.image.fetch()
           this.listenTo(this.image, "change", this.updateStatus)
+          if (options && options.liveEnabled) {
+            this.startPolling()
+          }
+        },
+        startPolling: function() {
+          if (this.intervalID) return
+          var that = this
+          this.intervalID = window.setInterval(function() {
+            that.image.fetch({isInterval: true})
+          }, fetchInterval)
+        },
+        stopPolling: function() {
+          if (this.intervalID) {
+            clearInterval(this.intervalID)
+            this.intervalID = null
+          }
+        },
+        remove: function() {
+          this.stopPolling()
+          Backbone.View.prototype.remove.call(this);
         },
         render: function () {
           this.$el.html(this.template(this.model.toJSON()));
