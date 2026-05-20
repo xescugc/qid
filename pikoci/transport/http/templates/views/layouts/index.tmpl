@@ -1576,7 +1576,22 @@
           } else {
             this.$el.addClass("d-none")
           }
+          // Capture which steps the user has expanded before re-rendering
+          var expandedSteps = {};
+          this.$el.find('.piko-step-row-body').each(function(i) {
+            if ($(this).css('display') !== 'none') {
+              expandedSteps[i] = true;
+            }
+          });
           this.$el.html(this.template(data));
+          // Restore user-expanded steps
+          if (Object.keys(expandedSteps).length > 0) {
+            this.$el.find('.piko-step-row-body').each(function(i) {
+              if (expandedSteps[i]) {
+                this.style.display = 'block';
+              }
+            });
+          }
           var runningPre = this.$el.find('.piko-step-row-body:visible pre').last();
           if (runningPre.length) {
             runningPre[0].scrollTop = runningPre[0].scrollHeight;
@@ -1608,6 +1623,13 @@
         },
         render: function () {
           var webhookPanelOpen = this.$('#webhook-panel').is(':visible');
+          // Capture which version rows the user has expanded before re-rendering
+          var expandedVersions = {};
+          this.$el.find('.piko-version-row-body').each(function(i) {
+            if ($(this).css('display') !== 'none') {
+              expandedVersions[i] = true;
+            }
+          });
           this.$el.html(this.template(addSessionFunctions({
             team: this.collection.resource.collection.pipeline.collection.team.toJSON(),
             pipeline: this.collection.resource.collection.pipeline.toJSON(),
@@ -1623,6 +1645,14 @@
           this.collection.each(function(m) {
             that.addVersion(m)
           })
+          // Restore user-expanded version rows
+          if (Object.keys(expandedVersions).length > 0) {
+            this.$el.find('.piko-version-row-body').each(function(i) {
+              if (expandedVersions[i]) {
+                this.style.display = 'block';
+              }
+            });
+          }
           return this; // enable chained calls
         },
         addVersion: function(m) {
