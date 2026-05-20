@@ -61,6 +61,7 @@ func TestUpdateJobBuild(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
+	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", uint32(1)).Return(&build.Build{Status: build.Started}, nil)
 	s.Builds.EXPECT().Update(ctx, "main", "my-pipeline", "my-job", uint32(1), gomock.Any()).Return(nil)
 
 	err := s.S.UpdateJobBuild(ctx, "main", "my-pipeline", "my-job", 1, build.Build{Status: build.Succeeded})

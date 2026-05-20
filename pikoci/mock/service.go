@@ -46,6 +46,20 @@ func (m *Service) EXPECT() *ServiceMockRecorder {
 	return m.recorder
 }
 
+// CancelJobBuild mocks base method.
+func (m *Service) CancelJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelJobBuild", ctx, tc, pn, jn, bID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CancelJobBuild indicates an expected call of CancelJobBuild.
+func (mr *ServiceMockRecorder) CancelJobBuild(ctx, tc, pn, jn, bID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelJobBuild", reflect.TypeOf((*Service)(nil).CancelJobBuild), ctx, tc, pn, jn, bID)
+}
+
 // CreateJobBuild mocks base method.
 func (m *Service) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error) {
 	m.ctrl.T.Helper()
@@ -205,6 +219,21 @@ func (m *Service) DeleteTeamMember(ctx context.Context, tc, mc string) error {
 func (mr *ServiceMockRecorder) DeleteTeamMember(ctx, tc, mc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTeamMember", reflect.TypeOf((*Service)(nil).DeleteTeamMember), ctx, tc, mc)
+}
+
+// GetJobBuild mocks base method.
+func (m *Service) GetJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetJobBuild", ctx, tc, pn, jn, bID)
+	ret0, _ := ret[0].(*build.Build)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJobBuild indicates an expected call of GetJobBuild.
+func (mr *ServiceMockRecorder) GetJobBuild(ctx, tc, pn, jn, bID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJobBuild", reflect.TypeOf((*Service)(nil).GetJobBuild), ctx, tc, pn, jn, bID)
 }
 
 // GetPipeline mocks base method.

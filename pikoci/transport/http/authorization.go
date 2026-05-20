@@ -43,6 +43,8 @@ var (
 		UpdateJobBuild: admin,
 		DeleteJobBuild: admin,
 		ListJobBuilds:  member,
+		GetJobBuild:    member,
+		CancelJobBuild: member,
 
 		GetPipelineResource:     member,
 		UpdatePipelineResource:  admin,

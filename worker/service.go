@@ -162,13 +162,19 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 	w.logger.Info("[debug-297] build created",
 		"pipeline", m.PipelineName, "job", m.JobName, "build_id", b.ID, "version_id", m.VersionID)
 
+	jobCtx, jobCancel := context.WithCancel(ctx)
+	defer jobCancel()
+
+	// Poll for cancellation in background
+	go w.pollForCancellation(ctx, jobCtx, jobCancel, m, b.ID)
+
 	j, err := w.pikoci.GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName)
 	if err != nil {
 		w.failBuild(ctx, m, b, fmt.Errorf("failed to get job: %w", err))
 		return
 	}
 
-	ok, resolvedVersions := w.checkPassedConstraints(ctx, m, &b, j)
+	ok, resolvedVersions := w.checkPassedConstraints(jobCtx, m, &b, j)
 	if !ok {
 		return
 	}
@@ -176,15 +182,27 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 	// checkVersionAvailability verifies that the get step can pull a version.
 	// If no version is available (e.g. manual trigger with no resource versions),
 	// the build is deleted silently — no hooks run, no failure recorded.
-	if !w.checkVersionAvailability(ctx, m, &b, j, pp) {
+	if !w.checkVersionAvailability(jobCtx, m, &b, j, pp) {
 		return
 	}
 
-	failed, resolved := w.runPlan(ctx, m, &b, cwd, pp, j, resolvedVersions)
+	failed, resolved := w.runPlan(jobCtx, m, &b, cwd, pp, j, resolvedVersions)
+
+	// Handle user-initiated cancellation
+	if jobCtx.Err() == context.Canceled {
+		current, err := w.pikoci.GetJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID)
+		if err == nil && current.Status == build.Cancelled {
+			b.Status = build.Cancelled
+			w.updateBuild(ctx, m, b)
+			w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnFailure, "on_failure", resolved, "cancelled")
+			w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.Ensure, "ensure", resolved, "cancelled")
+			return
+		}
+	}
 
 	if !failed {
 		b.Status = build.Succeeded
-		if err := w.updateBuild(ctx, m, b); err != nil {
+		if err := w.updateBuild(jobCtx, m, b); err != nil {
 			return
 		}
 		w.runHooks(ctx, m, &b, &b.Job, cwd, pp, "", j.OnSuccess, "on_success", resolved, "succeeded")
@@ -1024,6 +1042,28 @@ func (w *Worker) triggerResourceJobs(ctx context.Context, m queue.Body, pp *pipe
 				if err := w.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
 					w.logger.Error("failed to send trigger message", "job", j.Name, "error", err)
 				}
+			}
+		}
+	}
+}
+
+func (w *Worker) pollForCancellation(apiCtx, jobCtx context.Context, cancel context.CancelFunc, m queue.Body, buildID uint32) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-jobCtx.Done():
+			return
+		case <-ticker.C:
+			b, err := w.pikoci.GetJobBuild(apiCtx, m.TeamCanonical, m.PipelineName, m.JobName, buildID)
+			if err != nil {
+				w.logger.Error("cancellation poll failed", "build_id", buildID, "error", err)
+				continue
+			}
+			if b.Status == build.Cancelled {
+				w.logger.Info("build cancelled, stopping job", "build_id", buildID)
+				cancel()
+				return
 			}
 		}
 	}

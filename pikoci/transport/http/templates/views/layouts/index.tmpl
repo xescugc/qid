@@ -395,6 +395,13 @@
             <span class="piko-badge piko-badge-failed">Failed</span>
           <% } else if (status === "started") { %>
             <span class="piko-badge piko-badge-started">Running</span>
+          <% } else if (status === "cancelled") { %>
+            <span class="piko-badge piko-badge-cancelled">Cancelled</span>
+          <% } %>
+          <% if (status === "started") { %>
+            <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" data-build-id="<%- id %>">
+              <i class="bi bi-x-circle"></i> Cancel
+            </button>
           <% } %>
         </div>
         <% var _steps = steps || []; %>
@@ -408,6 +415,8 @@
                 <span class="piko-badge piko-badge-failed">fail</span>
               <% } else if (s.status === "started") { %>
                 <span class="piko-badge piko-badge-started">running</span>
+              <% } else if (s.status === "cancelled") { %>
+                <span class="piko-badge piko-badge-cancelled">cancel</span>
               <% } else if (s.status === "succeeded" || s.logs) { %>
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
@@ -433,6 +442,8 @@
                 <span class="piko-badge piko-badge-failed">fail</span>
               <% } else if (j.status === "started") { %>
                 <span class="piko-badge piko-badge-started">running</span>
+              <% } else if (j.status === "cancelled") { %>
+                <span class="piko-badge piko-badge-cancelled">cancel</span>
               <% } else if (j.status === "succeeded" || j.logs) { %>
                 <span class="piko-badge piko-badge-succeeded">ok</span>
               <% } %>
@@ -1627,7 +1638,7 @@
           this.$el.html(this.template(data));
           // Set the status stripe color
           var stripe = this.$el.find(".piko-tab-status")
-          stripe.removeClass("status-succeeded status-failed status-started")
+          stripe.removeClass("status-succeeded status-failed status-started status-cancelled")
           stripe.addClass("status-"+this.model.get("status"))
           return this; // enable chained calls
         },
@@ -1638,8 +1649,17 @@
           return { id: "c-"+this.model.get("id") }
         },
         template: _.template($('#job-builds-content-view').html()),
+        events: {
+          'click .piko-cancel-build': 'cancelBuild',
+        },
         initialize: function() {
           this.listenTo(this.model, "change", this.render)
+        },
+        cancelBuild: function(e) {
+          e.preventDefault();
+          var bid = this.model.get("id");
+          var url = this.model.collection.url() + "/" + bid + "/cancel.json";
+          $.ajax({ url: url, type: "POST", headers: { "Authorization": "Bearer " + app.session.get("jwt") } });
         },
         render: function () {
           var data = this.model.toJSON()
