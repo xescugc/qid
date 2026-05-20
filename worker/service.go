@@ -77,14 +77,17 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 
+		// Ack immediately to prevent re-delivery while the job runs.
+		// Jobs can take minutes (e.g. docker builds), which exceeds
+		// the pubsub ack deadline and causes duplicate triggers.
+		msg.Ack()
+
 		cwd, err := w.createWorkDir()
 		if err != nil {
 			return err
 		}
 
 		w.processMessage(ctx, m, cwd)
-
-		msg.Ack()
 		os.RemoveAll(cwd)
 	}
 }
