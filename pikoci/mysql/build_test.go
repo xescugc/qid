@@ -87,6 +87,32 @@ func TestLastBuildAtByPipeline(t *testing.T) {
 	assert.NotContains(t, result, uint32(ppBID))
 }
 
+func TestLastBuildAtByPipeline_GoMonotonicFormat(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'lba-mono')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'build')`, ppID)
+	require.NoError(t, err)
+	jobID, _ := res.LastInsertId()
+
+	// Insert with Go's time.Time.String() format including monotonic clock suffix
+	_, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status, started_at) VALUES (?, 'succeeded', ?)`,
+		jobID, "2026-05-20 11:16:14.81137605 +0000 UTC m=+630.364992545")
+	require.NoError(t, err)
+
+	br := mysql.NewBuildRepository(db)
+	result, err := br.LastBuildAtByPipeline(ctx, "main")
+	require.NoError(t, err)
+	assert.Contains(t, result, uint32(ppID))
+	assert.Equal(t, 2026, result[uint32(ppID)].Year())
+	assert.Equal(t, time.May, result[uint32(ppID)].Month())
+	assert.Equal(t, 20, result[uint32(ppID)].Day())
+}
+
 func TestLastBuildAtByPipeline_NoBuildsDifferentTeam(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()

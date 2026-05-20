@@ -145,7 +145,7 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 	b := build.Build{
 		Status:    build.Started,
 		Steps:     []build.Step{},
-		StartedAt: time.Now(),
+		StartedAt: time.Now().Round(0),
 	}
 	nb, err := w.pikoci.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
 	if err != nil {
