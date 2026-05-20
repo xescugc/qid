@@ -75,6 +75,69 @@ func TestResolveRunner_PikoCI(t *testing.T) {
 	assert.Equal(t, "$path", ru.Run.Path)
 }
 
+func TestResolveService_HTTP(t *testing.T) {
+	hcl := `
+service_type "mydb" {
+  params = ["version", "port"]
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-c", "echo start"]
+  }
+  ready_check "exec" {
+    path     = "/bin/sh"
+    args     = ["-c", "echo ready"]
+    interval = "3s"
+    timeout  = "30s"
+  }
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-c", "echo stop"]
+  }
+}
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(hcl))
+	}))
+	defer srv.Close()
+
+	svc, err := source.ResolveService(context.Background(), srv.URL+"/mydb.hcl")
+	require.NoError(t, err)
+	assert.Equal(t, "mydb", svc.Name)
+	assert.Equal(t, []string{"version", "port"}, svc.Params)
+	assert.Equal(t, "exec", svc.Start.Runner)
+	assert.Equal(t, "exec", svc.Stop.Runner)
+	require.NotNil(t, svc.ReadyCheck)
+	assert.Equal(t, "exec", svc.ReadyCheck.Runner)
+	assert.Equal(t, "3s", svc.ReadyCheck.Interval)
+	assert.Equal(t, "30s", svc.ReadyCheck.Timeout)
+}
+
+func TestResolveService_NoReadyCheck(t *testing.T) {
+	hcl := `
+service_type "simple" {
+  start "exec" {
+    path = "/bin/sh"
+    args = ["-c", "echo start"]
+  }
+  stop "exec" {
+    path = "/bin/sh"
+    args = ["-c", "echo stop"]
+  }
+}
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(hcl))
+	}))
+	defer srv.Close()
+
+	svc, err := source.ResolveService(context.Background(), srv.URL+"/simple.hcl")
+	require.NoError(t, err)
+	assert.Equal(t, "simple", svc.Name)
+	assert.Equal(t, "exec", svc.Start.Runner)
+	assert.Equal(t, "exec", svc.Stop.Runner)
+	assert.Nil(t, svc.ReadyCheck)
+}
+
 func TestResolveRunner_HTTP(t *testing.T) {
 	hcl := `
 runner_type "myrunner" {
