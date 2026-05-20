@@ -331,6 +331,18 @@ func (q *PikoCI) ListPipelines(ctx context.Context, tc string) ([]*pipeline.Pipe
 		return nil, fmt.Errorf("failed to filter Pipelines: %w", err)
 	}
 
+	lastBuilds, err := q.Builds.LastBuildAtByPipeline(ctx, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last build timestamps: %w", err)
+	}
+
+	for _, pp := range pps {
+		if t, ok := lastBuilds[pp.ID]; ok {
+			t := t
+			pp.LastBuildAt = &t
+		}
+	}
+
 	return pps, nil
 }
 

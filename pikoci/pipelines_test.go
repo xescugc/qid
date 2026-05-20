@@ -2,6 +2,7 @@ package pikoci_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -56,10 +57,55 @@ func TestListPipelines(t *testing.T) {
 		{ID: 2, Name: "pipeline-b"},
 	}
 	s.Pipelines.EXPECT().Filter(ctx, "main").Return(expected, nil)
+	s.Builds.EXPECT().LastBuildAtByPipeline(ctx, "main").Return(map[uint32]time.Time{}, nil)
 
 	pps, err := s.S.ListPipelines(ctx, "main")
 	require.NoError(t, err)
 	assert.Len(t, pps, 2)
+}
+
+func TestListPipelines_WithLastBuildAt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	pipelines := []*pipeline.Pipeline{
+		{ID: 1, Name: "pipeline-a"},
+		{ID: 2, Name: "pipeline-b"},
+		{ID: 3, Name: "pipeline-c"},
+	}
+	buildTime := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	lastBuilds := map[uint32]time.Time{
+		1: buildTime,
+		3: buildTime.Add(-time.Hour),
+	}
+	s.Pipelines.EXPECT().Filter(ctx, "main").Return(pipelines, nil)
+	s.Builds.EXPECT().LastBuildAtByPipeline(ctx, "main").Return(lastBuilds, nil)
+
+	pps, err := s.S.ListPipelines(ctx, "main")
+	require.NoError(t, err)
+	require.Len(t, pps, 3)
+
+	require.NotNil(t, pps[0].LastBuildAt)
+	assert.Equal(t, buildTime, *pps[0].LastBuildAt)
+
+	assert.Nil(t, pps[1].LastBuildAt)
+
+	require.NotNil(t, pps[2].LastBuildAt)
+	assert.Equal(t, buildTime.Add(-time.Hour), *pps[2].LastBuildAt)
+}
+
+func TestListPipelines_LastBuildAtError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Pipelines.EXPECT().Filter(ctx, "main").Return([]*pipeline.Pipeline{{ID: 1}}, nil)
+	s.Builds.EXPECT().LastBuildAtByPipeline(ctx, "main").Return(nil, fmt.Errorf("db error"))
+
+	_, err := s.S.ListPipelines(ctx, "main")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "last build timestamps")
 }
 
 func TestListPipelines_InvalidCanonical(t *testing.T) {
