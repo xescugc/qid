@@ -117,8 +117,10 @@ func (g *GetStep) ResourceCanonical() string {
 }
 
 type TaskStep struct {
-	Name string              `json:"name" hcl:"name,label"`
-	Run  utils.RunnerCommand `json:"run" hcl:"run,block"`
+	Name    string              `json:"name" hcl:"name,label"`
+	Run     utils.RunnerCommand `json:"run" hcl:"run,block"`
+	Inputs  []string            `json:"inputs,omitempty"`
+	Outputs []string            `json:"outputs,omitempty"`
 }
 
 type PutStep struct {

@@ -44,6 +44,8 @@ type hclTaskStep struct {
 	Name     string              `json:"name" hcl:"name,label"`
 	Timeout  string              `json:"timeout" hcl:"timeout,optional"`
 	Attempts int                 `json:"attempts" hcl:"attempts,optional"`
+	Inputs   []string            `json:"inputs" hcl:"inputs,optional"`
+	Outputs  []string            `json:"outputs" hcl:"outputs,optional"`
 	Run      utils.RunnerCommand `json:"run" hcl:"run,block"`
 
 	Remain hcl.Body `hcl:",remain"` // absorbs hook blocks; parsed by parseHooks from AST
@@ -714,8 +716,10 @@ func parseJobPlans(rpp []byte, ectx *hcl.EvalContext, hclJobs []hclJob, services
 					Timeout:  timeout,
 					Attempts: t.Attempts,
 					Task: &job.TaskStep{
-						Name: t.Name,
-						Run:  t.Run,
+						Name:    t.Name,
+						Run:     t.Run,
+						Inputs:  t.Inputs,
+						Outputs: t.Outputs,
 					},
 					OnSuccess: parseHooks(innerBlock, ectx, "on_success"),
 					OnFailure: parseHooks(innerBlock, ectx, "on_failure"),

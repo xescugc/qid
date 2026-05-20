@@ -2304,5 +2304,325 @@ func TestTriggerResourceJobs_MultipleJobsSameResource(t *testing.T) {
 	w.triggerResourceJobs(ctx, m, pp, r, cv)
 }
 
+func TestProcessJob_TaskInputMissing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "input-job",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "input-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name:   "build",
+							Inputs: []string{"nonexistent/"},
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"hello"},
+								Params: map[string]string{
+									"path": "echo",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 200}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(200), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Contains(t, capturedBuild.Steps[0].Logs, `input "nonexistent/" does not exist`)
+}
+
+func TestProcessJob_TaskOutputMissing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "output-job",
+	}
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "output-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name:    "build",
+							Outputs: []string{"missing-file"},
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"somefile"},
+								Params: map[string]string{
+									"path": "touch",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 300}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(300), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Contains(t, capturedBuild.Steps[0].Logs, `task finished but output "missing-file" was not produced`)
+}
+
+func TestProcessJob_TaskInputsOutputs_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "io-job",
+	}
+
+	cwd := t.TempDir()
+
+	// Create the input files that will be checked
+	os.MkdirAll(fmt.Sprintf("%s/src", cwd), 0755)
+	os.WriteFile(fmt.Sprintf("%s/src/main.go", cwd), []byte("package main"), 0644)
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "io-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name:    "build",
+							Inputs:  []string{"src/"},
+							Outputs: []string{"src/main.go"},
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"building"},
+								Params: map[string]string{
+									"path": "echo",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 400}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(400), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Succeeded, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	assert.Equal(t, build.Succeeded, capturedBuild.Steps[0].Status)
+}
+
+func TestProcessJob_TaskMultipleInputs_FailsOnFirst(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "multi-input-job",
+	}
+
+	cwd := t.TempDir()
+
+	// Create only the first input, second will be missing
+	os.MkdirAll(fmt.Sprintf("%s/dir1", cwd), 0755)
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "multi-input-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name:   "build",
+							Inputs: []string{"dir1/", "file2"},
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"hello"},
+								Params: map[string]string{
+									"path": "echo",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 500}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(500), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	// Should fail on "file2" (first missing input), not "dir1/" which exists
+	assert.Contains(t, capturedBuild.Steps[0].Logs, `input "file2" does not exist`)
+	assert.NotContains(t, capturedBuild.Steps[0].Logs, `input "dir1/" does not exist`)
+}
+
+func TestProcessJob_TaskMultipleOutputs_FailsOnFirst(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical: "main",
+		PipelineName:  "test-pipeline",
+		JobName:       "multi-output-job",
+	}
+
+	cwd := t.TempDir()
+
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "multi-output-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name:    "build",
+							Outputs: []string{"somefile", "missing-output"},
+							Run: utils.RunnerCommand{
+								Runner: "exec",
+								Args:   []string{"somefile"},
+								Params: map[string]string{
+									"path": "touch",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+
+	svc.EXPECT().CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, gomock.Any()).
+		Return(&build.Build{ID: 600}, nil)
+	svc.EXPECT().GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	var capturedBuild build.Build
+	svc.EXPECT().UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, uint32(600), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+			capturedBuild = b
+			return nil
+		}).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+
+	assert.Equal(t, build.Failed, capturedBuild.Status)
+	require.NotEmpty(t, capturedBuild.Steps)
+	// "somefile" was created by touch, so it should fail on "missing-output"
+	assert.Contains(t, capturedBuild.Steps[0].Logs, `task finished but output "missing-output" was not produced`)
+	assert.NotContains(t, capturedBuild.Steps[0].Logs, `task finished but output "somefile" was not produced`)
+}
+
 // Silence the unused import warnings
 var _ = time.Now

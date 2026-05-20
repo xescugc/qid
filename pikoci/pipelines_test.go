@@ -441,6 +441,84 @@ job "test" {
 	require.NoError(t, err)
 }
 
+func TestCreatePipeline_WithInputsOutputs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "build" {
+    inputs  = ["src/"]
+    outputs = ["bin/app"]
+    run "exec" {
+      path = "make"
+      args = ["build"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "inputs-outputs-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 2)
+			assert.Equal(t, []string{"src/"}, j.Plan[1].Task.Inputs)
+			assert.Equal(t, []string{"bin/app"}, j.Plan[1].Task.Outputs)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "inputs-outputs-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "inputs-outputs-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "inputs-outputs-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "inputs-outputs-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
+func TestCreatePipeline_WithoutInputsOutputs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	hclConfig := []byte(`
+resource "cron" "timer" {
+  check_interval = "@every 1h"
+}
+
+job "test" {
+  get "cron" "timer" {
+    trigger = true
+  }
+  task "build" {
+    run "exec" {
+      path = "echo"
+      args = ["building"]
+    }
+  }
+}
+`)
+
+	s.Pipelines.EXPECT().Create(ctx, "main", gomock.Any()).Return(uint32(1), nil)
+	s.Jobs.EXPECT().Create(ctx, "main", "no-io-pipeline", gomock.Any()).DoAndReturn(
+		func(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
+			require.Len(t, j.Plan, 2)
+			assert.Nil(t, j.Plan[1].Task.Inputs)
+			assert.Nil(t, j.Plan[1].Task.Outputs)
+			return uint32(1), nil
+		})
+	s.Resources.EXPECT().Create(ctx, "main", "no-io-pipeline", gomock.Any()).Return(uint32(1), nil)
+	s.Pipelines.EXPECT().Find(ctx, "main", "no-io-pipeline").Return(&pipeline.Pipeline{ID: 1, Name: "no-io-pipeline"}, nil)
+
+	_, err := s.S.CreatePipeline(ctx, "main", "no-io-pipeline", hclConfig, nil)
+	require.NoError(t, err)
+}
+
 func TestCreatePipeline_InvalidAttempts(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := newService(ctrl)

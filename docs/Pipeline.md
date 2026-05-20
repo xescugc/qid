@@ -267,7 +267,24 @@ task "test" {
 | `name`     | yes      | Label on the block                             |
 | `timeout`  | no       | Maximum duration for the step (e.g. `"10m"`, `"1h"`) |
 | `attempts` | no       | Maximum number of times to try the step (default `1`, no retry) |
+| `inputs`   | no       | List of paths that must exist before the task runs |
+| `outputs`  | no       | List of paths that must exist after the task finishes |
 | `secrets`  | no       | Map of secret_type name to path (e.g. `{"vault" = "secret/data/db"}`) |
+
+Example with inputs and outputs:
+
+```hcl
+task "build" {
+  inputs  = ["pikoci/"]
+  outputs = ["bin/pikoci"]
+  run "exec" {
+    path = "make"
+    args = ["build"]
+  }
+}
+```
+
+Paths are checked with `os.Stat` relative to `$WORKDIR` and work for both files and directories. If an input is missing, the task fails immediately with a clear error. If an output is missing after the task finishes, the build fails with a descriptive message.
 
 ### put
 
