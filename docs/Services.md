@@ -135,6 +135,29 @@ Inside service commands (`start`, `ready_check`, `stop`), PikoCI exposes:
 
 Services appear in the build as steps with type "service" and names like "postgres:start", "postgres:ready", "postgres:stop".
 
+## Orphan prevention
+
+If a worker crashes or restarts mid-job, the `stop` block never runs. Docker containers keep running. The next job run tries to start on the same port and fails because the port is already taken.
+
+**The solution: stable container names + pre-start cleanup.**
+
+Use a container name derived from `$BUILD_PIPELINE_NAME` and `$BUILD_JOB_NAME` instead of `$BUILD_ID`. These are stable across runs. Always run cleanup at the top of the `start` block before starting the new container:
+
+```bash
+NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-postgres"
+docker rm -f $NAME 2>/dev/null || true   # kill orphan if exists
+docker run -d --name $NAME ...           # start fresh
+```
+
+The `|| true` on the cleanup command means it never causes the start block to fail — only actual start failures will fail the job. The `stop` block should use the same pattern:
+
+```bash
+NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-postgres"
+docker rm -f $NAME 2>/dev/null || true
+```
+
+**Trade-off:** With stable names, only one instance of the service can run per pipeline/job combination at a time. If two builds of the same job run in parallel, the second one will kill the first's container. For most integration test use cases this is acceptable. If you need parallel isolation, append `$BUILD_ID` to the name and accept the orphan risk.
+
 ## Examples
 
 ### Local process
@@ -162,9 +185,9 @@ service_type "postgres" {
 }
 ```
 
-### Podman (rootless containers)
+### Docker container
 
-Use podman for rootless, daemonless containers:
+Start a PostgreSQL container with orphan prevention:
 
 ```hcl
 service_type "postgres" {
@@ -172,19 +195,34 @@ service_type "postgres" {
 
   start "exec" {
     path = "/bin/sh"
-    args = ["-ec", "podman run -d --name pg-$BUILD_ID -e POSTGRES_PASSWORD=test postgres:$param_version"]
+    args = ["-ec", <<-EOT
+      NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-pg"
+      docker rm -f $NAME 2>/dev/null || true
+      docker run -d --name $NAME -p 5432:5432 \
+        -e POSTGRES_PASSWORD=test \
+        postgres:$param_version
+    EOT
+    ]
   }
 
   ready_check "exec" {
     path     = "/bin/sh"
-    args     = ["-ec", "podman exec pg-$BUILD_ID pg_isready"]
+    args     = ["-ec", <<-EOT
+      NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-pg"
+      docker exec $NAME pg_isready
+    EOT
+    ]
     interval = "2s"
     timeout  = "30s"
   }
 
   stop "exec" {
     path = "/bin/sh"
-    args = ["-ec", "podman rm -f pg-$BUILD_ID"]
+    args = ["-ec", <<-EOT
+      NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-pg"
+      docker rm -f $NAME 2>/dev/null || true
+    EOT
+    ]
   }
 }
 ```
