@@ -279,15 +279,21 @@ func (r *BuildRepository) LastBuildAtByPipeline(ctx context.Context, tc string) 
 			return nil, fmt.Errorf("failed to scan last build timestamp: %w", err)
 		}
 		if startedAtStr.Valid && startedAtStr.String != "" {
+			s := startedAtStr.String
+			// Strip Go monotonic clock suffix (e.g. " m=+123.456")
+			if idx := strings.Index(s, " m="); idx != -1 {
+				s = strings.TrimSpace(s[:idx])
+			}
 			var t time.Time
 			var parseErr error
 			for _, layout := range []string{
 				time.RFC3339,
+				"2006-01-02 15:04:05.999999999 +0000 UTC",
 				"2006-01-02 15:04:05 -0700 MST",
 				"2006-01-02 15:04:05",
 				"2006-01-02T15:04:05Z",
 			} {
-				t, parseErr = time.Parse(layout, startedAtStr.String)
+				t, parseErr = time.Parse(layout, s)
 				if parseErr == nil {
 					break
 				}
