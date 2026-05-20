@@ -22,6 +22,7 @@ pikoci server [flags]
 | `--run-migrations` | | `true` | no | Run database migrations on startup |
 | `--run-worker` | | `true` | no | Run an embedded worker |
 | `--concurrency` | | `1` | no | Number of worker goroutines |
+| `--drain-timeout` | | `10m` | no | Max time to wait for in-flight jobs during graceful shutdown (`SIGQUIT`) |
 | `--pubsub-system` | | `mem` | no | Queue backend: `mem`, `nats`, `rabbit`, `kafka` |
 | `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
 | `--config` | `-c` | | no | Path to a config file |
@@ -118,7 +119,7 @@ PikoCI supports two shutdown modes:
 
 | Signal | Behavior |
 |--------|----------|
-| `SIGQUIT` | **Graceful shutdown.** Stops accepting new jobs, waits for in-flight jobs to finish (up to 10 minutes), then gracefully shuts down the HTTP server. |
+| `SIGQUIT` | **Graceful shutdown.** Stops accepting new jobs, waits for in-flight jobs to finish (up to `--drain-timeout`, default 10m), then gracefully shuts down the HTTP server. |
 | `SIGTERM` / `SIGINT` | **Immediate shutdown.** Cancels all running jobs and exits. |
 
 Graceful shutdown (`SIGQUIT`) is designed for zero-downtime self-deploys: a pipeline job builds the new binary, copies it, and sends `SIGQUIT`. The running job finishes, PikoCI exits cleanly, and systemd restarts with the new binary.

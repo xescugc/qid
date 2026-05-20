@@ -67,6 +67,11 @@ var workerCmd = &cobra.Command{
 		}
 		defer topic.Shutdown(ctx)
 
+		drainTimeout, err := time.ParseDuration(cfg.DrainTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid drain-timeout %q: %w", cfg.DrainTimeout, err)
+		}
+
 		workers, wg, cleanup, err := runWorker(ctx, cfg.PubSubSystem, topic, c, cfg.Concurrency, cfg.LogLevel)
 		if err != nil {
 			return fmt.Errorf("failed to start worker: %w", err)
@@ -90,7 +95,7 @@ var workerCmd = &cobra.Command{
 			for _, w := range workers {
 				w.Drain()
 			}
-			logger.Info("workers draining, waiting for in-flight jobs to finish...")
+			logger.Info("workers draining, waiting for in-flight jobs to finish...", "timeout", drainTimeout)
 
 			done := make(chan struct{})
 			go func() { wg.Wait(); close(done) }()
@@ -98,7 +103,7 @@ var workerCmd = &cobra.Command{
 			select {
 			case <-done:
 				logger.Info("all workers finished")
-			case <-time.After(10 * time.Minute):
+			case <-time.After(drainTimeout):
 				logger.Warn("graceful shutdown timed out, forcing exit")
 			}
 
@@ -122,6 +127,7 @@ func init() {
 	workerCmd.Flags().StringP("pikoci-url", "u", "localhost:8080", "URL to the PikoCI server")
 	workerCmd.Flags().String("pubsub-system", mempubsub.Scheme, "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS")
 	workerCmd.Flags().Int("concurrency", 1, "Number of workers to start in one instance")
+	workerCmd.Flags().String("drain-timeout", "10m", "Maximum time to wait for in-flight jobs to finish during graceful shutdown (SIGQUIT)")
 	workerCmd.Flags().String("log-level", "info", "Sets the log level ('debug', 'info', 'warn', 'error')")
 	workerCmd.Flags().String("jwt-secret", "", "JWT secret (must match the server's --jwt-secret)")
 

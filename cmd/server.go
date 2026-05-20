@@ -205,6 +205,11 @@ var serverCmd = &cobra.Command{
 			}
 		}
 
+		drainTimeout, err := time.ParseDuration(cfg.DrainTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid drain-timeout %q: %w", cfg.DrainTimeout, err)
+		}
+
 		quit := make(chan os.Signal, 1)
 		stop := make(chan os.Signal, 1)
 		signal.Notify(quit, syscall.SIGQUIT)
@@ -218,7 +223,7 @@ var serverCmd = &cobra.Command{
 				for _, w := range workers {
 					w.Drain()
 				}
-				logger.Info("workers draining, waiting for in-flight jobs to finish...")
+				logger.Info("workers draining, waiting for in-flight jobs to finish...", "timeout", drainTimeout)
 
 				done := make(chan struct{})
 				go func() { wg.Wait(); close(done) }()
@@ -226,7 +231,7 @@ var serverCmd = &cobra.Command{
 				select {
 				case <-done:
 					logger.Info("all workers finished")
-				case <-time.After(10 * time.Minute):
+				case <-time.After(drainTimeout):
 					logger.Warn("graceful shutdown timed out, forcing exit")
 				}
 			}
@@ -265,6 +270,7 @@ func init() {
 	serverCmd.Flags().Bool("run-migrations", true, "Flag to know if migrations should be ran")
 	serverCmd.Flags().Bool("run-worker", true, "Runs a worker with PikoCI server")
 	serverCmd.Flags().Int("concurrency", 1, "Number of workers to start in one instance")
+	serverCmd.Flags().String("drain-timeout", "10m", "Maximum time to wait for in-flight jobs to finish during graceful shutdown (SIGQUIT)")
 	serverCmd.Flags().String("pubsub-system", mempubsub.Scheme, "Which PubSub system to use (mem, nats, rabbit, kafka). Env vars: NATS_SERVER_URL, RABBIT_SERVER_URL, KAFKA_BROKERS")
 	serverCmd.Flags().String("log-level", "info", "Sets the log level ('debug', 'info', 'warn', 'error')")
 	serverCmd.Flags().String("team-canonical", mainTeamCanonical, "Team Canonical to scope the action")
