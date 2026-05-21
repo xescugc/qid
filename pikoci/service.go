@@ -61,11 +61,14 @@ type Service interface {
 	GetPipelineJob(ctx context.Context, tc, pn, jn string) (*job.Job, error)
 
 	CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error)
+	CreateRetryJobBuild(ctx context.Context, tc, pn, jn, parentBuildNumber string, b build.Build) (*build.Build, error)
 	UpdateJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string, b build.Build) error
 	DeleteJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string) error
 	ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error)
 	GetJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string) (*build.Build, error)
 	CancelJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string) error
+	RetryJobBuild(ctx context.Context, tc, pn, jn, buildNumber string) error
+	FindBuildGetVersions(ctx context.Context, tc, pn, jn string, buildID uint32) (map[string]uint32, error)
 
 	GetPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error)
 	UpdatePipelineResource(ctx context.Context, tc, pn, rCan string, r resource.Resource) error

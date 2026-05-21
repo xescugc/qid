@@ -44,4 +44,6 @@ type Body struct {
 	JobName           string `json:"job_name,omitempty"`
 	ResourceCanonical string `json:"resource_canonical,omitempty"`
 	VersionID         uint32 `json:"version_id,omitempty"`
+	RetryBuildNumber  string `json:"retry_build_number,omitempty"` // parent build number for retry numbering
+	RetryBuildID      uint32 `json:"retry_build_id,omitempty"`     // build ID to copy resource versions from
 }

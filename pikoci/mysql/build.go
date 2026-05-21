@@ -90,6 +90,7 @@ func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build
 			JOIN pipelines AS p ON j.pipeline_id = p.id
 			JOIN teams AS t ON p.team_id = t.id
 			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+			  AND b.build_number NOT LIKE '%.%'
 		`, tc, pn, jn).Scan(&maxNum)
 		if err != nil {
 			return 0, "", fmt.Errorf("failed to query max build number: %w", err)
@@ -129,6 +130,88 @@ func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build
 	}
 
 	return 0, "", fmt.Errorf("failed to allocate build number after %d retries", maxRetries)
+}
+
+func (r *BuildRepository) CreateRetry(ctx context.Context, tc, pn, jn, parentBuildNumber string, b build.Build) (uint32, string, error) {
+	dbb := newDBBuild(b)
+
+	likePattern := parentBuildNumber + ".%"
+	// SUBSTR offset: skip parent number + dot
+	substrOffset := len(parentBuildNumber) + 2
+
+	const maxRetries = 5
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		var maxNum sql.NullInt64
+		err := r.querier.QueryRowContext(ctx, `
+			SELECT MAX(`+r.castAsInt(fmt.Sprintf("SUBSTR(b.build_number, %d)", substrOffset))+`)
+			FROM builds AS b
+			JOIN jobs AS j ON b.job_id = j.id
+			JOIN pipelines AS p ON j.pipeline_id = p.id
+			JOIN teams AS t ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+			  AND b.build_number LIKE ?
+		`, tc, pn, jn, likePattern).Scan(&maxNum)
+		if err != nil {
+			return 0, "", fmt.Errorf("failed to query max retry build number: %w", err)
+		}
+		nextNum := uint32(1)
+		if maxNum.Valid {
+			nextNum = uint32(maxNum.Int64) + 1
+		}
+		buildNumber := fmt.Sprintf("%s.%d", parentBuildNumber, nextNum)
+
+		res, err := r.querier.ExecContext(ctx, `
+			INSERT INTO builds(steps, job, status, error, started_at, duration, build_number, job_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?,
+				(
+					SELECT j.id
+					FROM jobs AS j
+					JOIN pipelines AS p
+						ON j.pipeline_id = p.id
+					JOIN teams AS t
+						ON p.team_id = t.id
+					WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+				))`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, buildNumber, tc, pn, jn)
+		if err != nil {
+			if isUniqueViolation(err) {
+				continue
+			}
+			return 0, "", fmt.Errorf("failed to execute query: %w", err)
+		}
+
+		id, err := lastInsertedID(res)
+		if err != nil {
+			return 0, "", fmt.Errorf("failed to get last inserted id: %w", err)
+		}
+
+		return id, buildNumber, nil
+	}
+
+	return 0, "", fmt.Errorf("failed to allocate retry build number after %d retries", maxRetries)
+}
+
+func (r *BuildRepository) FindGetVersions(ctx context.Context, buildID uint32) (map[string]uint32, error) {
+	rows, err := r.querier.QueryContext(ctx, `
+		SELECT step_name, version_id FROM build_get_versions WHERE build_id = ?
+	`, buildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query build get versions: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]uint32)
+	for rows.Next() {
+		var stepName string
+		var versionID uint32
+		if err := rows.Scan(&stepName, &versionID); err != nil {
+			return nil, fmt.Errorf("failed to scan build get version: %w", err)
+		}
+		result[stepName] = versionID
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate build get versions: %w", err)
+	}
+	return result, nil
 }
 
 func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, buildNumber string) (*build.Build, error) {

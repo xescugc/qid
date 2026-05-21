@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/xescugc/pikoci/pikoci/build"
 	"go.uber.org/mock/gomock"
+	"gocloud.dev/pubsub"
 )
 
 func TestCreateJobBuild(t *testing.T) {
@@ -78,4 +79,82 @@ func TestDeleteJobBuild(t *testing.T) {
 
 	err := s.S.DeleteJobBuild(ctx, "main", "my-pipeline", "my-job", "1")
 	require.NoError(t, err)
+}
+
+func TestRetryJobBuild_BaseBuild(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", "3").
+		Return(&build.Build{ID: 5, BuildNumber: "3", Status: build.Succeeded}, nil)
+	s.Topic.EXPECT().Send(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, msg *pubsub.Message) error {
+		assert.Contains(t, string(msg.Body), `"retry_build_number":"3"`)
+		assert.Contains(t, string(msg.Body), `"retry_build_id":5`)
+		return nil
+	})
+
+	err := s.S.RetryJobBuild(ctx, "main", "my-pipeline", "my-job", "3")
+	require.NoError(t, err)
+}
+
+func TestRetryJobBuild_RetryOfRetry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	// Retrying "3.1" should extract parent "3" and look up that build's ID
+	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", "3.1").
+		Return(&build.Build{ID: 7, BuildNumber: "3.1", Status: build.Failed}, nil)
+	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", "3").
+		Return(&build.Build{ID: 5, BuildNumber: "3", Status: build.Succeeded}, nil)
+	s.Topic.EXPECT().Send(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, msg *pubsub.Message) error {
+		assert.Contains(t, string(msg.Body), `"retry_build_number":"3"`)
+		// Should use parent build ID (5), not the retry build ID (7)
+		assert.Contains(t, string(msg.Body), `"retry_build_id":5`)
+		return nil
+	})
+
+	err := s.S.RetryJobBuild(ctx, "main", "my-pipeline", "my-job", "3.1")
+	require.NoError(t, err)
+}
+
+func TestRetryJobBuild_RunningBuildFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", "1").
+		Return(&build.Build{ID: 1, BuildNumber: "1", Status: build.Started}, nil)
+
+	err := s.S.RetryJobBuild(ctx, "main", "my-pipeline", "my-job", "1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "still running")
+}
+
+func TestCreateRetryJobBuild(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Builds.EXPECT().CreateRetry(ctx, "main", "my-pipeline", "my-job", "3", gomock.Any()).
+		Return(uint32(8), "3.1", nil)
+
+	b, err := s.S.CreateRetryJobBuild(ctx, "main", "my-pipeline", "my-job", "3", build.Build{Status: build.Started})
+	require.NoError(t, err)
+	assert.Equal(t, uint32(8), b.ID)
+	assert.Equal(t, "3.1", b.BuildNumber)
+}
+
+func TestFindBuildGetVersions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	expected := map[string]uint32{"my-repo": 42, "my-cron": 7}
+	s.Builds.EXPECT().FindGetVersions(ctx, uint32(5)).Return(expected, nil)
+
+	result, err := s.S.FindBuildGetVersions(ctx, "main", "my-pipeline", "my-job", 5)
+	require.NoError(t, err)
+	assert.Equal(t, expected, result)
 }
