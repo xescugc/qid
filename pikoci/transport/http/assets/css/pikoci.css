@@ -575,7 +575,6 @@ textarea.form-control {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius);
   margin-bottom: 4px;
-  overflow: hidden;
 }
 .piko-step-row-header {
   background: var(--bg-muted);
@@ -586,6 +585,10 @@ textarea.form-control {
   align-items: center;
   font-size: 0.84rem;
   transition: background 0.1s;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 .piko-step-row-header:hover { background: var(--border); }
 .piko-step-row-body {
@@ -600,13 +603,34 @@ textarea.form-control {
   border-left: 2px solid var(--border);
   padding: 1rem;
   margin: 0;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
-/* Copy logs button */
-.piko-copy-logs-btn {
+/* Copy logs button in sticky header */
+.piko-copy-logs-header-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+.piko-copy-logs-header-btn:hover {
+  opacity: 1;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Go to bottom button */
+.piko-goto-bottom-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  bottom: 8px;
+  right: 8px;
   z-index: 1;
   background: var(--bg-muted);
   border: 1px solid var(--border);
@@ -615,19 +639,24 @@ textarea.form-control {
   padding: 4px 8px;
   font-size: 0.78rem;
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.15s, background 0.15s;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s, background 0.15s;
 }
-.piko-copy-logs-btn:hover {
+.piko-goto-bottom-btn.visible {
+  opacity: 0.7;
+  visibility: visible;
+}
+.piko-goto-bottom-btn:hover {
   opacity: 1;
   background: var(--bg-surface);
   color: var(--text-primary);
 }
-[data-theme="dark"] .piko-copy-logs-btn {
+[data-theme="dark"] .piko-goto-bottom-btn {
   background: #0d1a38;
   border-color: #2a3a65;
 }
-[data-theme="dark"] .piko-copy-logs-btn:hover {
+[data-theme="dark"] .piko-goto-bottom-btn:hover {
   background: #1D2B53;
 }
 
