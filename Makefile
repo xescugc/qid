@@ -59,24 +59,20 @@ lint: ## Runs staticcheck linter
 	GOFLAGS=-buildvcs=false go tool staticcheck ./...
 
 .PHONY: test
-test: test-mock test-backends-lite test-backends ## Runs all tests
+test: test-mock test-integration test-backends ## Runs all tests
 
 .PHONY: test-mock
 test-mock: ## Runs unit/mock tests (no services needed)
 	go test ./... -timeout 120s
 
 .PHONY: test-integration
-test-integration: ## Runs UI integration tests via Selenium (requires geckodriver + Xvfb)
-	go test -tags integration ./integration/... -timeout 120s
-
-.PHONY: test-backends-lite
-test-backends-lite: ## Runs backend integration tests with mem+sqlite (no services needed)
+test-integration: ## Runs UI and backend integration tests (requires geckodriver + Xvfb + Firefox)
 	@PIKOCI_TEST_DB_SYSTEMS=$${PIKOCI_TEST_DB_SYSTEMS:-mem,sqlite} \
 	PIKOCI_TEST_PUBSUB_SYSTEMS=$${PIKOCI_TEST_PUBSUB_SYSTEMS:-mem} \
-	go test -tags integration ./integration/backends/... -timeout 120s
+	go test -tags integration ./integration/... -timeout 120s
 
 .PHONY: test-backends
-test-backends: ## Runs backend integration tests with all backends (requires test-services-up)
+test-backends: ## Runs integration tests with all backends (requires test-services-up)
 	@PIKOCI_TEST_DB_SYSTEMS=mem,sqlite,mysql,postgresql \
 	PIKOCI_TEST_PUBSUB_SYSTEMS=mem,nats \
 	PIKOCI_TEST_VAULT=1 \
