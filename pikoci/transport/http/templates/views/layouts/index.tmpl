@@ -406,6 +406,10 @@
             <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" style="margin-left:auto;" data-build-number="<%- build_number %>">
               <i class="bi bi-x-circle"></i> Cancel
             </button>
+          <% } else { %>
+            <button type="button" class="btn btn-sm btn-outline-warning piko-retry-build" style="margin-left:auto;">
+              <i class="bi bi-arrow-clockwise"></i> Retry
+            </button>
           <% } %>
         </div>
         <% var _steps = steps || []; %>
@@ -842,6 +846,17 @@
         model: app.Build,
         url: function() {
           return this.job.url() + "/builds"
+        },
+        comparator: function(a, b) {
+          // Sort by build_number descending: "3" > "2.1" > "2" > "1.2" > "1.1" > "1"
+          var pa = a.get("build_number").split(".");
+          var pb = b.get("build_number").split(".");
+          var mainA = parseInt(pa[0], 10);
+          var mainB = parseInt(pb[0], 10);
+          if (mainA !== mainB) return mainB - mainA;
+          var subA = pa.length > 1 ? parseInt(pa[1], 10) : -1;
+          var subB = pb.length > 1 ? parseInt(pb[1], 10) : -1;
+          return subB - subA;
         },
         initialize: function(attr, opts) {
           this.job = opts.job
@@ -1593,13 +1608,21 @@
         addBuild: function(m) {
           var tab = new app.JobBuildsTabView({model: m})
           var cont = new app.JobBuildsContentView({model: m})
-          var append = parseInt(this.collection.first().get("build_number"), 10)>parseInt(m.get("build_number"), 10)
-          if (append) {
-            $('#builds-tabs').append(tab.render().el);
-            $('#builds-content').append(cont.render().el);
+          var idx = this.collection.indexOf(m);
+          var tabsEl = this.$('#builds-tabs');
+          var contEl = this.$('#builds-content');
+          if (idx === 0) {
+            tabsEl.prepend(tab.render().el);
+            contEl.prepend(cont.render().el);
           } else {
-            $('#builds-tabs').prepend(tab.render().el);
-            $('#builds-content').prepend(cont.render().el);
+            var tabChildren = tabsEl.children();
+            if (idx < tabChildren.length) {
+              $(tabChildren[idx]).before(tab.render().el);
+              $(contEl.children()[idx]).before(cont.render().el);
+            } else {
+              tabsEl.append(tab.render().el);
+              contEl.append(cont.render().el);
+            }
           }
         },
         clickTriggerJob: function(event) {
@@ -1652,6 +1675,7 @@
         template: _.template($('#job-builds-content-view').html()),
         events: {
           'click .piko-cancel-build': 'cancelBuild',
+          'click .piko-retry-build': 'retryBuild',
         },
         initialize: function() {
           this.listenTo(this.model, "change", this.render)
@@ -1660,6 +1684,12 @@
           e.preventDefault();
           var bid = this.model.get("build_number");
           var url = this.model.collection.url() + "/" + bid + "/cancel.json";
+          $.ajax({ url: url, type: "POST", headers: { "Authorization": "Bearer " + app.session.get("jwt") } });
+        },
+        retryBuild: function(e) {
+          e.preventDefault();
+          var bid = this.model.get("build_number");
+          var url = this.model.collection.url() + "/" + bid + "/retry.json";
           $.ajax({ url: url, type: "POST", headers: { "Authorization": "Bearer " + app.session.get("jwt") } });
         },
         render: function () {

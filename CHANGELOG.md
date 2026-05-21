@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add job build retry: re-run a completed build (succeeded, failed, or cancelled) via a "Retry" button in the UI or `POST .../builds/{build_number}/retry` API. Retry builds use `PARENT.N` numbering (e.g. "3.1", "3.2") and re-execute the same job with the same resource versions as the original build. Retrying a retry uses the same parent: retrying "3.1" produces "3.2", not "3.1.1". Build tabs are sorted by build number ([#149](https://github.com/xescugc/pikoci/issues/149))
 - Add sequential build numbers per job: builds now display as `#1`, `#2`, `#3` per job instead of global DB IDs. Build numbers are stored as strings to support future retry notation (`123.1`, `123.2`). URLs, API endpoints, and the `BUILD_NUMBER` env var (renamed from `BUILD_ID`) all use the new sequential number ([#15](https://github.com/xescugc/pikoci/issues/15))
 - Add `pikoci worker-token` subcommand and `--worker-token` flag on the worker so standalone workers no longer need the raw JWT secret. The server logs a pre-generated worker token on startup when `--run-worker=false`. The `--jwt-secret` flag has been removed from the worker command ([#270](https://github.com/xescugc/pikoci/issues/270))
 - Add job cancellation via DB polling: cancel running builds from the UI or API with `POST .../builds/{build_number}/cancel`. The worker polls every 5s and cancels the Go context, killing child processes. on_failure and ensure hooks still run after cancellation ([#271](https://github.com/xescugc/pikoci/issues/271))

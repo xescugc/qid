@@ -183,6 +183,91 @@ func insertBuildGetVersion(s pikoci.Service) http.HandlerFunc {
 	}
 }
 
+type RetryJobBuildResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r RetryJobBuildResponse) Error() string { return r.Err }
+
+func retryJobBuild(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ctx = r.Context()
+		vars := mux.Vars(r)
+		tc := vars["team_canonical"]
+		pn := vars["pipeline_name"]
+		jn := vars["job_name"]
+		bn := vars["build_number"]
+		err := s.RetryJobBuild(ctx, tc, pn, jn, bn)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(RetryJobBuildResponse{Err: errs}, w)
+	}
+}
+
+type CreateRetryJobBuildRequest struct {
+	TeamCanonical    string      `json:"team_canonical"`
+	PipelineName     string      `json:"pipeline_name"`
+	JobName          string      `json:"job_name"`
+	ParentBuildNumber string     `json:"parent_build_number"`
+	Build            build.Build `json:"build"`
+}
+type CreateRetryJobBuildResponse struct {
+	Build *build.Build `json:"build,omitempty"`
+	Err   string       `json:"error,omitempty"`
+}
+
+func (r CreateRetryJobBuildResponse) Error() string { return r.Err }
+
+func createRetryJobBuild(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var (
+			req CreateRetryJobBuildRequest
+			ctx = r.Context()
+		)
+		vars := mux.Vars(r)
+		req.TeamCanonical = vars["team_canonical"]
+		req.PipelineName = vars["pipeline_name"]
+		req.JobName = vars["job_name"]
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			encodeResponse(CreateRetryJobBuildResponse{Err: err.Error()}, w)
+			return
+		}
+		b, err := s.CreateRetryJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.ParentBuildNumber, req.Build)
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(CreateRetryJobBuildResponse{Build: b, Err: errs}, w)
+	}
+}
+
+type FindBuildGetVersionsResponse struct {
+	Versions map[string]uint32 `json:"data,omitempty"`
+	Err      string            `json:"error,omitempty"`
+}
+
+func (r FindBuildGetVersionsResponse) Error() string { return r.Err }
+
+func findBuildGetVersions(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ctx = r.Context()
+		vars := mux.Vars(r)
+		tc := vars["team_canonical"]
+		pn := vars["pipeline_name"]
+		jn := vars["job_name"]
+		bid, _ := strconv.Atoi(vars["build_id"])
+		versions, err := s.FindBuildGetVersions(ctx, tc, pn, jn, uint32(bid))
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(FindBuildGetVersionsResponse{Versions: versions, Err: errs}, w)
+	}
+}
+
 type ListJobBuildsRequest struct {
 	TeamCanonical string `json:"team_canonical"`
 	PipelineName  string `json:"pipeline_name"`

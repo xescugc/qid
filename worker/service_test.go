@@ -2721,5 +2721,132 @@ func TestProcessJob_Cancellation(t *testing.T) {
 	assert.Equal(t, build.Cancelled, capturedBuild.Status)
 }
 
+func TestProcessJob_Retry_UsesCreateRetryAndResolvedVersions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical:    "main",
+		PipelineName:     "test-pipeline",
+		JobName:          "test-job",
+		RetryBuildNumber: "3",
+		RetryBuildID:     5,
+	}
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "test-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron", Trigger: true},
+					},
+					{
+						Type: job.StepTypeTask,
+						Task: &job.TaskStep{
+							Name: "echo",
+							Run:  utils.RunnerCommand{Runner: "exec", Args: []string{"hello"}, Params: map[string]string{"path": "echo"}},
+						},
+					},
+				},
+			},
+		},
+		Resources: []resource.Resource{
+			{ID: 1, Name: "my-cron", Type: "cron", Canonical: "cron.my-cron"},
+		},
+		ResourceTypes: []restype.ResourceType{
+			{
+				ID: 1, Name: "cron",
+				Pull: &utils.RunnerCommand{
+					Runner: "exec",
+					Args:   []string{"pulling"},
+					Params: map[string]string{"path": "echo"},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	// Should use CreateRetryJobBuild instead of CreateJobBuild
+	svc.EXPECT().CreateRetryJobBuild(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName, "3", gomock.Any()).
+		Return(&build.Build{ID: 20, BuildNumber: "3.1"}, nil)
+	svc.EXPECT().GetPipelineJob(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+
+	// Should look up versions from the original build
+	svc.EXPECT().FindBuildGetVersions(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName, uint32(5)).
+		Return(map[string]uint32{"my-cron": 42}, nil)
+
+	// ListResourceVersions should NOT be called (retries skip version availability check)
+	// The get step still runs with the resolved version
+
+	svc.EXPECT().ListResourceVersions(gomock.Any(), m.TeamCanonical, m.PipelineName, "cron.my-cron").
+		Return([]*resource.Version{
+			{ID: 42, Version: map[string]interface{}{"date": "now"}},
+		}, nil).AnyTimes()
+
+	svc.EXPECT().UpdateJobBuild(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName, "3.1", gomock.Any()).
+		Return(nil).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+}
+
+func TestProcessJob_Retry_FailsOnVersionLookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	w, svc, _ := newTestWorker(ctrl)
+
+	ctx := context.Background()
+	m := queue.Body{
+		TeamCanonical:    "main",
+		PipelineName:     "test-pipeline",
+		JobName:          "test-job",
+		RetryBuildNumber: "3",
+		RetryBuildID:     5,
+	}
+	pp := &pipeline.Pipeline{
+		ID:   1,
+		Name: "test-pipeline",
+		Jobs: []job.Job{
+			{
+				ID:   1,
+				Name: "test-job",
+				Plan: []job.PlanStep{
+					{
+						Type: job.StepTypeGet,
+						Get:  &job.GetStep{Type: "cron", Name: "my-cron"},
+					},
+				},
+			},
+		},
+		Runners: []runner.Runner{
+			{Name: "exec", Run: utils.RunCommand{Path: "$path", Args: []string{"$args"}}},
+		},
+	}
+	cwd := t.TempDir()
+
+	svc.EXPECT().CreateRetryJobBuild(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName, "3", gomock.Any()).
+		Return(&build.Build{ID: 20, BuildNumber: "3.1"}, nil)
+	svc.EXPECT().GetPipelineJob(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName).
+		Return(&pp.Jobs[0], nil)
+	svc.EXPECT().FindBuildGetVersions(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName, uint32(5)).
+		Return(nil, fmt.Errorf("db error"))
+
+	// Should fail the build
+	svc.EXPECT().UpdateJobBuild(gomock.Any(), m.TeamCanonical, m.PipelineName, m.JobName, "3.1", gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _, _ string, b build.Build) error {
+			assert.Equal(t, build.Failed, b.Status)
+			return nil
+		}).AnyTimes()
+
+	w.processJob(ctx, m, cwd, pp)
+}
+
 // Silence the unused import warnings
 var _ = time.Now

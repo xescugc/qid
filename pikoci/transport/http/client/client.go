@@ -512,6 +512,54 @@ func (cl *Client) CancelJobBuild(ctx context.Context, tc, pn, jn string, buildNu
 	return nil
 }
 
+func (cl *Client) RetryJobBuild(ctx context.Context, tc, pn, jn, buildNumber string) error {
+	var resp thttp.RetryJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%s/retry", cl.url, tc, pn, jn, buildNumber), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
+func (cl *Client) CreateRetryJobBuild(ctx context.Context, tc, pn, jn, parentBuildNumber string, b build.Build) (*build.Build, error) {
+	var resp thttp.CreateRetryJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/retry-builds", cl.url, tc, pn, jn), thttp.CreateRetryJobBuildRequest{
+		ParentBuildNumber: parentBuildNumber,
+		Build:             b,
+	}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Build, nil
+}
+
+func (cl *Client) FindBuildGetVersions(ctx context.Context, tc, pn, jn string, buildID uint32) (map[string]uint32, error) {
+	var resp thttp.FindBuildGetVersionsResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds-get-versions/%d", cl.url, tc, pn, jn, buildID), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Versions, nil
+}
+
 func (cl *Client) InsertBuildGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error {
 	var resp thttp.InsertBuildGetVersionResponse
 

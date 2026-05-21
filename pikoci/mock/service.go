@@ -120,6 +120,21 @@ func (mr *ServiceMockRecorder) CreateResourceVersion(ctx, tc, pn, rCan, v any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResourceVersion", reflect.TypeOf((*Service)(nil).CreateResourceVersion), ctx, tc, pn, rCan, v)
 }
 
+// CreateRetryJobBuild mocks base method.
+func (m *Service) CreateRetryJobBuild(ctx context.Context, tc, pn, jn, parentBuildNumber string, b build.Build) (*build.Build, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRetryJobBuild", ctx, tc, pn, jn, parentBuildNumber, b)
+	ret0, _ := ret[0].(*build.Build)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateRetryJobBuild indicates an expected call of CreateRetryJobBuild.
+func (mr *ServiceMockRecorder) CreateRetryJobBuild(ctx, tc, pn, jn, parentBuildNumber, b any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRetryJobBuild", reflect.TypeOf((*Service)(nil).CreateRetryJobBuild), ctx, tc, pn, jn, parentBuildNumber, b)
+}
+
 // CreateTeam mocks base method.
 func (m *Service) CreateTeam(ctx context.Context, un string, t team.Team) (*team.WithMembers, error) {
 	m.ctrl.T.Helper()
@@ -219,6 +234,21 @@ func (m *Service) DeleteTeamMember(ctx context.Context, tc, mc string) error {
 func (mr *ServiceMockRecorder) DeleteTeamMember(ctx, tc, mc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTeamMember", reflect.TypeOf((*Service)(nil).DeleteTeamMember), ctx, tc, mc)
+}
+
+// FindBuildGetVersions mocks base method.
+func (m *Service) FindBuildGetVersions(ctx context.Context, tc, pn, jn string, buildID uint32) (map[string]uint32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindBuildGetVersions", ctx, tc, pn, jn, buildID)
+	ret0, _ := ret[0].(map[string]uint32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindBuildGetVersions indicates an expected call of FindBuildGetVersions.
+func (mr *ServiceMockRecorder) FindBuildGetVersions(ctx, tc, pn, jn, buildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBuildGetVersions", reflect.TypeOf((*Service)(nil).FindBuildGetVersions), ctx, tc, pn, jn, buildID)
 }
 
 // GetJobBuild mocks base method.
@@ -534,6 +564,20 @@ func (m *Service) RegenerateWebhookToken(ctx context.Context, tc, pn, rCan strin
 func (mr *ServiceMockRecorder) RegenerateWebhookToken(ctx, tc, pn, rCan any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegenerateWebhookToken", reflect.TypeOf((*Service)(nil).RegenerateWebhookToken), ctx, tc, pn, rCan)
+}
+
+// RetryJobBuild mocks base method.
+func (m *Service) RetryJobBuild(ctx context.Context, tc, pn, jn, buildNumber string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetryJobBuild", ctx, tc, pn, jn, buildNumber)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RetryJobBuild indicates an expected call of RetryJobBuild.
+func (mr *ServiceMockRecorder) RetryJobBuild(ctx, tc, pn, jn, buildNumber any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryJobBuild", reflect.TypeOf((*Service)(nil).RetryJobBuild), ctx, tc, pn, jn, buildNumber)
 }
 
 // SetPipelinePublic mocks base method.

@@ -58,6 +58,22 @@ func (mr *BuildRepositoryMockRecorder) Create(ctx, tc, pn, jn, b any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*BuildRepository)(nil).Create), ctx, tc, pn, jn, b)
 }
 
+// CreateRetry mocks base method.
+func (m *BuildRepository) CreateRetry(ctx context.Context, tc, pn, jn, parentBuildNumber string, b build.Build) (uint32, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRetry", ctx, tc, pn, jn, parentBuildNumber, b)
+	ret0, _ := ret[0].(uint32)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// CreateRetry indicates an expected call of CreateRetry.
+func (mr *BuildRepositoryMockRecorder) CreateRetry(ctx, tc, pn, jn, parentBuildNumber, b any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRetry", reflect.TypeOf((*BuildRepository)(nil).CreateRetry), ctx, tc, pn, jn, parentBuildNumber, b)
+}
+
 // Delete mocks base method.
 func (m *BuildRepository) Delete(ctx context.Context, tc, pn, jn, buildNumber string) error {
 	m.ctrl.T.Helper()
@@ -100,6 +116,21 @@ func (m *BuildRepository) Find(ctx context.Context, tc, pn, jn, buildNumber stri
 func (mr *BuildRepositoryMockRecorder) Find(ctx, tc, pn, jn, buildNumber any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*BuildRepository)(nil).Find), ctx, tc, pn, jn, buildNumber)
+}
+
+// FindGetVersions mocks base method.
+func (m *BuildRepository) FindGetVersions(ctx context.Context, buildID uint32) (map[string]uint32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindGetVersions", ctx, buildID)
+	ret0, _ := ret[0].(map[string]uint32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindGetVersions indicates an expected call of FindGetVersions.
+func (mr *BuildRepositoryMockRecorder) FindGetVersions(ctx, buildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindGetVersions", reflect.TypeOf((*BuildRepository)(nil).FindGetVersions), ctx, buildID)
 }
 
 // FindReadyDownstreamVersion mocks base method.

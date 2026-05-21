@@ -34,12 +34,15 @@ const (
 	GetPipelineJob
 
 	CreateJobBuild
+	CreateRetryJobBuild
 	UpdateJobBuild
 	DeleteJobBuild
 	ListJobBuilds
 	InsertBuildGetVersion
+	FindBuildGetVersions
 	GetJobBuild
 	CancelJobBuild
+	RetryJobBuild
 
 	GetPipelineResource
 	UpdatePipelineResource
