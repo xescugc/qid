@@ -10,6 +10,7 @@ const (
 	Succeeded Status = iota
 	Failed
 	Started
+	Cancelled
 )
 
 // Build represents a run of a Job

@@ -64,6 +64,8 @@ type Service interface {
 	UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error
 	DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error
 	ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build.Build, error)
+	GetJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error)
+	CancelJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error
 
 	GetPipelineResource(ctx context.Context, tc, pn, rCan string) (*resource.Resource, error)
 	UpdatePipelineResource(ctx context.Context, tc, pn, rCan string, r resource.Resource) error

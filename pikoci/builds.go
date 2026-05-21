@@ -48,6 +48,43 @@ func (q *PikoCI) ListJobBuilds(ctx context.Context, tc, pn, jn string) ([]*build
 	return builds, nil
 }
 
+func (q *PikoCI) GetJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
+	if !utils.ValidateCanonical(tc) {
+		return nil, fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
+		return nil, fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return nil, fmt.Errorf("invalid Job Name format %q", jn)
+	}
+
+	b, err := q.Builds.Find(ctx, tc, pn, jn, bID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Find Build: %w", err)
+	}
+	return b, nil
+}
+
+func (q *PikoCI) CancelJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+	if !utils.ValidateCanonical(tc) {
+		return fmt.Errorf("invalid Team Canonical format %q", tc)
+	} else if !utils.ValidateCanonical(pn) {
+		return fmt.Errorf("invalid Pipeline Name format %q", pn)
+	} else if !utils.ValidateCanonical(jn) {
+		return fmt.Errorf("invalid Job Name format %q", jn)
+	}
+
+	b, err := q.Builds.Find(ctx, tc, pn, jn, bID)
+	if err != nil {
+		return fmt.Errorf("failed to Find Build: %w", err)
+	}
+	if b.Status != build.Started {
+		return fmt.Errorf("build %d is not running (status: %s)", bID, b.Status)
+	}
+	b.Status = build.Cancelled
+	b.Duration = time.Since(b.StartedAt)
+	return q.Builds.Update(ctx, tc, pn, jn, bID, *b)
+}
+
 func (q *PikoCI) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
 	if !utils.ValidateCanonical(tc) {
 		return fmt.Errorf("invalid Team Canonical format %q", tc)
@@ -57,12 +94,17 @@ func (q *PikoCI) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint
 		return fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
+	// Prevent worker from overwriting a cancelled build back to a non-terminal status
+	existing, err := q.Builds.Find(ctx, tc, pn, jn, bID)
+	if err == nil && existing.Status == build.Cancelled {
+		b.Status = build.Cancelled
+	}
+
 	if b.Status != build.Started && b.Duration == 0 {
 		b.Duration = time.Since(b.StartedAt)
 	}
 
-	err := q.Builds.Update(ctx, tc, pn, jn, bID, b)
-	if err != nil {
+	if err = q.Builds.Update(ctx, tc, pn, jn, bID, b); err != nil {
 		return fmt.Errorf("failed to Update Build: %w", err)
 	}
 

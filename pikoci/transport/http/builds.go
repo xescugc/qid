@@ -96,6 +96,53 @@ func deleteJobBuild(s pikoci.Service) http.HandlerFunc {
 	}
 }
 
+type GetJobBuildResponse struct {
+	Build *build.Build `json:"data,omitempty"`
+	Err   string       `json:"error,omitempty"`
+}
+
+func (r GetJobBuildResponse) Error() string { return r.Err }
+
+func getJobBuild(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ctx = r.Context()
+		vars := mux.Vars(r)
+		bid, _ := strconv.Atoi(vars["build_id"])
+		tc := vars["team_canonical"]
+		pn := vars["pipeline_name"]
+		jn := vars["job_name"]
+		b, err := s.GetJobBuild(ctx, tc, pn, jn, uint32(bid))
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(GetJobBuildResponse{Build: b, Err: errs}, w)
+	}
+}
+
+type CancelJobBuildResponse struct {
+	Err string `json:"error,omitempty"`
+}
+
+func (r CancelJobBuildResponse) Error() string { return r.Err }
+
+func cancelJobBuild(s pikoci.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ctx = r.Context()
+		vars := mux.Vars(r)
+		bid, _ := strconv.Atoi(vars["build_id"])
+		tc := vars["team_canonical"]
+		pn := vars["pipeline_name"]
+		jn := vars["job_name"]
+		err := s.CancelJobBuild(ctx, tc, pn, jn, uint32(bid))
+		var errs string
+		if err != nil {
+			errs = err.Error()
+		}
+		encodeResponse(CancelJobBuildResponse{Err: errs}, w)
+	}
+}
+
 type InsertBuildGetVersionRequest struct {
 	TeamCanonical string `json:"team_canonical"`
 	PipelineName  string `json:"pipeline_name"`

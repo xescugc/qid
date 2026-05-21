@@ -366,11 +366,13 @@ var (
 		build.Started:   `"#FFA300"`,
 		build.Failed:    `"#FF004D"`,
 		build.Succeeded: `"#00A83A"`,
+		build.Cancelled: `"#83769C"`,
 	}
 	jobBorderColors = map[build.Status]string{
 		build.Started:   `"#CC8200"`,
 		build.Failed:    `"#CC003E"`,
 		build.Succeeded: `"#008030"`,
+		build.Cancelled: `"#5F574F"`,
 	}
 	colorResource       = `"#83769C"`
 	colorResourceBorder = `"#5F574F"`

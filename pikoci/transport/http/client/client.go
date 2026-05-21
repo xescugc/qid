@@ -482,6 +482,36 @@ func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uin
 	return nil
 }
 
+func (cl *Client) GetJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
+	var resp thttp.GetJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d", cl.url, tc, pn, jn, bID), nil, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return nil, fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return resp.Build, nil
+}
+
+func (cl *Client) CancelJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+	var resp thttp.CancelJobBuildResponse
+
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d/cancel", cl.url, tc, pn, jn, bID), nil, &resp)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.Err != "" {
+		return fmt.Errorf("error from request: %s", resp.Err)
+	}
+
+	return nil
+}
+
 func (cl *Client) InsertBuildGetVersion(ctx context.Context, tc, pn, jn string, buildID uint32, stepName string, versionID uint32) error {
 	var resp thttp.InsertBuildGetVersionResponse
 

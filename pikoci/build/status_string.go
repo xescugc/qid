@@ -8,11 +8,11 @@ import (
 	"strings"
 )
 
-const _StatusName = "succeededfailedstarted"
+const _StatusName = "succeededfailedstartedcancelled"
 
-var _StatusIndex = [...]uint8{0, 9, 15, 22}
+var _StatusIndex = [...]uint8{0, 9, 15, 22, 31}
 
-const _StatusLowerName = "succeededfailedstarted"
+const _StatusLowerName = "succeededfailedstartedcancelled"
 
 func (i Status) String() string {
 	if i < 0 || i >= Status(len(_StatusIndex)-1) {
@@ -28,9 +28,10 @@ func _StatusNoOp() {
 	_ = x[Succeeded-(0)]
 	_ = x[Failed-(1)]
 	_ = x[Started-(2)]
+	_ = x[Cancelled-(3)]
 }
 
-var _StatusValues = []Status{Succeeded, Failed, Started}
+var _StatusValues = []Status{Succeeded, Failed, Started, Cancelled}
 
 var _StatusNameToValueMap = map[string]Status{
 	_StatusName[0:9]:        Succeeded,
@@ -39,12 +40,15 @@ var _StatusNameToValueMap = map[string]Status{
 	_StatusLowerName[9:15]:  Failed,
 	_StatusName[15:22]:      Started,
 	_StatusLowerName[15:22]: Started,
+	_StatusName[22:31]:      Cancelled,
+	_StatusLowerName[22:31]: Cancelled,
 }
 
 var _StatusNames = []string{
 	_StatusName[0:9],
 	_StatusName[9:15],
 	_StatusName[15:22],
+	_StatusName[22:31],
 }
 
 // StatusString retrieves an enum value from the enum constants string name.
