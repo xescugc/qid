@@ -18,7 +18,7 @@ pikoci server --jwt-secret my-secret --pubsub-system mem --run-worker
 export NATS_SERVER_URL="nats://localhost:4222"
 
 pikoci server --jwt-secret my-secret --pubsub-system nats --run-worker=false
-pikoci worker --pikoci-url http://localhost:8080 --pubsub-system nats --jwt-secret my-secret
+pikoci worker --pikoci-url http://localhost:8080 --pubsub-system nats --worker-token <token>
 ```
 
 ## rabbit
@@ -29,7 +29,7 @@ pikoci worker --pikoci-url http://localhost:8080 --pubsub-system nats --jwt-secr
 export RABBIT_SERVER_URL="amqp://guest:guest@localhost:5672/"
 
 pikoci server --jwt-secret my-secret --pubsub-system rabbit --run-worker=false
-pikoci worker --pikoci-url http://localhost:8080 --pubsub-system rabbit --jwt-secret my-secret
+pikoci worker --pikoci-url http://localhost:8080 --pubsub-system rabbit --worker-token <token>
 ```
 
 ## kafka
@@ -40,7 +40,7 @@ pikoci worker --pikoci-url http://localhost:8080 --pubsub-system rabbit --jwt-se
 export KAFKA_BROKERS="localhost:9092"
 
 pikoci server --jwt-secret my-secret --pubsub-system kafka --run-worker=false
-pikoci worker --pikoci-url http://localhost:8080 --pubsub-system kafka --jwt-secret my-secret
+pikoci worker --pikoci-url http://localhost:8080 --pubsub-system kafka --worker-token <token>
 ```
 
 ## Planned

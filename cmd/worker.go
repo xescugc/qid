@@ -51,11 +51,10 @@ var workerCmd = &cobra.Command{
 
 		logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseSlogLevel(cfg.LogLevel)}))
 
-		if cfg.JWTSecret == "" {
-			return fmt.Errorf("required flag \"jwt-secret\" not set")
+		if cfg.WorkerToken == "" {
+			return fmt.Errorf("required flag \"worker-token\" not set")
 		}
-
-		workerToken := generateWorkerJWT([]byte(cfg.JWTSecret))
+		workerToken := cfg.WorkerToken
 		c, err := client.New(cfg.PikoCIURL, workerToken)
 		if err != nil {
 			return fmt.Errorf("failed to initialize client with url %q: %w", cfg.PikoCIURL, err)
@@ -129,7 +128,7 @@ func init() {
 	workerCmd.Flags().Int("concurrency", 1, "Number of workers to start in one instance")
 	workerCmd.Flags().String("drain-timeout", "10m", "Maximum time to wait for in-flight jobs to finish during graceful shutdown (SIGQUIT)")
 	workerCmd.Flags().String("log-level", "info", "Sets the log level ('debug', 'info', 'warn', 'error')")
-	workerCmd.Flags().String("jwt-secret", "", "JWT secret (must match the server's --jwt-secret)")
+	workerCmd.Flags().String("worker-token", "", "Worker authentication token (from 'pikoci worker-token' or server startup logs)")
 
 	workerViper.BindPFlags(workerCmd.Flags())
 

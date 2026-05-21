@@ -151,6 +151,7 @@ Caddy handles TLS certificates automatically via Let's Encrypt.
 - The `pikoci.env.example` file is a template — never commit actual secrets
 - Generate JWT secrets with: `openssl rand -hex 32`
 - Generate password hashes with: `pikoci user-password -u <user> -p <password>`
+- For standalone workers, generate a worker token with `pikoci worker-token --jwt-secret <secret>` instead of distributing the raw JWT secret. See [Running Workers Separately](Workers)
 
 ## Monitoring
 

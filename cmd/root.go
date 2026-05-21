@@ -21,5 +21,6 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(clientCmd)
 	rootCmd.AddCommand(workerCmd)
+	rootCmd.AddCommand(workerTokenCmd)
 	rootCmd.AddCommand(userPasswordCmd)
 }

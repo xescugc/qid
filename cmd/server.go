@@ -168,6 +168,11 @@ var serverCmd = &cobra.Command{
 			errs <- svr.ListenAndServe()
 		}()
 
+		if !cfg.RunWorker {
+			wt := generateWorkerJWT(jwtSecret)
+			logger.Info("Worker token for standalone workers", "token", wt)
+		}
+
 		var workers []*worker.Worker
 		var wg *sync.WaitGroup
 		if cfg.RunWorker {
