@@ -46,7 +46,7 @@ job "test-mock" {
   }
 }
 
-job "test-integration" {
+job "test-backends-lite" {
   get "git" "pikoci_pr" {
     trigger = true
   }
@@ -54,7 +54,7 @@ job "test-integration" {
   task "make" {
     run "docker" {
       image = "golang:1.25.1"
-      cmd   = "cd ${var.git_name} && make test-integration"
+      cmd   = "cd ${var.git_name} && make test-backends-lite"
       args  = [
         "-v", "pikoci-go-mod:/go/pkg/mod",
         "-v", "pikoci-build:/root/.cache/go-build",
@@ -72,7 +72,7 @@ job "test-integration" {
 job "test-backends" {
   get "git" "pikoci_pr" {
     trigger = true
-    passed  = ["lint", "test-mock", "test-integration"]
+    passed  = ["lint", "test-mock", "test-backends-lite"]
   }
 
   put "github-check" "ci" { status = "in_progress" }
