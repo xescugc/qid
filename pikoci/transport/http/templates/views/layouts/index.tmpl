@@ -887,7 +887,7 @@
         },
       });
       app.ResourceVersions = Backbone.Collection.extend({
-        model: app.Build,
+        model: app.ResourceVersion,
         url: function() {
           return this.resource.url() + "/versions"
         },
@@ -1733,11 +1733,10 @@
         },
         initialize: function() {
           this.listenTo(this.collection, "add", this.addVersion)
+          this.listenTo(this.collection, "reset", this.resetVersions)
           this.listenTo(this.model, "change", this.render)
 
-          // TODO: most likely add the {reset: true} as the
-          // order is really important
-          this.collection.fetch()
+          this.collection.fetch({reset: true})
 
           var that = this
           this.intervalID = window.setInterval(function() {
@@ -1765,10 +1764,7 @@
             this.$('#webhook-url').text(url);
             this.$('#webhook-panel').show();
           }
-          var that = this;
-          this.collection.each(function(m) {
-            that.addVersion(m)
-          })
+          this.resetVersions();
           // Restore user-expanded version rows
           if (Object.keys(expandedVersions).length > 0) {
             this.$el.find('.piko-version-row-body').each(function(i) {
@@ -1778,6 +1774,12 @@
             });
           }
           return this; // enable chained calls
+        },
+        resetVersions: function() {
+          this.$('#resource-versions').empty();
+          this.collection.each(function(m) {
+            this.addVersion(m);
+          }, this);
         },
         addVersion: function(m) {
           var isFirst = $('#resource-versions').children().length === 0
