@@ -147,6 +147,14 @@ job "build-latest" {
       ]
     }
   }
+  ensure {
+    task "docker-prune" {
+      run "exec" {
+        path = "/bin/sh"
+        args = ["-ec", "docker buildx prune -f && docker image prune -f"]
+      }
+    }
+  }
 }
 
 job "deploy" {
@@ -201,6 +209,14 @@ job "build-release" {
         docker buildx build --platform linux/amd64,linux/arm64 -t xescugc/pikoci:$TAG --push .
         EOT
       ]
+    }
+  }
+  ensure {
+    task "docker-prune" {
+      run "exec" {
+        path = "/bin/sh"
+        args = ["-ec", "docker buildx prune -f && docker image prune -f"]
+      }
     }
   }
 }
