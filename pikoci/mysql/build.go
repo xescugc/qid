@@ -436,6 +436,23 @@ func (r *BuildRepository) LastBuildAtByPipeline(ctx context.Context, tc string) 
 	return result, nil
 }
 
+func (r *BuildRepository) CountRunning(ctx context.Context, tc, pn, jn string) (int, error) {
+	var count int
+	err := r.querier.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM builds AS b
+		JOIN jobs AS j ON b.job_id = j.id
+		JOIN pipelines AS p ON j.pipeline_id = p.id
+		JOIN teams AS t ON p.team_id = t.id
+		WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+		  AND b.status = 'started'
+	`, tc, pn, jn).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count running builds: %w", err)
+	}
+	return count, nil
+}
+
 func scanBuild(s sqlr.Scanner) (*build.Build, error) {
 	var b dbBuild
 

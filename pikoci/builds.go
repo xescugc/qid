@@ -3,6 +3,7 @@ package pikoci
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,9 +11,12 @@ import (
 
 	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/queue"
+	"github.com/xescugc/pikoci/pikoci/unitwork"
 	"github.com/xescugc/pikoci/pikoci/utils"
 	"gocloud.dev/pubsub"
 )
+
+var ErrConcurrencyLimit = errors.New("concurrency limit reached")
 
 func (q *PikoCI) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.Build) (*build.Build, error) {
 	if !utils.ValidateCanonical(tc) {
@@ -23,13 +27,23 @@ func (q *PikoCI) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build.
 		return nil, fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
-	id, buildNumber, err := q.Builds.Create(ctx, tc, pn, jn, b)
-	if err != nil {
-		return nil, fmt.Errorf("failed to Create Build: %w", err)
-	}
+	err := q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
+		if err := checkConcurrencyLimit(ctx, uow, tc, pn, jn); err != nil {
+			return err
+		}
 
-	b.ID = id
-	b.BuildNumber = buildNumber
+		id, buildNumber, err := uow.Builds().Create(ctx, tc, pn, jn, b)
+		if err != nil {
+			return fmt.Errorf("failed to Create Build: %w", err)
+		}
+
+		b.ID = id
+		b.BuildNumber = buildNumber
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &b, nil
 }
@@ -204,13 +218,23 @@ func (q *PikoCI) CreateRetryJobBuild(ctx context.Context, tc, pn, jn, parentBuil
 		return nil, fmt.Errorf("invalid Job Name format %q", jn)
 	}
 
-	id, buildNumber, err := q.Builds.CreateRetry(ctx, tc, pn, jn, parentBuildNumber, b)
-	if err != nil {
-		return nil, fmt.Errorf("failed to Create Retry Build: %w", err)
-	}
+	err := q.StartUoW(ctx, func(uow unitwork.UnitOfWork) error {
+		if err := checkConcurrencyLimit(ctx, uow, tc, pn, jn); err != nil {
+			return err
+		}
 
-	b.ID = id
-	b.BuildNumber = buildNumber
+		id, buildNumber, err := uow.Builds().CreateRetry(ctx, tc, pn, jn, parentBuildNumber, b)
+		if err != nil {
+			return fmt.Errorf("failed to Create Retry Build: %w", err)
+		}
+
+		b.ID = id
+		b.BuildNumber = buildNumber
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &b, nil
 }
@@ -225,4 +249,21 @@ func (q *PikoCI) FindBuildGetVersions(ctx context.Context, tc, pn, jn string, bu
 	}
 
 	return q.Builds.FindGetVersions(ctx, buildID)
+}
+
+func checkConcurrencyLimit(ctx context.Context, uow unitwork.UnitOfWork, tc, pn, jn string) error {
+	j, err := uow.Jobs().Find(ctx, tc, pn, jn)
+	if err != nil {
+		return fmt.Errorf("failed to find job: %w", err)
+	}
+	if j.Concurrency > 0 {
+		running, err := uow.Builds().CountRunning(ctx, tc, pn, jn)
+		if err != nil {
+			return fmt.Errorf("failed to count running builds: %w", err)
+		}
+		if running >= j.Concurrency {
+			return ErrConcurrencyLimit
+		}
+	}
+	return nil
 }

@@ -21,12 +21,13 @@ func NewJobRepository(db sqlr.Querier) *JobRepository {
 }
 
 type dbJob struct {
-	ID        sql.NullInt64
-	Name      sql.NullString
-	Plan      sql.NullString
-	OnSuccess sql.NullString
-	OnFailure sql.NullString
-	Ensure    sql.NullString
+	ID          sql.NullInt64
+	Name        sql.NullString
+	Plan        sql.NullString
+	OnSuccess   sql.NullString
+	OnFailure   sql.NullString
+	Ensure      sql.NullString
+	Concurrency sql.NullInt64
 }
 
 func newDBJob(p job.Job) dbJob {
@@ -35,18 +36,20 @@ func newDBJob(p job.Job) dbJob {
 	f, _ := json.Marshal(p.OnFailure)
 	e, _ := json.Marshal(p.Ensure)
 	return dbJob{
-		Name:      toNullString(p.Name),
-		Plan:      toNullString(string(pl)),
-		OnSuccess: toNullString(string(s)),
-		OnFailure: toNullString(string(f)),
-		Ensure:    toNullString(string(e)),
+		Name:        toNullString(p.Name),
+		Plan:        toNullString(string(pl)),
+		OnSuccess:   toNullString(string(s)),
+		OnFailure:   toNullString(string(f)),
+		Ensure:      toNullString(string(e)),
+		Concurrency: sql.NullInt64{Int64: int64(p.Concurrency), Valid: true},
 	}
 }
 
 func (dbp *dbJob) toDomainEntity() *job.Job {
 	j := &job.Job{
-		ID:   uint32(dbp.ID.Int64),
-		Name: dbp.Name.String,
+		ID:          uint32(dbp.ID.Int64),
+		Name:        dbp.Name.String,
+		Concurrency: int(dbp.Concurrency.Int64),
 	}
 
 	_ = json.Unmarshal([]byte(dbp.Plan.String), &j.Plan)
@@ -60,8 +63,8 @@ func (dbp *dbJob) toDomainEntity() *job.Job {
 func (r *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (uint32, error) {
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO jobs(name, plan, on_success, on_failure, ensure, pipeline_id)
-		VALUES (?, ?, ?, ?, ?,
+		INSERT INTO jobs(name, plan, on_success, on_failure, ensure, concurrency, pipeline_id)
+		VALUES (?, ?, ?, ?, ?, ?,
 			-- pipeline_id
 			(
 				SELECT p.id
@@ -69,7 +72,7 @@ func (r *JobRepository) Create(ctx context.Context, tc, pn string, j job.Job) (u
 				JOIN teams AS t
 					ON p.team_id = t.id
 				WHERE t.canonical = ? AND p.name = ?
-			))`, dbj.Name, dbj.Plan, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn)
+			))`, dbj.Name, dbj.Plan, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, dbj.Concurrency, tc, pn)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -86,7 +89,7 @@ func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job
 	dbj := newDBJob(j)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE jobs AS j
-		SET name = ?, plan = ?, on_success = ?, on_failure = ?, ensure = ?
+		SET name = ?, plan = ?, on_success = ?, on_failure = ?, ensure = ?, concurrency = ?
 		FROM (
 			SELECT j.id
 			FROM jobs AS j
@@ -97,7 +100,7 @@ func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job
 			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
 		) AS jj
 		WHERE jj.id = j.id
-	`, dbj.Name, dbj.Plan, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, tc, pn, jn)
+	`, dbj.Name, dbj.Plan, dbj.OnSuccess, dbj.OnFailure, dbj.Ensure, dbj.Concurrency, tc, pn, jn)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -112,7 +115,7 @@ func (r *JobRepository) Update(ctx context.Context, tc, pn, jn string, j job.Job
 
 func (r *JobRepository) Find(ctx context.Context, tc, pn, jn string) (*job.Job, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure
+		SELECT j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure, j.concurrency
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
@@ -131,7 +134,7 @@ func (r *JobRepository) Find(ctx context.Context, tc, pn, jn string) (*job.Job, 
 
 func (r *JobRepository) Filter(ctx context.Context, tc, pn string) ([]*job.Job, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure
+		SELECT j.id, j.name, j.plan, j.on_success, j.on_failure, j.ensure, j.concurrency
 		FROM jobs AS j
 		JOIN pipelines AS p
 			ON j.pipeline_id = p.id
@@ -187,6 +190,7 @@ func scanJob(s sqlr.Scanner) (*job.Job, error) {
 		&j.OnSuccess,
 		&j.OnFailure,
 		&j.Ensure,
+		&j.Concurrency,
 	)
 
 	if err != nil {

@@ -25,9 +25,10 @@ type HookStep struct {
 }
 
 type Job struct {
-	ID   uint32 `json:"id"`
-	Name string `json:"name" hcl:"name,label"`
-	Plan []PlanStep `json:"plan"`
+	ID          uint32     `json:"id"`
+	Name        string     `json:"name" hcl:"name,label"`
+	Concurrency int        `json:"concurrency,omitempty"`
+	Plan        []PlanStep `json:"plan"`
 
 	OnSuccess []HookStep `json:"on_success,omitempty"`
 	OnFailure []HookStep `json:"on_failure,omitempty"`

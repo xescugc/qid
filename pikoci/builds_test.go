@@ -6,7 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xescugc/pikoci/pikoci"
 	"github.com/xescugc/pikoci/pikoci/build"
+	"github.com/xescugc/pikoci/pikoci/job"
 	"go.uber.org/mock/gomock"
 	"gocloud.dev/pubsub"
 )
@@ -16,6 +18,7 @@ func TestCreateJobBuild(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
+	s.Jobs.EXPECT().Find(ctx, "main", "my-pipeline", "my-job").Return(&job.Job{Name: "my-job"}, nil)
 	s.Builds.EXPECT().Create(ctx, "main", "my-pipeline", "my-job", gomock.Any()).Return(uint32(1), "1", nil)
 
 	b, err := s.S.CreateJobBuild(ctx, "main", "my-pipeline", "my-job", build.Build{Status: build.Started})
@@ -137,6 +140,7 @@ func TestCreateRetryJobBuild(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
+	s.Jobs.EXPECT().Find(ctx, "main", "my-pipeline", "my-job").Return(&job.Job{Name: "my-job"}, nil)
 	s.Builds.EXPECT().CreateRetry(ctx, "main", "my-pipeline", "my-job", "3", gomock.Any()).
 		Return(uint32(8), "3.1", nil)
 
@@ -144,6 +148,44 @@ func TestCreateRetryJobBuild(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint32(8), b.ID)
 	assert.Equal(t, "3.1", b.BuildNumber)
+}
+
+func TestCreateJobBuild_ConcurrencyLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Jobs.EXPECT().Find(ctx, "main", "my-pipeline", "my-job").Return(&job.Job{Name: "my-job", Concurrency: 1}, nil)
+	s.Builds.EXPECT().CountRunning(ctx, "main", "my-pipeline", "my-job").Return(1, nil)
+
+	_, err := s.S.CreateJobBuild(ctx, "main", "my-pipeline", "my-job", build.Build{Status: build.Started})
+	require.ErrorIs(t, err, pikoci.ErrConcurrencyLimit)
+}
+
+func TestCreateJobBuild_ConcurrencyAllowed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Jobs.EXPECT().Find(ctx, "main", "my-pipeline", "my-job").Return(&job.Job{Name: "my-job", Concurrency: 2}, nil)
+	s.Builds.EXPECT().CountRunning(ctx, "main", "my-pipeline", "my-job").Return(1, nil)
+	s.Builds.EXPECT().Create(ctx, "main", "my-pipeline", "my-job", gomock.Any()).Return(uint32(1), "1", nil)
+
+	b, err := s.S.CreateJobBuild(ctx, "main", "my-pipeline", "my-job", build.Build{Status: build.Started})
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1), b.ID)
+}
+
+func TestCreateRetryJobBuild_ConcurrencyLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := newService(ctrl)
+	ctx := context.TODO()
+
+	s.Jobs.EXPECT().Find(ctx, "main", "my-pipeline", "my-job").Return(&job.Job{Name: "my-job", Concurrency: 1}, nil)
+	s.Builds.EXPECT().CountRunning(ctx, "main", "my-pipeline", "my-job").Return(1, nil)
+
+	_, err := s.S.CreateRetryJobBuild(ctx, "main", "my-pipeline", "my-job", "3", build.Build{Status: build.Started})
+	require.ErrorIs(t, err, pikoci.ErrConcurrencyLimit)
 }
 
 func TestFindBuildGetVersions(t *testing.T) {

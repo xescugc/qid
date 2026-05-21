@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xescugc/pikoci/pikoci"
 	"github.com/xescugc/pikoci/pikoci/build"
 	"github.com/xescugc/pikoci/pikoci/job"
 	"github.com/xescugc/pikoci/pikoci/pipeline"
@@ -444,6 +445,9 @@ func (cl *Client) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build
 	}
 
 	if resp.Err != "" {
+		if resp.Err == pikoci.ErrConcurrencyLimit.Error() {
+			return nil, pikoci.ErrConcurrencyLimit
+		}
 		return nil, fmt.Errorf("error from request: %s", resp.Err)
 	}
 
@@ -539,6 +543,9 @@ func (cl *Client) CreateRetryJobBuild(ctx context.Context, tc, pn, jn, parentBui
 	}
 
 	if resp.Err != "" {
+		if resp.Err == pikoci.ErrConcurrencyLimit.Error() {
+			return nil, pikoci.ErrConcurrencyLimit
+		}
 		return nil, fmt.Errorf("error from request: %s", resp.Err)
 	}
 
