@@ -28,7 +28,7 @@ type UpdateJobBuildRequest struct {
 	TeamCanonical string      `json:"team_canonical"`
 	PipelineName  string      `json:"pipeline_name"`
 	JobName       string      `json:"job_name"`
-	BuildID       uint32      `json:"build_id"`
+	BuildNumber   string      `json:"build_number"`
 	Build         build.Build `json:"build"`
 }
 type UpdateJobBuildResponse struct {
@@ -44,17 +44,16 @@ func updateJobBuild(s pikoci.Service) http.HandlerFunc {
 			ctx = r.Context()
 		)
 		vars := mux.Vars(r)
-		bid, _ := strconv.Atoi(vars["build_id"])
 		req.TeamCanonical = vars["team_canonical"]
 		req.PipelineName = vars["pipeline_name"]
 		req.JobName = vars["job_name"]
-		req.BuildID = uint32(bid)
+		req.BuildNumber = vars["build_number"]
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			encodeResponse(UpdateJobBuildResponse{Err: err.Error()}, w)
 			return
 		}
-		err = s.UpdateJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildID, req.Build)
+		err = s.UpdateJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildNumber, req.Build)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -67,7 +66,7 @@ type DeleteJobBuildRequest struct {
 	TeamCanonical string `json:"team_canonical"`
 	PipelineName  string `json:"pipeline_name"`
 	JobName       string `json:"job_name"`
-	BuildID       uint32 `json:"build_id"`
+	BuildNumber   string `json:"build_number"`
 }
 type DeleteJobBuildResponse struct {
 	Err string `json:"error,omitempty"`
@@ -78,16 +77,15 @@ func (r DeleteJobBuildResponse) Error() string { return r.Err }
 func deleteJobBuild(s pikoci.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var (
-			req UpdateJobBuildRequest
+			req DeleteJobBuildRequest
 			ctx = r.Context()
 		)
 		vars := mux.Vars(r)
-		bid, _ := strconv.Atoi(vars["build_id"])
 		req.TeamCanonical = vars["team_canonical"]
 		req.PipelineName = vars["pipeline_name"]
 		req.JobName = vars["job_name"]
-		req.BuildID = uint32(bid)
-		err := s.DeleteJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildID)
+		req.BuildNumber = vars["build_number"]
+		err := s.DeleteJobBuild(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildNumber)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -107,11 +105,11 @@ func getJobBuild(s pikoci.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var ctx = r.Context()
 		vars := mux.Vars(r)
-		bid, _ := strconv.Atoi(vars["build_id"])
 		tc := vars["team_canonical"]
 		pn := vars["pipeline_name"]
 		jn := vars["job_name"]
-		b, err := s.GetJobBuild(ctx, tc, pn, jn, uint32(bid))
+		bn := vars["build_number"]
+		b, err := s.GetJobBuild(ctx, tc, pn, jn, bn)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -130,11 +128,11 @@ func cancelJobBuild(s pikoci.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var ctx = r.Context()
 		vars := mux.Vars(r)
-		bid, _ := strconv.Atoi(vars["build_id"])
 		tc := vars["team_canonical"]
 		pn := vars["pipeline_name"]
 		jn := vars["job_name"]
-		err := s.CancelJobBuild(ctx, tc, pn, jn, uint32(bid))
+		bn := vars["build_number"]
+		err := s.CancelJobBuild(ctx, tc, pn, jn, bn)
 		var errs string
 		if err != nil {
 			errs = err.Error()
@@ -174,6 +172,7 @@ func insertBuildGetVersion(s pikoci.Service) http.HandlerFunc {
 		req.JobName = vars["job_name"]
 		bid, _ := strconv.Atoi(vars["build_id"])
 		req.BuildID = uint32(bid)
+		// Note: build_id here is the internal DB ID, passed in the URL for this internal endpoint
 
 		err = s.InsertBuildGetVersion(ctx, req.TeamCanonical, req.PipelineName, req.JobName, req.BuildID, req.StepName, req.VersionID)
 		var errs string

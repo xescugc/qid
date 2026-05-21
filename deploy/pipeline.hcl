@@ -55,10 +55,11 @@ job "test-integration" {
     run "docker" {
       image = "golang:1.25.1"
       cmd   = <<-EOT
-        apt-get update -qq && apt-get install -y -qq firefox-esr xvfb > /dev/null 2>&1
-        GECKO_VER=$(curl -sL https://api.github.com/repos/mozilla/geckodriver/releases/latest | grep tag_name | cut -d'"' -f4)
+        apt-get update -qq && apt-get install -y -qq firefox-esr xvfb
+        GECKO_VER=$(curl -sfL https://api.github.com/repos/mozilla/geckodriver/releases/latest | grep tag_name | cut -d'"' -f4)
+        if [ -z "$${GECKO_VER}" ]; then echo "Failed to fetch geckodriver version (GitHub API rate limit?)"; exit 1; fi
         ARCH=$(uname -m); case "$${ARCH}" in aarch64) GECKO_ARCH=linux-aarch64;; *) GECKO_ARCH=linux64;; esac
-        curl -sL "https://github.com/mozilla/geckodriver/releases/download/$${GECKO_VER}/geckodriver-$${GECKO_VER}-$${GECKO_ARCH}.tar.gz" | tar xz -C /usr/local/bin
+        curl -sfL "https://github.com/mozilla/geckodriver/releases/download/$${GECKO_VER}/geckodriver-$${GECKO_VER}-$${GECKO_ARCH}.tar.gz" | tar xz -C /usr/local/bin
         cd ${var.git_name}
         cp /usr/local/bin/geckodriver integration/vendor/geckodriver
         make test-integration

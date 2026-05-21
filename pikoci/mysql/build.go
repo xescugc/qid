@@ -14,22 +14,34 @@ import (
 
 type BuildRepository struct {
 	querier sqlr.Querier
+	system  string
 }
 
-func NewBuildRepository(db sqlr.Querier) *BuildRepository {
+func NewBuildRepository(db sqlr.Querier, system string) *BuildRepository {
 	return &BuildRepository{
 		querier: db,
+		system:  system,
 	}
 }
 
+// castAsInt returns a SQL expression that casts expr to an integer,
+// portable across SQLite, PostgreSQL, and MySQL.
+func (r *BuildRepository) castAsInt(expr string) string {
+	if r.system == MySQL {
+		return "CAST(" + expr + " AS SIGNED)"
+	}
+	return "CAST(" + expr + " AS INTEGER)"
+}
+
 type dbBuild struct {
-	ID        sql.NullInt64
-	Steps     sql.NullString
-	Job       sql.NullString
-	Status    sql.NullString
-	Error     sql.NullString
-	StartedAt sql.NullTime
-	Duration  sql.NullInt64
+	ID          sql.NullInt64
+	BuildNumber sql.NullString
+	Steps       sql.NullString
+	Job         sql.NullString
+	Status      sql.NullString
+	Error       sql.NullString
+	StartedAt   sql.NullTime
+	Duration    sql.NullInt64
 }
 
 func newDBBuild(b build.Build) dbBuild {
@@ -48,11 +60,12 @@ func newDBBuild(b build.Build) dbBuild {
 func (dbb *dbBuild) toDomainEntity() *build.Build {
 	s, _ := build.StatusString(dbb.Status.String)
 	b := &build.Build{
-		ID:        uint32(dbb.ID.Int64),
-		Status:    s,
-		Error:     dbb.Error.String,
-		StartedAt: dbb.StartedAt.Time,
-		Duration:  time.Duration(dbb.Duration.Int64),
+		ID:          uint32(dbb.ID.Int64),
+		BuildNumber: dbb.BuildNumber.String,
+		Status:      s,
+		Error:       dbb.Error.String,
+		StartedAt:   dbb.StartedAt.Time,
+		Duration:    time.Duration(dbb.Duration.Int64),
 	}
 
 	_ = json.Unmarshal([]byte(dbb.Steps.String), &b.Steps)
@@ -61,36 +74,66 @@ func (dbb *dbBuild) toDomainEntity() *build.Build {
 	return b
 }
 
-func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, error) {
+func (r *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, string, error) {
 	dbb := newDBBuild(b)
-	res, err := r.querier.ExecContext(ctx, `
-		INSERT INTO builds(steps, job, status, error, started_at, duration, job_id)
-		VALUES (?, ?, ?, ?, ?, ?,
-			-- job_id
-			(
-				SELECT j.id
-				FROM jobs AS j
-				JOIN pipelines AS p
-					ON j.pipeline_id = p.id
-				JOIN teams AS t
-					ON p.team_id = t.id
-				WHERE t.canonical = ? AND p.name = ? AND j.name = ?
-			))`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn)
-	if err != nil {
-		return 0, fmt.Errorf("failed to execute query: %w", err)
+
+	// Retry loop to handle concurrent builds for the same job.
+	// The UNIQUE index on (job_id, build_number) prevents duplicates;
+	// on conflict we re-read the max and try the next number.
+	const maxRetries = 5
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		var maxNum sql.NullInt64
+		err := r.querier.QueryRowContext(ctx, `
+			SELECT MAX(`+r.castAsInt("b.build_number")+`)
+			FROM builds AS b
+			JOIN jobs AS j ON b.job_id = j.id
+			JOIN pipelines AS p ON j.pipeline_id = p.id
+			JOIN teams AS t ON p.team_id = t.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+		`, tc, pn, jn).Scan(&maxNum)
+		if err != nil {
+			return 0, "", fmt.Errorf("failed to query max build number: %w", err)
+		}
+		nextNum := uint32(1)
+		if maxNum.Valid {
+			nextNum = uint32(maxNum.Int64) + 1
+		}
+		buildNumber := fmt.Sprintf("%d", nextNum)
+
+		res, err := r.querier.ExecContext(ctx, `
+			INSERT INTO builds(steps, job, status, error, started_at, duration, build_number, job_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?,
+				-- job_id
+				(
+					SELECT j.id
+					FROM jobs AS j
+					JOIN pipelines AS p
+						ON j.pipeline_id = p.id
+					JOIN teams AS t
+						ON p.team_id = t.id
+					WHERE t.canonical = ? AND p.name = ? AND j.name = ?
+				))`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, buildNumber, tc, pn, jn)
+		if err != nil {
+			if isUniqueViolation(err) {
+				continue
+			}
+			return 0, "", fmt.Errorf("failed to execute query: %w", err)
+		}
+
+		id, err := lastInsertedID(res)
+		if err != nil {
+			return 0, "", fmt.Errorf("failed to get last inserted id: %w", err)
+		}
+
+		return id, buildNumber, nil
 	}
 
-	id, err := lastInsertedID(res)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get last inserted id: %w", err)
-	}
-
-	return id, nil
+	return 0, "", fmt.Errorf("failed to allocate build number after %d retries", maxRetries)
 }
 
-func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
+func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, buildNumber string) (*build.Build, error) {
 	row := r.querier.QueryRowContext(ctx, `
-		SELECT b.id, b.steps, b.job, b.status, b.error, b.started_at, b.duration
+		SELECT b.id, b.build_number, b.steps, b.job, b.status, b.error, b.started_at, b.duration
 		FROM builds AS b
 		JOIN jobs AS j
 			ON b.job_id = j.id
@@ -98,8 +141,8 @@ func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint3
 			ON j.pipeline_id = p.id
 		JOIN teams AS t
 			ON p.team_id = t.id
-		WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
-	`, tc, pn, jn, bID)
+		WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.build_number = ?
+	`, tc, pn, jn, buildNumber)
 
 	j, err := scanBuild(row)
 	if err != nil {
@@ -111,7 +154,7 @@ func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint3
 
 func (r *BuildRepository) Filter(ctx context.Context, tc, pn, jn string) ([]*build.Build, error) {
 	rows, err := r.querier.QueryContext(ctx, `
-		SELECT b.id, b.steps, b.job, b.status, b.error, b.started_at, b.duration
+		SELECT b.id, b.build_number, b.steps, b.job, b.status, b.error, b.started_at, b.duration
 		FROM builds AS b
 		JOIN jobs AS j
 			ON b.job_id = j.id
@@ -133,7 +176,7 @@ func (r *BuildRepository) Filter(ctx context.Context, tc, pn, jn string) ([]*bui
 	return builds, nil
 }
 
-func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, buildNumber string, b build.Build) error {
 	dbb := newDBBuild(b)
 	res, err := r.querier.ExecContext(ctx, `
 		UPDATE builds AS b
@@ -147,10 +190,10 @@ func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uin
 				ON j.pipeline_id = p.id
 			JOIN teams AS t
 				ON p.team_id = t.id
-			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.build_number = ?
 		) AS bb
 		WHERE bb.id = b.id
-	`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn, bID, bID)
+	`, dbb.Steps, dbb.Job, dbb.Status, dbb.Error, dbb.StartedAt, dbb.Duration, tc, pn, jn, buildNumber)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -163,7 +206,7 @@ func (r *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uin
 	return nil
 }
 
-func (r *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, bID uint32) error {
+func (r *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, buildNumber string) error {
 	res, err := r.querier.ExecContext(ctx, `
 		DELETE
 		FROM builds
@@ -176,9 +219,9 @@ func (r *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, bID uin
 				ON j.pipeline_id = p.id
 			JOIN teams AS t
 				ON p.team_id = t.id
-			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id
+			WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.build_number = ?
 		)
-	`, tc, pn, jn, bID)
+	`, tc, pn, jn, buildNumber)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -315,6 +358,7 @@ func scanBuild(s sqlr.Scanner) (*build.Build, error) {
 
 	err := s.Scan(
 		&b.ID,
+		&b.BuildNumber,
 		&b.Steps,
 		&b.Job,
 		&b.Status,

@@ -159,14 +159,15 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		return
 	}
 	b.ID = nb.ID
+	b.BuildNumber = nb.BuildNumber
 	w.logger.Info("[debug-297] build created",
-		"pipeline", m.PipelineName, "job", m.JobName, "build_id", b.ID, "version_id", m.VersionID)
+		"pipeline", m.PipelineName, "job", m.JobName, "build_number", b.BuildNumber, "version_id", m.VersionID)
 
 	jobCtx, jobCancel := context.WithCancel(ctx)
 	defer jobCancel()
 
 	// Poll for cancellation in background
-	go w.pollForCancellation(ctx, jobCtx, jobCancel, m, b.ID)
+	go w.pollForCancellation(ctx, jobCtx, jobCancel, m, b.BuildNumber)
 
 	j, err := w.pikoci.GetPipelineJob(ctx, m.TeamCanonical, m.PipelineName, m.JobName)
 	if err != nil {
@@ -190,7 +191,7 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 
 	// Handle user-initiated cancellation
 	if jobCtx.Err() == context.Canceled {
-		current, err := w.pikoci.GetJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID)
+		current, err := w.pikoci.GetJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.BuildNumber)
 		if err == nil && current.Status == build.Cancelled {
 			b.Status = build.Cancelled
 			w.updateBuild(ctx, m, b)
@@ -1047,7 +1048,7 @@ func (w *Worker) triggerResourceJobs(ctx context.Context, m queue.Body, pp *pipe
 	}
 }
 
-func (w *Worker) pollForCancellation(apiCtx, jobCtx context.Context, cancel context.CancelFunc, m queue.Body, buildID uint32) {
+func (w *Worker) pollForCancellation(apiCtx, jobCtx context.Context, cancel context.CancelFunc, m queue.Body, buildNumber string) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -1055,13 +1056,13 @@ func (w *Worker) pollForCancellation(apiCtx, jobCtx context.Context, cancel cont
 		case <-jobCtx.Done():
 			return
 		case <-ticker.C:
-			b, err := w.pikoci.GetJobBuild(apiCtx, m.TeamCanonical, m.PipelineName, m.JobName, buildID)
+			b, err := w.pikoci.GetJobBuild(apiCtx, m.TeamCanonical, m.PipelineName, m.JobName, buildNumber)
 			if err != nil {
-				w.logger.Error("cancellation poll failed", "build_id", buildID, "error", err)
+				w.logger.Error("cancellation poll failed", "build_number", buildNumber, "error", err)
 				continue
 			}
 			if b.Status == build.Cancelled {
-				w.logger.Info("build cancelled, stopping job", "build_id", buildID)
+				w.logger.Info("build cancelled, stopping job", "build_number", buildNumber)
 				cancel()
 				return
 			}
@@ -1071,7 +1072,7 @@ func (w *Worker) pollForCancellation(apiCtx, jobCtx context.Context, cancel cont
 
 // updateBuild persists the current build state to the DB.
 func (w *Worker) updateBuild(ctx context.Context, m queue.Body, b build.Build) error {
-	err := w.pikoci.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b)
+	err := w.pikoci.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.BuildNumber, b)
 	if err != nil {
 		w.logger.Error("failed update build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 	}
@@ -1084,13 +1085,13 @@ func (w *Worker) failBuild(ctx context.Context, m queue.Body, b build.Build, err
 		b.Error = err.Error()
 		w.logger.Error(err.Error())
 	}
-	if uerr := w.pikoci.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID, b); uerr != nil {
+	if uerr := w.pikoci.UpdateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.BuildNumber, b); uerr != nil {
 		w.logger.Error("failed update build", "pipeline", m.PipelineName, "job", m.JobName, "error", uerr)
 	}
 }
 
 func (w *Worker) deleteBuild(ctx context.Context, m queue.Body, b build.Build) {
-	if err := w.pikoci.DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.ID); err != nil {
+	if err := w.pikoci.DeleteJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b.BuildNumber); err != nil {
 		w.logger.Error("failed delete build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 	}
 }
@@ -1344,7 +1345,7 @@ func (w *Worker) startServices(ctx context.Context, m queue.Body, b *build.Build
 // buildMetadataParams returns the standard build metadata environment variables.
 func buildMetadataParams(b *build.Build, m queue.Body) map[string]string {
 	return map[string]string{
-		"BUILD_ID":            fmt.Sprintf("%d", b.ID),
+		"BUILD_NUMBER":        b.BuildNumber,
 		"BUILD_JOB_NAME":     m.JobName,
 		"BUILD_PIPELINE_NAME": m.PipelineName,
 		"BUILD_TEAM_NAME":    m.TeamCanonical,
@@ -1420,7 +1421,7 @@ func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Bui
 			continue
 		}
 
-		buildID := b.ID
+		buildNumber := b.BuildNumber
 		wg.Add(1)
 		go func(svcName string, rc service.ReadyCheck, ru runner.Runner, overrides map[string]string) {
 			defer wg.Done()
@@ -1442,7 +1443,7 @@ func (w *Worker) waitForServices(ctx context.Context, m queue.Body, b *build.Bui
 			for k, v := range rc.Params {
 				params[k] = v
 			}
-			bm := buildMetadataParams(&build.Build{ID: buildID}, m)
+			bm := buildMetadataParams(&build.Build{BuildNumber: buildNumber}, m)
 			for k, v := range bm {
 				params[k] = v
 			}

@@ -119,7 +119,7 @@ var serverCmd = &cobra.Command{
 		jr := mysql.NewJobRepository(querier)
 		rr := mysql.NewResourceRepository(querier, cfg.DBSystem)
 		rt := mysql.NewResourceTypeRepository(querier)
-		br := mysql.NewBuildRepository(querier)
+		br := mysql.NewBuildRepository(querier, cfg.DBSystem)
 		rur := mysql.NewRunnerRepository(querier)
 		str := mysql.NewSecretTypeRepository(querier)
 

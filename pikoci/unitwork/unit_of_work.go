@@ -100,7 +100,7 @@ func (u *unitOfWork) ResourceTypes() restype.Repository {
 
 func (u *unitOfWork) Builds() build.Repository {
 	if u.builds == nil {
-		u.builds = mysql.NewBuildRepository(u.tx)
+		u.builds = mysql.NewBuildRepository(u.tx, u.dbSystem)
 	}
 	return u.builds
 }

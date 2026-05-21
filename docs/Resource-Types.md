@@ -58,7 +58,7 @@ Inside `check`, `pull`, and `push` commands, PikoCI exposes:
 | `$version_<key>`     | Version field from the last check (pull/push only) |
 | `$put_<key>`         | Put step parameter value (push only)         |
 | `$WORKDIR`           | Temporary working directory for the job      |
-| `$BUILD_ID`          | Numeric ID of the current build              |
+| `$BUILD_NUMBER`      | Sequential build number for the current job  |
 | `$BUILD_JOB_NAME`    | Name of the current job                      |
 | `$BUILD_PIPELINE_NAME` | Name of the current pipeline              |
 | `$BUILD_TEAM_NAME`   | Canonical name of the team                   |

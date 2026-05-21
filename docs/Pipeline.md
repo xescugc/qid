@@ -158,19 +158,19 @@ service_type "postgres" {
 
   start "exec" {
     path = "/bin/sh"
-    args = ["-ec", "docker run -d --name pg-$BUILD_ID postgres:$param_version"]
+    args = ["-ec", "docker run -d --name pg-$BUILD_NUMBER postgres:$param_version"]
   }
 
   ready_check "exec" {
     path     = "/bin/sh"
-    args     = ["-ec", "docker exec pg-$BUILD_ID pg_isready"]
+    args     = ["-ec", "docker exec pg-$BUILD_NUMBER pg_isready"]
     interval = "2s"
     timeout  = "30s"
   }
 
   stop "exec" {
     path = "/bin/sh"
-    args = ["-ec", "docker rm -f pg-$BUILD_ID"]
+    args = ["-ec", "docker rm -f pg-$BUILD_NUMBER"]
   }
 }
 ```
@@ -376,7 +376,7 @@ job "test" {
 }
 ```
 
-Job-level hooks have access to `$BUILD_STATUS` (`succeeded` or `failed`) in addition to all other build metadata environment variables (`$BUILD_ID`, `$BUILD_JOB_NAME`, `$BUILD_PIPELINE_NAME`, `$BUILD_TEAM_NAME`).
+Job-level hooks have access to `$BUILD_STATUS` (`succeeded` or `failed`) in addition to all other build metadata environment variables (`$BUILD_NUMBER`, `$BUILD_JOB_NAME`, `$BUILD_PIPELINE_NAME`, `$BUILD_TEAM_NAME`).
 
 ### Step timeout
 

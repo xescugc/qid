@@ -450,10 +450,10 @@ func (cl *Client) CreateJobBuild(ctx context.Context, tc, pn, jn string, b build
 	return resp.Build, nil
 }
 
-func (cl *Client) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+func (cl *Client) UpdateJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string, b build.Build) error {
 	var resp thttp.UpdateJobBuildResponse
 
-	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d", cl.url, tc, pn, jn, bID), thttp.UpdateJobBuildRequest{
+	err := cl.Request(ctx, http.MethodPut, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%s", cl.url, tc, pn, jn, buildNumber), thttp.UpdateJobBuildRequest{
 		Build: b,
 	}, &resp)
 	if err != nil {
@@ -467,10 +467,10 @@ func (cl *Client) UpdateJobBuild(ctx context.Context, tc, pn, jn string, bID uin
 	return nil
 }
 
-func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string) error {
 	var resp thttp.DeleteJobBuildResponse
 
-	err := cl.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d", cl.url, tc, pn, jn, bID), nil, &resp)
+	err := cl.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%s", cl.url, tc, pn, jn, buildNumber), nil, &resp)
 	if err != nil {
 		return fmt.Errorf("failed to make request: %w", err)
 	}
@@ -482,10 +482,10 @@ func (cl *Client) DeleteJobBuild(ctx context.Context, tc, pn, jn string, bID uin
 	return nil
 }
 
-func (cl *Client) GetJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
+func (cl *Client) GetJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string) (*build.Build, error) {
 	var resp thttp.GetJobBuildResponse
 
-	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d", cl.url, tc, pn, jn, bID), nil, &resp)
+	err := cl.Request(ctx, http.MethodGet, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%s", cl.url, tc, pn, jn, buildNumber), nil, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
@@ -497,10 +497,10 @@ func (cl *Client) GetJobBuild(ctx context.Context, tc, pn, jn string, bID uint32
 	return resp.Build, nil
 }
 
-func (cl *Client) CancelJobBuild(ctx context.Context, tc, pn, jn string, bID uint32) error {
+func (cl *Client) CancelJobBuild(ctx context.Context, tc, pn, jn string, buildNumber string) error {
 	var resp thttp.CancelJobBuildResponse
 
-	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%d/cancel", cl.url, tc, pn, jn, bID), nil, &resp)
+	err := cl.Request(ctx, http.MethodPost, fmt.Sprintf("%s/teams/%s/pipelines/%s/jobs/%s/builds/%s/cancel", cl.url, tc, pn, jn, buildNumber), nil, &resp)
 	if err != nil {
 		return fmt.Errorf("failed to make request: %w", err)
 	}

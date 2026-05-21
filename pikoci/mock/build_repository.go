@@ -43,12 +43,13 @@ func (m *BuildRepository) EXPECT() *BuildRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, error) {
+func (m *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, tc, pn, jn, b)
 	ret0, _ := ret[0].(uint32)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Create indicates an expected call of Create.
@@ -58,17 +59,17 @@ func (mr *BuildRepositoryMockRecorder) Create(ctx, tc, pn, jn, b any) *gomock.Ca
 }
 
 // Delete mocks base method.
-func (m *BuildRepository) Delete(ctx context.Context, tc, pn, jn string, bID uint32) error {
+func (m *BuildRepository) Delete(ctx context.Context, tc, pn, jn, buildNumber string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn, jn, bID)
+	ret := m.ctrl.Call(m, "Delete", ctx, tc, pn, jn, buildNumber)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *BuildRepositoryMockRecorder) Delete(ctx, tc, pn, jn, bID any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Delete(ctx, tc, pn, jn, buildNumber any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*BuildRepository)(nil).Delete), ctx, tc, pn, jn, bID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*BuildRepository)(nil).Delete), ctx, tc, pn, jn, buildNumber)
 }
 
 // Filter mocks base method.
@@ -87,18 +88,18 @@ func (mr *BuildRepositoryMockRecorder) Filter(ctx, tc, pn, jn any) *gomock.Call 
 }
 
 // Find mocks base method.
-func (m *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint32) (*build.Build, error) {
+func (m *BuildRepository) Find(ctx context.Context, tc, pn, jn, buildNumber string) (*build.Build, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, tc, pn, jn, bID)
+	ret := m.ctrl.Call(m, "Find", ctx, tc, pn, jn, buildNumber)
 	ret0, _ := ret[0].(*build.Build)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *BuildRepositoryMockRecorder) Find(ctx, tc, pn, jn, bID any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Find(ctx, tc, pn, jn, buildNumber any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*BuildRepository)(nil).Find), ctx, tc, pn, jn, bID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*BuildRepository)(nil).Find), ctx, tc, pn, jn, buildNumber)
 }
 
 // FindReadyDownstreamVersion mocks base method.
@@ -147,15 +148,15 @@ func (mr *BuildRepositoryMockRecorder) LastBuildAtByPipeline(ctx, tc any) *gomoc
 }
 
 // Update mocks base method.
-func (m *BuildRepository) Update(ctx context.Context, tc, pn, jn string, bID uint32, b build.Build) error {
+func (m *BuildRepository) Update(ctx context.Context, tc, pn, jn, buildNumber string, b build.Build) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, tc, pn, jn, bID, b)
+	ret := m.ctrl.Call(m, "Update", ctx, tc, pn, jn, buildNumber, b)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *BuildRepositoryMockRecorder) Update(ctx, tc, pn, jn, bID, b any) *gomock.Call {
+func (mr *BuildRepositoryMockRecorder) Update(ctx, tc, pn, jn, buildNumber, b any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*BuildRepository)(nil).Update), ctx, tc, pn, jn, bID, b)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*BuildRepository)(nil).Update), ctx, tc, pn, jn, buildNumber, b)
 }
