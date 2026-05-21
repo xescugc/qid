@@ -1,0 +1,16 @@
+FROM golang:1.25.1
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends firefox-esr xvfb xauth && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install geckodriver (pinned version for reproducibility)
+ARG GECKO_VER=v0.36.0
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      arm64) GECKO_ARCH=linux-aarch64 ;; \
+      *)     GECKO_ARCH=linux64 ;; \
+    esac && \
+    curl -sfL "https://github.com/mozilla/geckodriver/releases/download/${GECKO_VER}/geckodriver-${GECKO_VER}-${GECKO_ARCH}.tar.gz" | tar xz -C /usr/local/bin
