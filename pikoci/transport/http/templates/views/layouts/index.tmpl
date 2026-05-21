@@ -390,7 +390,9 @@
         <% } %>
         <div class="piko-build-meta">
           <span><span class="piko-build-label">Started</span> <%- new Date(started_at).toLocaleString() %></span>
-          <% if (duration !== 0 ) { %>
+          <% if (status === "started" && duration === 0) { %>
+            <span><span class="piko-build-label">Duration</span> <span class="piko-elapsed" data-started="<%= started_at %>"></span></span>
+          <% } else if (duration !== 0) { %>
             <span><span class="piko-build-label">Duration</span> <%- duration %></span>
           <% } %>
           <% if (status === "succeeded") { %>
@@ -403,9 +405,14 @@
             <span class="piko-badge piko-badge-cancelled">Cancelled</span>
           <% } %>
           <% if (status === "started") { %>
-            <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" style="margin-left:auto;" data-build-number="<%- build_number %>">
-              <i class="bi bi-x-circle"></i> Cancel
-            </button>
+            <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+              <button type="button" class="btn btn-sm btn-outline-info piko-follow-toggle" title="Auto-scroll logs">
+                <i class="bi bi-arrow-down-circle"></i> Follow
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" data-build-number="<%- build_number %>">
+                <i class="bi bi-x-circle"></i> Cancel
+              </button>
+            </span>
           <% } else { %>
             <button type="button" class="btn btn-sm btn-outline-warning piko-retry-build" style="margin-left:auto;">
               <i class="bi bi-arrow-clockwise"></i> Retry
@@ -417,25 +424,32 @@
         <% var lastStep = _steps.length > 0 ? _steps[_steps.length-1] : null; %>
         <% _.each(_steps, function(s, i) { %>
           <div class="piko-step-row">
-            <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+            <div class="piko-step-row-header" onclick="var body=this.nextElementSibling;body.style.display=body.style.display==='none'?'block':'none'">
               <span><span class="piko-step-label"><i class="bi <%= ({get:'bi-cloud-download',task:'bi-terminal',put:'bi-cloud-upload',service:'bi-hdd-stack',runner:'bi-gear'})[s.type] || 'bi-terminal' %>"></i> <%- s.type || "step" %></span> <%- s.name %> <span style="color:var(--text-muted);">(<%- s.duration %>)</span></span>
-              <% if (s.status === "failed") { %>
-                <span class="piko-badge piko-badge-failed">fail</span>
-              <% } else if (s.status === "started") { %>
-                <span class="piko-badge piko-badge-started">running</span>
-              <% } else if (s.status === "cancelled") { %>
-                <span class="piko-badge piko-badge-cancelled">cancel</span>
-              <% } else if (s.status === "succeeded" || s.logs) { %>
-                <span class="piko-badge piko-badge-succeeded">ok</span>
-              <% } %>
+              <span style="display:flex;align-items:center;gap:6px;">
+                <% if (s.logs) { %>
+                  <button class="piko-copy-logs-header-btn" onclick="event.stopPropagation();var pre=this.closest('.piko-step-row').querySelector('pre');navigator.clipboard.writeText(pre.textContent.trim());var icon=this.querySelector('i');icon.className='bi bi-check2';setTimeout(function(){icon.className='bi bi-clipboard';},1500);" title="Copy logs">
+                    <i class="bi bi-clipboard"></i>
+                  </button>
+                <% } %>
+                <% if (s.status === "failed") { %>
+                  <span class="piko-badge piko-badge-failed">fail</span>
+                <% } else if (s.status === "started") { %>
+                  <span class="piko-badge piko-badge-started">running</span>
+                <% } else if (s.status === "cancelled") { %>
+                  <span class="piko-badge piko-badge-cancelled">cancel</span>
+                <% } else if (s.status === "succeeded" || s.logs) { %>
+                  <span class="piko-badge piko-badge-succeeded">ok</span>
+                <% } %>
+              </span>
             </div>
             <div class="piko-step-row-body" style="display:<%= (s.status === 'started') ? 'block' : 'none' %>;">
               <div style="position:relative;">
-                <button class="piko-copy-logs-btn" onclick="var pre=this.parentElement.querySelector('pre');navigator.clipboard.writeText(pre.textContent.trim());var icon=this.querySelector('i');icon.className='bi bi-check2';setTimeout(function(){icon.className='bi bi-clipboard';},1500);" title="Copy logs">
-                  <i class="bi bi-clipboard"></i>
+                <button class="piko-goto-bottom-btn" onclick="var pre=this.parentElement.querySelector('pre');pre.scrollTop=pre.scrollHeight;" title="Go to bottom">
+                  <i class="bi bi-arrow-down"></i>
                 </button>
 <pre>
-<%- s.logs %>
+<%- processLogs(s.logs) %>
 </pre>
               </div>
             </div>
@@ -444,25 +458,32 @@
         <% var lastJob = _job.length > 0 ? _job[_job.length-1] : null; %>
         <% _.each(_job, function(j, i) { %>
           <div class="piko-step-row">
-            <div class="piko-step-row-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+            <div class="piko-step-row-header" onclick="var body=this.nextElementSibling;body.style.display=body.style.display==='none'?'block':'none'">
               <span><span class="piko-step-label"><i class="bi bi-braces"></i> job</span> <%- j.name %> <span style="color:var(--text-muted);">(<%- j.duration %>)</span></span>
-              <% if (j.status === "failed") { %>
-                <span class="piko-badge piko-badge-failed">fail</span>
-              <% } else if (j.status === "started") { %>
-                <span class="piko-badge piko-badge-started">running</span>
-              <% } else if (j.status === "cancelled") { %>
-                <span class="piko-badge piko-badge-cancelled">cancel</span>
-              <% } else if (j.status === "succeeded" || j.logs) { %>
-                <span class="piko-badge piko-badge-succeeded">ok</span>
-              <% } %>
+              <span style="display:flex;align-items:center;gap:6px;">
+                <% if (j.logs) { %>
+                  <button class="piko-copy-logs-header-btn" onclick="event.stopPropagation();var pre=this.closest('.piko-step-row').querySelector('pre');navigator.clipboard.writeText(pre.textContent.trim());var icon=this.querySelector('i');icon.className='bi bi-check2';setTimeout(function(){icon.className='bi bi-clipboard';},1500);" title="Copy logs">
+                    <i class="bi bi-clipboard"></i>
+                  </button>
+                <% } %>
+                <% if (j.status === "failed") { %>
+                  <span class="piko-badge piko-badge-failed">fail</span>
+                <% } else if (j.status === "started") { %>
+                  <span class="piko-badge piko-badge-started">running</span>
+                <% } else if (j.status === "cancelled") { %>
+                  <span class="piko-badge piko-badge-cancelled">cancel</span>
+                <% } else if (j.status === "succeeded" || j.logs) { %>
+                  <span class="piko-badge piko-badge-succeeded">ok</span>
+                <% } %>
+              </span>
             </div>
             <div class="piko-step-row-body" style="display:<%= (j.status === 'started') ? 'block' : 'none' %>;">
               <div style="position:relative;">
-                <button class="piko-copy-logs-btn" onclick="var pre=this.parentElement.querySelector('pre');navigator.clipboard.writeText(pre.textContent.trim());var icon=this.querySelector('i');icon.className='bi bi-check2';setTimeout(function(){icon.className='bi bi-clipboard';},1500);" title="Copy logs">
-                  <i class="bi bi-clipboard"></i>
+                <button class="piko-goto-bottom-btn" onclick="var pre=this.parentElement.querySelector('pre');pre.scrollTop=pre.scrollHeight;" title="Go to bottom">
+                  <i class="bi bi-arrow-down"></i>
                 </button>
 <pre>
-<%- j.logs %>
+<%- processLogs(j.logs) %>
 </pre>
               </div>
             </div>
@@ -599,6 +620,16 @@
           seconds = "0"+seconds
         }
         return hours+ ":" + minutes + ":" + seconds
+      }
+      var processLogs = function(text) {
+        if (!text) return text;
+        return text.split('\n').map(function(line) {
+          if (line.indexOf('\r') !== -1) {
+            var parts = line.split('\r');
+            return parts[parts.length - 1];
+          }
+          return line;
+        }).join('\n');
       }
       var addSessionFunctions = function(data) {
         return _.extend(app.session.data(), data)
@@ -1676,8 +1707,11 @@
         events: {
           'click .piko-cancel-build': 'cancelBuild',
           'click .piko-retry-build': 'retryBuild',
+          'click .piko-follow-toggle': 'toggleFollow',
         },
         initialize: function() {
+          this.autoFollow = true;
+          this._elapsedInterval = null;
           this.listenTo(this.model, "change", this.render)
         },
         cancelBuild: function(e) {
@@ -1691,6 +1725,68 @@
           var bid = this.model.get("build_number");
           var url = this.model.collection.url() + "/" + bid + "/retry.json";
           $.ajax({ url: url, type: "POST", headers: { "Authorization": "Bearer " + app.session.get("jwt") } });
+        },
+        toggleFollow: function(e) {
+          e.preventDefault();
+          this.autoFollow = !this.autoFollow;
+          this._updateFollowButton();
+          if (this.autoFollow) {
+            var runningPre = this.$el.find('.piko-step-row-body:visible pre').last();
+            if (runningPre.length) {
+              runningPre[0].scrollTop = runningPre[0].scrollHeight;
+            }
+          }
+        },
+        _updateFollowButton: function() {
+          var btn = this.$el.find('.piko-follow-toggle');
+          if (this.autoFollow) {
+            btn.removeClass('btn-outline-info').addClass('btn-info');
+          } else {
+            btn.removeClass('btn-info').addClass('btn-outline-info');
+          }
+        },
+        _startElapsedTimers: function() {
+          var that = this;
+          if (this._elapsedInterval) clearInterval(this._elapsedInterval);
+          var update = function() {
+            that.$el.find('.piko-elapsed').each(function() {
+              var started = $(this).data('started');
+              if (!started) return;
+              var elapsed = Math.floor((Date.now() - new Date(started).getTime()) / 1000);
+              var h = Math.floor(elapsed / 3600);
+              var m = Math.floor((elapsed % 3600) / 60);
+              var s = elapsed % 60;
+              var text = '';
+              if (h > 0) text += h + 'h ';
+              if (m > 0 || h > 0) text += m + 'm ';
+              text += s + 's';
+              $(this).text('(' + text + ')');
+            });
+          };
+          update();
+          this._elapsedInterval = setInterval(update, 1000);
+        },
+        _setupScrollListeners: function() {
+          var that = this;
+          this.$el.find('.piko-step-row-body pre').each(function() {
+            var pre = this;
+            $(pre).off('scroll.autofollow').on('scroll.autofollow', function() {
+              var atBottom = (pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20);
+              if (atBottom) {
+                that.autoFollow = true;
+              } else {
+                that.autoFollow = false;
+              }
+              that._updateFollowButton();
+              // Toggle go-to-bottom button visibility
+              var gotoBtn = $(pre).closest('.piko-step-row-body').find('.piko-goto-bottom-btn');
+              if (pre.scrollHeight > pre.clientHeight && !atBottom) {
+                gotoBtn.addClass('visible');
+              } else {
+                gotoBtn.removeClass('visible');
+              }
+            });
+          });
         },
         render: function () {
           var data = this.model.toJSON()
@@ -1716,11 +1812,22 @@
               }
             });
           }
-          var runningPre = this.$el.find('.piko-step-row-body:visible pre').last();
-          if (runningPre.length) {
-            runningPre[0].scrollTop = runningPre[0].scrollHeight;
+          // Auto-scroll if follow mode is on
+          if (this.autoFollow) {
+            var runningPre = this.$el.find('.piko-step-row-body:visible pre').last();
+            if (runningPre.length) {
+              var el = runningPre[0];
+              requestAnimationFrame(function() { el.scrollTop = el.scrollHeight; });
+            }
           }
+          this._updateFollowButton();
+          this._startElapsedTimers();
+          this._setupScrollListeners();
           return this; // enable chained calls
+        },
+        remove: function() {
+          if (this._elapsedInterval) clearInterval(this._elapsedInterval);
+          Backbone.View.prototype.remove.call(this);
         },
       })
       app.ResourceVersionsView = Backbone.View.extend({
