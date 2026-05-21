@@ -31,7 +31,7 @@
   --status-succeeded: #00A83A;
   --status-failed:    #FF004D;
   --status-started:   #FFA300;
-  --status-cancelled: #83769C;
+  --status-cancelled: #AB5236;
   --status-pending:   #83769C;
 
   --font-body:     'Plus Jakarta Sans', system-ui, sans-serif;
@@ -646,11 +646,11 @@ textarea.form-control {
 .piko-badge-succeeded { background: #d0f5d8; color: #007a2b; }
 .piko-badge-failed { background: #ffe0e8; color: #cc003e; }
 .piko-badge-started { background: #fff0d0; color: #9a7000; }
-.piko-badge-cancelled { background: #e8e0f0; color: #5F574F; }
+.piko-badge-cancelled { background: #f5e6df; color: #8A3F2B; }
 [data-theme="dark"] .piko-badge-succeeded { background: rgba(0,168,58,0.15); color: #00E436; }
 [data-theme="dark"] .piko-badge-failed { background: rgba(255,0,77,0.15); color: #FF77A8; }
 [data-theme="dark"] .piko-badge-started { background: rgba(255,163,0,0.15); color: #FFA300; }
-[data-theme="dark"] .piko-badge-cancelled { background: rgba(131,118,156,0.15); color: #AB9FC7; }
+[data-theme="dark"] .piko-badge-cancelled { background: rgba(171,82,54,0.15); color: #D4845E; }
 
 /* ============================================================
    VERSION ROWS (Resource versions)
@@ -682,7 +682,7 @@ textarea.form-control {
 .status-succeeded { background-color: #00A83A !important; }
 .status-failed    { background-color: #FF004D !important; }
 .status-started   { background-color: #FFA300 !important; }
-.status-cancelled { background-color: #83769C !important; }
+.status-cancelled { background-color: #AB5236 !important; }
 
 /* ============================================================
    LOGIN PAGE

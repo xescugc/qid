@@ -279,6 +279,10 @@
           Running
         </span>
         <span class="piko-graph-legend-item">
+          <span class="piko-graph-legend-swatch" style="background:var(--status-cancelled);"></span>
+          Cancelled
+        </span>
+        <span class="piko-graph-legend-item">
           <span class="piko-graph-legend-swatch" style="background:#83769C;"></span>
           No builds
         </span>
@@ -399,7 +403,7 @@
             <span class="piko-badge piko-badge-cancelled">Cancelled</span>
           <% } %>
           <% if (status === "started") { %>
-            <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" data-build-id="<%- id %>">
+            <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" style="margin-left:auto;" data-build-id="<%- id %>">
               <i class="bi bi-x-circle"></i> Cancel
             </button>
           <% } %>

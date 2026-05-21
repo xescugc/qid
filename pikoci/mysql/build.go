@@ -98,7 +98,7 @@ func (r *BuildRepository) Find(ctx context.Context, tc, pn, jn string, bID uint3
 			ON j.pipeline_id = p.id
 		JOIN teams AS t
 			ON p.team_id = t.id
-		WHERE tc.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
+		WHERE t.canonical = ? AND p.name = ? AND j.name = ? AND b.id = ?
 	`, tc, pn, jn, bID)
 
 	j, err := scanBuild(row)

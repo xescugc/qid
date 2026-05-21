@@ -25,6 +25,12 @@ job "gen" {
   get "cron" "my_cron" {
     trigger = true
   }
+  task "sleep" {
+    run "exec" {
+      path = "sleep"
+      args = ["60"]
+    }
+  }
   task "echo" {
     run "exec" {
       path = "echo"

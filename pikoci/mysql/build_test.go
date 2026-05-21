@@ -10,6 +10,31 @@ import (
 	"github.com/xescugc/pikoci/pikoci/mysql"
 )
 
+func TestFind(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	res, err := db.ExecContext(ctx, `INSERT INTO pipelines (team_id, name) VALUES (1, 'find-pipe')`)
+	require.NoError(t, err)
+	ppID, _ := res.LastInsertId()
+
+	res, err = db.ExecContext(ctx, `INSERT INTO jobs (pipeline_id, name) VALUES (?, 'build')`, ppID)
+	require.NoError(t, err)
+	jobID, _ := res.LastInsertId()
+
+	now := time.Now().Round(0).UTC()
+	res, err = db.ExecContext(ctx, `INSERT INTO builds (job_id, status, started_at) VALUES (?, 'started', ?)`, jobID, now)
+	require.NoError(t, err)
+	buildID, _ := res.LastInsertId()
+
+	br := mysql.NewBuildRepository(db)
+
+	b, err := br.Find(ctx, "main", "find-pipe", "build", uint32(buildID))
+	require.NoError(t, err)
+	assert.Equal(t, uint32(buildID), b.ID)
+	assert.Equal(t, "started", b.Status.String())
+}
+
 func TestInsertGetVersion(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
