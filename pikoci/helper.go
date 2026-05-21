@@ -66,11 +66,12 @@ type hclPutStep struct {
 
 // hclJob is the intermediate HCL-decoded job with separate get/task/put arrays.
 type hclJob struct {
-	Name    string           `hcl:"name,label"`
-	Get     []hclGetStep     `hcl:"get,block"`
-	Task    []hclTaskStep    `hcl:"task,block"`
-	Put     []hclPutStep     `hcl:"put,block"`
-	Service []hclServiceRef  `hcl:"service,block"`
+	Name        string          `hcl:"name,label"`
+	Concurrency int             `hcl:"concurrency,optional"`
+	Get         []hclGetStep    `hcl:"get,block"`
+	Task        []hclTaskStep   `hcl:"task,block"`
+	Put         []hclPutStep    `hcl:"put,block"`
+	Service     []hclServiceRef `hcl:"service,block"`
 
 	Remain hcl.Body `hcl:",remain"` // absorbs hook blocks; parsed by parseHooks from AST
 }
@@ -496,13 +497,17 @@ func (q *PikoCI) readPipeline(ctx context.Context, rpp []byte, vars map[string]i
 	}
 
 	for _, hj := range hp.Jobs {
+		if hj.Concurrency < 0 {
+			return nil, fmt.Errorf("job %q: concurrency must be >= 0", hj.Name)
+		}
 		jh := jobHooksMap[hj.Name]
 		j := job.Job{
-			Name:      hj.Name,
-			Plan:      jobPlans[hj.Name],
-			OnSuccess: jh.OnSuccess,
-			OnFailure: jh.OnFailure,
-			Ensure:    jh.Ensure,
+			Name:        hj.Name,
+			Concurrency: hj.Concurrency,
+			Plan:        jobPlans[hj.Name],
+			OnSuccess:   jh.OnSuccess,
+			OnFailure:   jh.OnFailure,
+			Ensure:      jh.Ensure,
 		}
 		pp.Jobs = append(pp.Jobs, j)
 	}

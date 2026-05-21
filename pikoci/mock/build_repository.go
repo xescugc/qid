@@ -42,6 +42,21 @@ func (m *BuildRepository) EXPECT() *BuildRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CountRunning mocks base method.
+func (m *BuildRepository) CountRunning(ctx context.Context, tc, pn, jn string) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountRunning", ctx, tc, pn, jn)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountRunning indicates an expected call of CountRunning.
+func (mr *BuildRepositoryMockRecorder) CountRunning(ctx, tc, pn, jn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountRunning", reflect.TypeOf((*BuildRepository)(nil).CountRunning), ctx, tc, pn, jn)
+}
+
 // Create mocks base method.
 func (m *BuildRepository) Create(ctx context.Context, tc, pn, jn string, b build.Build) (uint32, string, error) {
 	m.ctrl.T.Helper()

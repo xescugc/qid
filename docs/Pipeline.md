@@ -192,6 +192,24 @@ The `ready_check` block accepts `interval` (default `"1s"`) and `timeout` (defau
 
 Jobs contain a plan of steps executed in order. Each step is one of `get`, `task`, `put`, or `service`.
 
+The optional `concurrency` attribute limits how many builds of the job can run simultaneously. When the limit is reached, new builds are re-queued and wait until a slot frees up. The default value `0` means unlimited.
+
+```hcl
+job "deploy" {
+  concurrency = 1
+
+  get "git" "my_repo" {
+    trigger = true
+  }
+
+  task "deploy" {
+    run "exec" {
+      path = "./deploy.sh"
+    }
+  }
+}
+```
+
 ```hcl
 job "build" {
   get "git" "my_repo" {

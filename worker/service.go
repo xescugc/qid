@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -164,6 +165,17 @@ func (w *Worker) processJob(ctx context.Context, m queue.Body, cwd string, pp *p
 		nb, err = w.pikoci.CreateJobBuild(ctx, m.TeamCanonical, m.PipelineName, m.JobName, b)
 	}
 	if err != nil {
+		if errors.Is(err, pikoci.ErrConcurrencyLimit) {
+			w.logger.Info("job at concurrency limit, re-queuing",
+				"pipeline", m.PipelineName, "job", m.JobName)
+			mb, _ := json.Marshal(m)
+			if err := w.topic.Send(ctx, &pubsub.Message{Body: mb}); err != nil {
+				w.logger.Error("failed to re-queue concurrency-limited build",
+					"pipeline", m.PipelineName, "job", m.JobName, "error", err)
+			}
+			time.Sleep(2 * time.Second)
+			return
+		}
 		w.logger.Error("failed create build", "pipeline", m.PipelineName, "job", m.JobName, "error", err)
 		return
 	}
