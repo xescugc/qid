@@ -1,14 +1,15 @@
 # CLI Reference
 
-PikoCI provides three top-level commands: `server`, `worker`, and `client`, plus a utility command `user-password`.
+PikoCI provides three top-level commands: `server`, `worker`, and `client`, plus utility commands `user-password` and `worker-token`.
 
 ## Global structure
 
 ```
-pikoci server   [flags]          # Start the server
-pikoci worker   [flags]          # Start a standalone worker
-pikoci client   [flags] <cmd>    # Interact with the API
-pikoci user-password [flags]     # Generate hashed passwords
+pikoci server       [flags]          # Start the server
+pikoci worker       [flags]          # Start a standalone worker
+pikoci client       [flags] <cmd>    # Interact with the API
+pikoci user-password [flags]         # Generate hashed passwords
+pikoci worker-token  [flags]         # Generate a worker authentication token
 ```
 
 ## client
@@ -153,6 +154,21 @@ pikoci user-password -u myuser -p mypassword
 |------|-------|----------|-------------|
 | `--username` | `-u` | **yes** | Username |
 | `--password` | `-p` | **yes** | Plain-text password |
+
+## worker-token
+
+Generate a pre-signed worker authentication token. This avoids distributing the raw JWT secret to worker machines.
+
+```bash
+pikoci worker-token --jwt-secret my-secret
+# Output: eyJhbG...
+```
+
+| Flag | Default | Required | Description |
+|------|---------|----------|-------------|
+| `--jwt-secret` | | **yes** | JWT secret used by the server |
+
+The server also logs a worker token on startup when `--run-worker=false`.
 
 ## server
 

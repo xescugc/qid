@@ -127,11 +127,14 @@ watch -n2 'pikoci client -u localhost:8080 pipelines graph -n my-pipeline | dot 
 For production setups, run the server and workers as separate processes on different machines:
 
 ```bash
-# Server
+# Server (logs a worker token on startup)
 ./pikoci server --db-system mysql --pubsub-system nats --jwt-secret my-secret --run-worker=false
 
+# Generate a worker token (or copy from server logs)
+./pikoci worker-token --jwt-secret my-secret
+
 # Worker, can run anywhere with access to the server
-./pikoci worker --pikoci-url http://your-server:8080 --pubsub-system nats --jwt-secret my-secret
+./pikoci worker --pikoci-url http://your-server:8080 --pubsub-system nats --worker-token <token>
 ```
 
 Full server and worker configuration options are covered in the [documentation](https://github.com/xescugc/pikoci/wiki/Server).

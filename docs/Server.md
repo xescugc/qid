@@ -97,6 +97,8 @@ pikoci server \
   --run-worker=false
 ```
 
+When `--run-worker=false`, the server logs a pre-generated worker token on startup. Copy this token to configure standalone workers with `--worker-token`. See [Running Workers Separately](Workers).
+
 ### Load a pipeline at startup
 
 ```bash

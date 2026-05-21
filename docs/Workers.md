@@ -22,11 +22,11 @@ The server publishes jobs to a queue. Workers subscribe, execute the jobs, and r
 
 - A non-memory queue backend (`nats`, `rabbit`, or `kafka`). The `mem` backend only works within a single process.
 - Workers must be able to reach the server URL and the queue backend.
-- Workers must use the same `--jwt-secret` as the server.
+- Workers need a worker token for authentication. Generate one with `pikoci worker-token --jwt-secret <secret>` or copy it from the server startup logs.
 
 ## Server setup
 
-Disable the embedded worker:
+Disable the embedded worker. The server logs a worker token on startup that you can copy for worker config:
 
 ```bash
 pikoci server \
@@ -39,6 +39,14 @@ pikoci server \
   --db-name pikoci \
   --pubsub-system nats \
   --run-worker=false
+# Server logs: Worker token for standalone workers token=eyJhbG...
+```
+
+Or generate a token manually:
+
+```bash
+pikoci worker-token --jwt-secret my-secret
+# Output: eyJhbG...
 ```
 
 ## Worker setup
@@ -47,7 +55,7 @@ pikoci server \
 pikoci worker \
   --pikoci-url http://server:8080 \
   --pubsub-system nats \
-  --jwt-secret my-secret \
+  --worker-token eyJhbG... \
   --concurrency 4
 ```
 
@@ -60,7 +68,7 @@ pikoci worker \
 | `--concurrency` | | `1` | no | Number of parallel job goroutines |
 | `--drain-timeout` | | `10m` | no | Max time to wait for in-flight jobs during graceful shutdown (`SIGQUIT`) |
 | `--log-level` | | `info` | no | Log level: `debug`, `info`, `warn`, `error` |
-| `--jwt-secret` | | | **yes** | Must match the server's `--jwt-secret` |
+| `--worker-token` | | | **yes** | Worker authentication token (from `pikoci worker-token` or server startup logs) |
 | `--config` | `-c` | | no | Path to a config file |
 
 ## Environment variables
@@ -70,7 +78,7 @@ Worker flags can be set via environment variables:
 ```bash
 export PIKOCI_URL=http://server:8080
 export PUBSUB_SYSTEM=nats
-export JWT_SECRET=my-secret
+export WORKER_TOKEN=eyJhbG...
 export CONCURRENCY=4
 ```
 
@@ -80,10 +88,10 @@ Run multiple worker instances to increase throughput. Each worker independently 
 
 ```bash
 # Machine A
-pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --jwt-secret my-secret --concurrency 2
+pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --worker-token eyJhbG... --concurrency 2
 
 # Machine B
-pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --jwt-secret my-secret --concurrency 4
+pikoci worker --pikoci-url http://server:8080 --pubsub-system nats --worker-token eyJhbG... --concurrency 4
 ```
 
 ## Signal handling

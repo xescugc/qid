@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `pikoci worker-token` subcommand and `--worker-token` flag on the worker so standalone workers no longer need the raw JWT secret. The server logs a pre-generated worker token on startup when `--run-worker=false`. The `--jwt-secret` flag has been removed from the worker command ([#270](https://github.com/xescugc/pikoci/issues/270))
 - Add job cancellation via DB polling: cancel running builds from the UI or API with `POST .../builds/{id}/cancel`. The worker polls every 5s and cancels the Go context, killing child processes. on_failure and ensure hooks still run after cancellation ([#271](https://github.com/xescugc/pikoci/issues/271))
 - Add `inputs` and `outputs` on task steps: declarative filesystem checks that validate required paths exist before a task runs (inputs) and after it finishes (outputs), providing clear error messages instead of confusing script failures ([#177](https://github.com/xescugc/pikoci/issues/177))
 - Add live status toggle on pipelines list view: a "Live" toggle next to the heading enables periodic polling of pipeline graph images so status dots update without reloading the page. Toggle state persists via localStorage ([#282](https://github.com/xescugc/pikoci/issues/282))
