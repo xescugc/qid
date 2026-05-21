@@ -403,7 +403,7 @@ func TestUpdateJobBuild(t *testing.T) {
 	c, err := client.New(ts.URL, "jwt")
 	require.NoError(t, err)
 
-	err = c.UpdateJobBuild(context.Background(), "team", "pipe", "job1", 1, build.Build{})
+	err = c.UpdateJobBuild(context.Background(), "team", "pipe", "job1", "1", build.Build{})
 	require.NoError(t, err)
 }
 
@@ -418,7 +418,7 @@ func TestDeleteJobBuild(t *testing.T) {
 	c, err := client.New(ts.URL, "jwt")
 	require.NoError(t, err)
 
-	err = c.DeleteJobBuild(context.Background(), "team", "pipe", "job1", 1)
+	err = c.DeleteJobBuild(context.Background(), "team", "pipe", "job1", "1")
 	require.NoError(t, err)
 }
 

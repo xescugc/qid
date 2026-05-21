@@ -119,7 +119,7 @@ Inside service commands (`start`, `ready_check`, `stop`), PikoCI exposes:
 
 | Variable               | Description                                    |
 |------------------------|------------------------------------------------|
-| `$BUILD_ID`            | Unique ID of the current build                 |
+| `$BUILD_NUMBER`        | Sequential build number for the current job    |
 | `$BUILD_JOB_NAME`      | Name of the job                                |
 | `$BUILD_PIPELINE_NAME` | Name of the pipeline                           |
 | `$WORKDIR`             | Temporary working directory for the job        |
@@ -141,7 +141,7 @@ If a worker crashes or restarts mid-job, the `stop` block never runs. Docker con
 
 **The solution: stable container names + pre-start cleanup.**
 
-Use a container name derived from `$BUILD_PIPELINE_NAME` and `$BUILD_JOB_NAME` instead of `$BUILD_ID`. These are stable across runs. Always run cleanup at the top of the `start` block before starting the new container:
+Use a container name derived from `$BUILD_PIPELINE_NAME` and `$BUILD_JOB_NAME` instead of `$BUILD_NUMBER`. These are stable across runs. Always run cleanup at the top of the `start` block before starting the new container:
 
 ```bash
 NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-postgres"
@@ -156,7 +156,7 @@ NAME="pikoci-${BUILD_PIPELINE_NAME}-${BUILD_JOB_NAME}-postgres"
 docker rm -f $NAME 2>/dev/null || true
 ```
 
-**Trade-off:** With stable names, only one instance of the service can run per pipeline/job combination at a time. If two builds of the same job run in parallel, the second one will kill the first's container. For most integration test use cases this is acceptable. If you need parallel isolation, append `$BUILD_ID` to the name and accept the orphan risk.
+**Trade-off:** With stable names, only one instance of the service can run per pipeline/job combination at a time. If two builds of the same job run in parallel, the second one will kill the first's container. For most integration test use cases this is acceptable. If you need parallel isolation, append `$BUILD_NUMBER` to the name and accept the orphan risk.
 
 ## Examples
 

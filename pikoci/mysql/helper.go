@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -54,4 +55,16 @@ func toNullInt64(i int) sql.NullInt64 {
 // toNullTime returns sql.NullTIme. The time is considered valid if it's not equal Zero.
 func toNullTime(t time.Time) sql.NullTime {
 	return sql.NullTime{Time: t, Valid: !t.IsZero()}
+}
+
+// isUniqueViolation checks if an error is a unique constraint violation
+// across SQLite, MySQL, and PostgreSQL.
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "UNIQUE constraint failed") || // SQLite
+		strings.Contains(msg, "Duplicate entry") || // MySQL
+		strings.Contains(msg, "duplicate key value") // PostgreSQL
 }

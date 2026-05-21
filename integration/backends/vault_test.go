@@ -137,7 +137,7 @@ func TestSecretsVaultE2E(t *testing.T) {
 	jr := mysql.NewJobRepository(db)
 	rr := mysql.NewResourceRepository(db, mysql.Mem)
 	rt := mysql.NewResourceTypeRepository(db)
-	br := mysql.NewBuildRepository(db)
+	br := mysql.NewBuildRepository(db, mysql.Mem)
 	rur := mysql.NewRunnerRepository(db)
 	str := mysql.NewSecretTypeRepository(db)
 	suow := unitwork.NewStartUnitOfWork(db, mysql.Mem)

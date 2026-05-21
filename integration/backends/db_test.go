@@ -177,14 +177,15 @@ func TestDBBackends(t *testing.T) {
 			})
 
 			t.Run("BuildRepository", func(t *testing.T) {
-				br := mysql.NewBuildRepository(setup.querier)
+				br := mysql.NewBuildRepository(setup.querier, system)
 
 				// Create a build
-				bID, err := br.Create(ctx, "main", "test-pipeline", "test-job", build.Build{
+				bID, bn, err := br.Create(ctx, "main", "test-pipeline", "test-job", build.Build{
 					Status: build.Started,
 				})
 				require.NoError(t, err)
 				assert.NotZero(t, bID)
+				assert.Equal(t, "1", bn)
 
 				// Filter builds
 				builds, err := br.Filter(ctx, "main", "test-pipeline", "test-job")

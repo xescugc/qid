@@ -377,7 +377,7 @@
     </script>
 
     <script type="text/template" id="job-builds-tab-view">
-      #<%- id %>
+      #<%- build_number %>
       <span class="piko-tab-status"></span>
     </script>
 
@@ -403,7 +403,7 @@
             <span class="piko-badge piko-badge-cancelled">Cancelled</span>
           <% } %>
           <% if (status === "started") { %>
-            <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" style="margin-left:auto;" data-build-id="<%- id %>">
+            <button type="button" class="btn btn-sm btn-outline-danger piko-cancel-build" style="margin-left:auto;" data-build-number="<%- build_number %>">
               <i class="bi bi-x-circle"></i> Cancel
             </button>
           <% } %>
@@ -739,7 +739,7 @@
         },
       });
       app.Build = Backbone.Model.extend({
-        idAttribute: "id",
+        idAttribute: "build_number",
         parse: function(response) {
           if (response.data){
             return response.data
@@ -862,14 +862,11 @@
           return builds
         },
         setActive: function(id) {
-          // We make the id an int in case it comes
-          // from the URL which it's a string
-          id = id*1
           if (!id && this.first()) {
-            id = this.first().get("id")
+            id = this.first().get("build_number")
           }
           this.each(function(m){
-            m.set("active", m.get("id") == id)
+            m.set("active", m.get("build_number") === id)
           })
           return id
         },
@@ -1596,7 +1593,7 @@
         addBuild: function(m) {
           var tab = new app.JobBuildsTabView({model: m})
           var cont = new app.JobBuildsContentView({model: m})
-          var append = this.collection.first().get("id")>m.get("id")
+          var append = parseInt(this.collection.first().get("build_number"), 10)>parseInt(m.get("build_number"), 10)
           if (append) {
             $('#builds-tabs').append(tab.render().el);
             $('#builds-content').append(cont.render().el);
@@ -1625,7 +1622,7 @@
         attributes: function() {
           return {
             class: "piko-build-tab",
-            id: "t-"+this.model.get("id"),
+            id: "t-"+this.model.get("build_number"),
           }
         },
         initialize: function(opts) {
@@ -1650,7 +1647,7 @@
       app.JobBuildsContentView = Backbone.View.extend({
         className: "piko-build-content",
         attributes: function() {
-          return { id: "c-"+this.model.get("id") }
+          return { id: "c-"+this.model.get("build_number") }
         },
         template: _.template($('#job-builds-content-view').html()),
         events: {
@@ -1661,7 +1658,7 @@
         },
         cancelBuild: function(e) {
           e.preventDefault();
-          var bid = this.model.get("id");
+          var bid = this.model.get("build_number");
           var url = this.model.collection.url() + "/" + bid + "/cancel.json";
           $.ajax({ url: url, type: "POST", headers: { "Authorization": "Bearer " + app.session.get("jwt") } });
         },

@@ -15,11 +15,12 @@ func TestCreateJobBuild(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
-	s.Builds.EXPECT().Create(ctx, "main", "my-pipeline", "my-job", gomock.Any()).Return(uint32(1), nil)
+	s.Builds.EXPECT().Create(ctx, "main", "my-pipeline", "my-job", gomock.Any()).Return(uint32(1), "1", nil)
 
 	b, err := s.S.CreateJobBuild(ctx, "main", "my-pipeline", "my-job", build.Build{Status: build.Started})
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1), b.ID)
+	assert.Equal(t, "1", b.BuildNumber)
 }
 
 func TestCreateJobBuild_InvalidCanonical(t *testing.T) {
@@ -44,8 +45,8 @@ func TestListJobBuilds(t *testing.T) {
 
 	// Builds returned in ascending order from DB, reversed by service
 	s.Builds.EXPECT().Filter(ctx, "main", "my-pipeline", "my-job").Return([]*build.Build{
-		{ID: 1, Status: build.Succeeded},
-		{ID: 2, Status: build.Started},
+		{ID: 1, BuildNumber: "1", Status: build.Succeeded},
+		{ID: 2, BuildNumber: "2", Status: build.Started},
 	}, nil)
 
 	builds, err := s.S.ListJobBuilds(ctx, "main", "my-pipeline", "my-job")
@@ -61,10 +62,10 @@ func TestUpdateJobBuild(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
-	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", uint32(1)).Return(&build.Build{Status: build.Started}, nil)
-	s.Builds.EXPECT().Update(ctx, "main", "my-pipeline", "my-job", uint32(1), gomock.Any()).Return(nil)
+	s.Builds.EXPECT().Find(ctx, "main", "my-pipeline", "my-job", "1").Return(&build.Build{Status: build.Started}, nil)
+	s.Builds.EXPECT().Update(ctx, "main", "my-pipeline", "my-job", "1", gomock.Any()).Return(nil)
 
-	err := s.S.UpdateJobBuild(ctx, "main", "my-pipeline", "my-job", 1, build.Build{Status: build.Succeeded})
+	err := s.S.UpdateJobBuild(ctx, "main", "my-pipeline", "my-job", "1", build.Build{Status: build.Succeeded})
 	require.NoError(t, err)
 }
 
@@ -73,8 +74,8 @@ func TestDeleteJobBuild(t *testing.T) {
 	s := newService(ctrl)
 	ctx := context.TODO()
 
-	s.Builds.EXPECT().Delete(ctx, "main", "my-pipeline", "my-job", uint32(1)).Return(nil)
+	s.Builds.EXPECT().Delete(ctx, "main", "my-pipeline", "my-job", "1").Return(nil)
 
-	err := s.S.DeleteJobBuild(ctx, "main", "my-pipeline", "my-job", 1)
+	err := s.S.DeleteJobBuild(ctx, "main", "my-pipeline", "my-job", "1")
 	require.NoError(t, err)
 }
